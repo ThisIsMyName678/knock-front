@@ -1,20 +1,42 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react'
+import { StyleSheet, View, FlatList, Text } from 'react-native'
+import { supabase } from './lib/supabase'
 
 export default function App() {
+  const [instruments, setInstruments] = useState<any[]>([])
+
+  useEffect(() => {
+    getInstruments()
+  }, [])
+
+  async function getInstruments() {
+    const { data } = await supabase.from('instruments').select()
+    setInstruments(data || [])
+  }
+
   return (
     <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
+      <FlatList
+        data={instruments}
+        keyExtractor={(item: any) => item.id.toString()}
+        renderItem={({ item }) => (
+          <Text style={styles.item}>{item.instrument_name}</Text>
+        )}
+      />
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: 50,
+    paddingHorizontal: 16,
   },
-});
+  item: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+})
