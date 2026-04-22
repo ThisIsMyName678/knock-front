@@ -49,7 +49,7 @@ const TYPE_FILTER_OPTIONS: { key: ContractTypeFilter; label: string }[] = [
   { key: 'all', label: 'כל הסוגים' },
   { key: 'rent', label: 'שכירות' },
   { key: 'purchase', label: 'רכישה' },
-  { key: 'supplier_work', label: 'עבודה עם ספק' },
+  { key: 'supplier_work', label: 'הסכם עבודה עם ספק' },
   { key: 'other', label: 'אחר' },
 ];
 
@@ -137,6 +137,12 @@ export function ContractsListScreen() {
       </View>
 
       <View style={styles.toolbar}>
+        <AppText variant="labelMd" weight="bold" style={styles.toolbarTitle}>
+          חיפוש וסינון
+        </AppText>
+        <AppText variant="caption" color="variant" style={styles.toolbarSubtitle}>
+          חיפוש חופשי · סינון לפי נכס או פרויקט · סוג חוזה · ייצוא · מיון עמודות
+        </AppText>
         <View style={styles.searchRow}>
           <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
           <TextInput
@@ -234,6 +240,10 @@ export function ContractsListScreen() {
           ))}
         </ScrollView>
       </View>
+
+      <AppText variant="caption" color="variant" style={styles.sortHint}>
+        לחיצה על כותרת עמודה משנה את סדר המיון (עולה / יורד)
+      </AppText>
 
       {/* Table header */}
       <View style={styles.tableHeader}>
@@ -361,6 +371,18 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineVariant,
     paddingBottom: Spacing.sm,
   },
+  toolbarTitle: {
+    textAlign: 'right',
+    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
+    marginTop: Spacing.md,
+    marginBottom: 2,
+    color: Colors.onBackground,
+  },
+  toolbarSubtitle: {
+    textAlign: 'right',
+    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
+    marginBottom: Spacing.sm,
+  },
   searchRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
@@ -400,6 +422,13 @@ const styles = StyleSheet.create({
   chipActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
+  },
+  sortHint: {
+    textAlign: 'right',
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingTop: Spacing.xs,
+    paddingBottom: 2,
+    backgroundColor: Colors.surface,
   },
   tableHeader: {
     flexDirection: 'row-reverse',

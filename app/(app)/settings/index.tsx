@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
+import { DrawerMenu } from '@/components/ui/DrawerMenu';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 
 type SettingItem = { label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; route?: string; danger?: boolean };
@@ -42,11 +43,15 @@ const SECTIONS: { title: string; items: SettingItem[] }[] = [
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">הגדרות</AppText>
+        <Pressable onPress={() => setDrawerOpen(true)} style={styles.menuBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
+          <MaterialCommunityIcons name="menu" size={24} color={Colors.onPrimary} />
+        </Pressable>
+        <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ flex: 1, textAlign: 'right' }}>הגדרות</AppText>
       </View>
 
       {/* Profile card */}
@@ -64,6 +69,7 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
+        <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
         {SECTIONS.map((section, si) => (
           <View key={si} style={{ gap: 0 }}>
             {section.title ? (
@@ -100,7 +106,8 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: { backgroundColor: Colors.primary, paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingBottom: Spacing.base, paddingTop: Spacing.sm, ...Shadow.md },
+  header: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.primary, paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingBottom: Spacing.base, paddingTop: Spacing.sm, ...Shadow.md },
+  menuBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   profileCard: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.primary, paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingBottom: Spacing.xl },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   editBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },

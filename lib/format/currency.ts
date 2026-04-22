@@ -27,3 +27,14 @@ export function parseGroupedToInt(grouped: string): number {
   const n = parseInt(parseAmountDigits(grouped), 10);
   return Number.isNaN(n) ? 0 : n;
 }
+
+/**
+ * מעצב רצפי ספרות במחרוזת (למשל "3000 מתוך 10000" → עם פסיקים).
+ * לא משנה תאריכי DD/MM/YYYY כיון שהם קצרים מדי או מופרדים ב־/.
+ */
+export function formatDigitRunsInText(text: string): string {
+  return text.replace(/\d{4,}/g, (match) => {
+    const n = parseInt(match, 10);
+    return Number.isNaN(n) ? match : formatIlsInteger(n);
+  });
+}

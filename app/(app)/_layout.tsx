@@ -77,7 +77,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 export default function AppLayout() {
   return (
     <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={() => null}
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" />

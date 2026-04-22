@@ -239,6 +239,11 @@ export function TaskCreateForm() {
               </AppText>
               <Switch value={assigneeHasUser} onValueChange={setAssigneeHasUser} />
             </View>
+            {!assigneeHasUser ? (
+              <AppText variant="caption" color="primary" style={{ textAlign: 'right', marginTop: Spacing.xs }}>
+                ללא משתמש — ניתן להזמין את אותו אדם כשוכר או עובד בלינק מותאם (אייקון הקישור בשורת הכותרת).
+              </AppText>
+            ) : null}
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
               קישור לתשלום (אופציונלי)

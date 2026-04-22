@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   ScrollView,
@@ -9,7 +9,7 @@ import {
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -45,6 +45,7 @@ import {
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+import { DrawerMenu } from '@/components/ui/DrawerMenu';
 
 type ScopeFilter = 'all' | 'by_asset' | 'by_project';
 
@@ -69,7 +70,7 @@ const PRIORITY_OPTIONS: { key: TaskPriorityFilter; label: string }[] = [
 
 const STATUS_TABS: { key: TaskStatusTab; label: string }[] = [
   { key: 'all', label: 'הכל' },
-  { key: 'in_progress', label: 'בטיפול' },
+  { key: 'in_progress', label: 'בתהליך' },
   { key: 'open', label: 'פתוחות' },
   { key: 'completed', label: 'הושלמו' },
   { key: 'urgent', label: 'דחופות' },
@@ -102,8 +103,26 @@ function iconName(kind: TaskKind): React.ComponentProps<typeof MaterialCommunity
   return TASK_KIND_ICONS[kind] as React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 }
 
+function paramStr(v: string | string[] | undefined): string {
+  if (v === undefined) return '';
+  return Array.isArray(v) ? (v[0] ?? '') : v;
+}
+
+const WORKFLOW_PARAM_VALUES: WorkflowStatus[] = [
+  'not_started',
+  'open',
+  'in_progress',
+  'completed',
+  'cancelled',
+];
+
 export function TasksListScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    assignee?: string;
+    workflowStatus?: string;
+    statusTab?: string;
+  }>();
   const [rows, setRows] = useState<TaskListRow[]>(() => [...MOCK_TASKS_LIST]);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<ScopeFilter>('all');
@@ -112,11 +131,34 @@ export function TasksListScreen() {
   const [priority, setPriority] = useState<TaskPriorityFilter>('all');
   const [statusTab, setStatusTab] = useState<TaskStatusTab>('all');
   const [assignee, setAssignee] = useState<string | null>(null);
+  const [workflowStatusExact, setWorkflowStatusExact] = useState<WorkflowStatus | null>(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [sortKey, setSortKey] = useState<TaskSortKey>('dueDate');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [statusModalTaskId, setStatusModalTaskId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    const w = paramStr(params.workflowStatus);
+    if (WORKFLOW_PARAM_VALUES.includes(w as WorkflowStatus)) {
+      setWorkflowStatusExact(w as WorkflowStatus);
+    } else {
+      setWorkflowStatusExact(null);
+    }
+  }, [params.workflowStatus]);
+
+  useEffect(() => {
+    const a = paramStr(params.assignee);
+    if (a) setAssignee(a);
+  }, [params.assignee]);
+
+  useEffect(() => {
+    const st = paramStr(params.statusTab);
+    if (st === 'all' || st === 'in_progress' || st === 'open' || st === 'completed' || st === 'urgent') {
+      setStatusTab(st);
+    }
+  }, [params.statusTab]);
 
   const linkScope = linkScopeFromScope(scope);
 
@@ -132,8 +174,9 @@ export function TasksListScreen() {
         assignee,
         dateFrom,
         dateTo,
+        workflowStatusExact: workflowStatusExact ?? undefined,
       }),
-    [rows, search, taskKind, priority, statusTab, linkScope, entityId, assignee, dateFrom, dateTo],
+    [rows, search, taskKind, priority, statusTab, linkScope, entityId, assignee, dateFrom, dateTo, workflowStatusExact],
   );
 
   const sorted = useMemo(() => sortTaskRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
@@ -168,11 +211,38 @@ export function TasksListScreen() {
     <>
       <View style={styles.toolbar}>
         <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
+          חיפוש חופשי
+        </AppText>
+        <View style={styles.searchRow}>
+          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="כותרת, שיוך, עובד, סוג משימה..."
+            placeholderTextColor={Colors.onSurfaceMuted}
+            value={search}
+            onChangeText={setSearch}
+            textAlign="right"
+          />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')} hitSlop={8}>
+              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+            </Pressable>
+          )}
+        </View>
+
+        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
           סוג משימה
         </AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
           {TASK_KIND_OPTIONS.map((o) => (
-            <Pressable key={String(o.key)} onPress={() => setTaskKind(o.key)} style={[styles.chip, taskKind === o.key && styles.chipActive]} accessibilityRole="button">
+            <Pressable key={String(o.key)} onPress={() => setTaskKind(o.key)} style={[styles.chip, styles.chipWithIcon, taskKind === o.key && styles.chipActive]} accessibilityRole="button">
+              {o.key !== 'all' ? (
+                <MaterialCommunityIcons
+                  name={iconName(o.key as TaskKind)}
+                  size={18}
+                  color={taskKind === o.key ? Colors.onPrimary : Colors.primary}
+                />
+              ) : null}
               <AppText variant="labelMd" weight={taskKind === o.key ? 'bold' : 'regular'} style={{ color: taskKind === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
                 {o.label}
               </AppText>
@@ -257,23 +327,6 @@ export function TasksListScreen() {
           <TextInput style={styles.dateInput} placeholder="עד DD/MM/YYYY" placeholderTextColor={Colors.onSurfaceMuted} value={dateTo} onChangeText={setDateTo} textAlign="right" />
         </View>
 
-        <View style={styles.searchRow}>
-          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="חיפוש (כותרת, שיוך, עובד)..."
-            placeholderTextColor={Colors.onSurfaceMuted}
-            value={search}
-            onChangeText={setSearch}
-            textAlign="right"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
-            </Pressable>
-          )}
-        </View>
-
         <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
           תצוגה לפי סטטוס
         </AppText>
@@ -291,12 +344,14 @@ export function TasksListScreen() {
       {recentMine.length > 0 && (
         <View style={styles.recentBlock}>
           <AppText variant="labelMd" weight="bold" style={styles.recentTitle}>
-            משימות אחרונות שלי
+            משימות אחרונות המשויכות אליי
           </AppText>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>
             {recentMine.map((t) => (
               <Pressable key={t.id} onPress={() => router.push(`/(app)/tasks/${t.id}`)} style={styles.recentCard}>
-                <MaterialCommunityIcons name={iconName(t.taskKind)} size={20} color={Colors.primary} />
+                <View style={styles.recentIconWrap}>
+                  <MaterialCommunityIcons name={iconName(t.taskKind)} size={20} color={Colors.primary} />
+                </View>
                 <AppText variant="bodySm" weight="semiBold" numberOfLines={2} style={{ textAlign: 'right', marginTop: 4 }}>
                   {t.title}
                 </AppText>
@@ -332,9 +387,17 @@ export function TasksListScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">
-          משימות
-        </AppText>
+        <Pressable onPress={() => setDrawerOpen(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
+          <MaterialCommunityIcons name="menu" size={24} color={Colors.onPrimary} />
+        </Pressable>
+        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ textAlign: 'right' }}>
+            משימות
+          </AppText>
+          <AppText variant="caption" color="onPrimary" style={{ opacity: 0.88, textAlign: 'right', marginTop: 2 }}>
+            כל הנכסים והפרויקטים · כל סוגי המשימות
+          </AppText>
+        </View>
         <Pressable onPress={() => router.push('/(app)/tasks/new')} style={styles.addBtn} accessibilityRole="button">
           <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
         </Pressable>
@@ -366,7 +429,9 @@ export function TasksListScreen() {
             <View style={styles.cardInner}>
               <Pressable onPress={() => router.push(`/(app)/tasks/${item.id}`)} style={styles.cardMain} accessibilityRole="button">
                 <View style={styles.taskRow}>
-                  <MaterialCommunityIcons name={iconName(item.taskKind)} size={24} color={Colors.primary} />
+                  <View style={styles.listKindIcon}>
+                    <MaterialCommunityIcons name={iconName(item.taskKind)} size={22} color={Colors.primary} />
+                  </View>
                   <View style={{ flex: 1, gap: 6 }}>
                     <AppText variant="bodyMd" weight="semiBold" numberOfLines={2}>
                       {item.title}
@@ -425,6 +490,8 @@ export function TasksListScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </View>
   );
 }
@@ -473,6 +540,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipWithIcon: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.sm },
   searchRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
@@ -523,6 +591,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
     backgroundColor: Colors.surface,
+  },
+  recentIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${Colors.primary}18`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+  },
+  listKindIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: `${Colors.info}22`,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sortBar: {
     flexDirection: 'row-reverse',

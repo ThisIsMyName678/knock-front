@@ -132,14 +132,18 @@ export default function TaskDetailRoute() {
           <AppText variant="headingMd" weight="bold" color="onPrimary" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
             {isMaintenance ? 'קריאת תחזוקה' : 'פרטי משימה'}
           </AppText>
-          <Pressable
-            onPress={() => Alert.alert('לינק הזמנה (דמה)', MOCK_TASK_INVITE_URL)}
-            style={styles.iconBtn}
-            accessibilityRole="button"
-            accessibilityLabel="לינק הזמנה"
-          >
-            <MaterialCommunityIcons name="link-variant" size={22} color={Colors.onPrimary} />
-          </Pressable>
+          {!task.assigneeHasUser ? (
+            <Pressable
+              onPress={() => Alert.alert('לינק הזמנה (דמה)', MOCK_TASK_INVITE_URL)}
+              style={styles.iconBtn}
+              accessibilityRole="button"
+              accessibilityLabel="לינק הזמנה"
+            >
+              <MaterialCommunityIcons name="link-variant" size={22} color={Colors.onPrimary} />
+            </Pressable>
+          ) : (
+            <View style={styles.iconBtn} />
+          )}
         </View>
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
@@ -196,6 +200,14 @@ export default function TaskDetailRoute() {
                 </AppText>
               </View>
             ))}
+            {!task.assigneeHasUser ? (
+              <Pressable onPress={() => Alert.alert('לינק הזמנה (דמה)', MOCK_TASK_INVITE_URL)} style={styles.inviteRow}>
+                <MaterialCommunityIcons name="account-plus-outline" size={22} color={Colors.primary} />
+                <AppText variant="bodySm" color="primary" weight="semiBold" style={{ flex: 1, textAlign: 'right' }}>
+                  הזמנת אחראי כשוכר או עובד (לינק מותאם)
+                </AppText>
+              </Pressable>
+            ) : null}
             {linkedPayment && (
               <View style={styles.detailRow}>
                 <AppText variant="bodyMd" color="variant">
@@ -313,7 +325,7 @@ export default function TaskDetailRoute() {
               </AppText>
             </View>
             <ScrollView contentContainerStyle={{ padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.md }}>
-              {[...messages].reverse().map((m) => (
+              {messages.map((m) => (
                 <View key={m.id} style={styles.msgBubble}>
                   <View style={styles.msgHeader}>
                     <AppText variant="caption" color="muted">
@@ -426,6 +438,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
+  },
+  inviteRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineLight,
   },
   msgBubble: {
     padding: Spacing.md,

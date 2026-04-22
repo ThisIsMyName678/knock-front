@@ -7,40 +7,107 @@ import { AppText } from '@/components/ui/Text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 
-type Notif = { id: string; title: string; body: string; time: string; read: boolean; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; color: string };
+type Notif = {
+  id: string;
+  title: string;
+  body: string;
+  sentAt: string;
+  read: boolean;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  color: string;
+  route?: string;
+};
 
 const MOCK: Notif[] = [
-  { id: 'n1', title: 'תשלום התקבל', body: 'יוסי כהן שלח ₪7,200 — מגדלי הים', time: 'לפני שעה', read: false, icon: 'cash-check', color: Colors.success },
-  { id: 'n2', title: 'קריאת שירות חדשה', body: 'נפתחה קריאת תחזוקה — הרצל 10', time: 'לפני 3 ש׳', read: false, icon: 'hammer-wrench', color: Colors.warning },
-  { id: 'n3', title: 'חוזה עומד לפוג', body: 'חוזה דירה 7A יפוג ב-31/05/2024', time: 'אתמול', read: true, icon: 'file-sign', color: Colors.primary },
+  {
+    id: 'n1',
+    title: 'תשלום התקבל',
+    body: 'יוסי כהן שלח ₪7,200 — מגדלי הים',
+    sentAt: '22/04/2026 08:30',
+    read: false,
+    icon: 'cash-check',
+    color: Colors.success,
+    route: '/(app)/payments/pay1',
+  },
+  {
+    id: 'n2',
+    title: 'קריאת שירות חדשה',
+    body: 'נפתחה קריאת תחזוקה — הרצל 10',
+    sentAt: '21/04/2026 17:15',
+    read: false,
+    icon: 'hammer-wrench',
+    color: Colors.warning,
+    route: '/(app)/tasks/t1',
+  },
+  {
+    id: 'n3',
+    title: 'חוזה עומד לפוג',
+    body: 'חוזה דירה 7A יפוג ב-31/05/2026',
+    sentAt: '20/04/2026 11:00',
+    read: true,
+    icon: 'file-sign',
+    color: Colors.primary,
+    route: '/(app)/contracts/c1',
+  },
 ];
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
+
+  const onPress = (item: Notif) => {
+    if (item.route) router.push(item.route as any);
+  };
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button"><MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} /></Pressable>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">התראות</AppText>
-        <Pressable style={styles.iconBtn} accessibilityRole="button"><AppText variant="bodySm" color="onPrimary" weight="semiBold">נקה הכל</AppText></Pressable>
+        <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
+          <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
+        </Pressable>
+        <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ flex: 1, textAlign: 'right' }}>
+          התראות
+        </AppText>
+        <Pressable style={styles.iconBtn} accessibilityRole="button">
+          <AppText variant="bodySm" color="onPrimary" weight="semiBold">נקה הכל</AppText>
+        </Pressable>
       </View>
+
       <FlatList
         data={MOCK}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={<EmptyState title="אין התראות" icon={<MaterialCommunityIcons name="bell-outline" size={32} color={Colors.primary} />} style={{ flex: 1 }} />}
+        ListEmptyComponent={
+          <EmptyState
+            title="אין התראות"
+            icon={<MaterialCommunityIcons name="bell-outline" size={32} color={Colors.primary} />}
+            style={{ flex: 1 }}
+          />
+        }
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: Colors.outlineLight }} />}
         renderItem={({ item }) => (
-          <Pressable style={({ pressed }) => [styles.notifRow, !item.read && styles.unread, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+          <Pressable
+            onPress={() => onPress(item)}
+            style={({ pressed }) => [styles.notifRow, !item.read && styles.unread, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+          >
             {!item.read && <View style={styles.unreadDot} />}
             <View style={[styles.iconWrap, { backgroundColor: `${item.color}18` }]}>
               <MaterialCommunityIcons name={item.icon} size={22} color={item.color} />
             </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <AppText variant="bodyMd" weight={item.read ? 'regular' : 'bold'}>{item.title}</AppText>
-              <AppText variant="bodySm" color="variant" numberOfLines={2}>{item.body}</AppText>
-              <AppText variant="caption" color="muted">{item.time}</AppText>
+            <View style={{ flex: 1, gap: 3 }}>
+              <AppText variant="bodyMd" weight={item.read ? 'regular' : 'bold'} style={{ textAlign: 'right' }}>
+                {item.title}
+              </AppText>
+              <AppText variant="bodySm" color="variant" numberOfLines={2} style={{ textAlign: 'right' }}>
+                {item.body}
+              </AppText>
+              <View style={styles.timeRow}>
+                <MaterialCommunityIcons name="clock-outline" size={12} color={Colors.onSurfaceMuted} />
+                <AppText variant="caption" color="muted">{item.sentAt}</AppText>
+              </View>
             </View>
+            <MaterialCommunityIcons name="chevron-left" size={18} color={Colors.onSurfaceMuted} />
           </Pressable>
         )}
       />
@@ -50,11 +117,36 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.primary, paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingBottom: Spacing.base, paddingTop: Spacing.sm, ...Shadow.md },
+  header: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingBottom: Spacing.base,
+    paddingTop: Spacing.sm,
+    ...Shadow.md,
+  },
   iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  list: {},
-  notifRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: Spacing.md, padding: Spacing.base, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight, position: 'relative' },
+  list: { flexGrow: 1 },
+  notifRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.base,
+    backgroundColor: Colors.surface,
+    position: 'relative',
+  },
   unread: { backgroundColor: '#f0f5ff' },
-  unreadDot: { position: 'absolute', top: Spacing.base + 6, right: Spacing.xs, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  unreadDot: {
+    position: 'absolute',
+    top: Spacing.base + 6,
+    right: Spacing.xs,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+  },
   iconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  timeRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4 },
 });

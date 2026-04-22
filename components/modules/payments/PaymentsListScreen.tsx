@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   ScrollView,
@@ -7,9 +7,10 @@ import {
   TextInput,
   Share,
   FlatList,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -23,11 +24,13 @@ import {
   filterPaymentRows,
   sortPaymentRows,
   type PaymentListGroupFilter,
+  type PaymentListRow,
   type PaymentSortKey,
   type SortDir,
   type StatusBucket,
 } from '@/lib/mocks/payments';
-import { formatIlsInteger } from '@/lib/format/currency';
+import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
+import { DrawerMenu } from '@/components/ui/DrawerMenu';
 import {
   Colors,
   Spacing,
@@ -57,18 +60,18 @@ const GROUP_OPTIONS: { key: PaymentListGroupFilter; label: string }[] = [
 
 const STATUS_TABS: { key: StatusBucket | 'all'; label: string }[] = [
   { key: 'all', label: 'הכל' },
-  { key: 'future', label: 'עתידיים' },
-  { key: 'received', label: 'התקבלו' },
-  { key: 'overdue', label: 'באיחור' },
+  { key: 'future', label: 'תשלומים עתידיים' },
+  { key: 'received', label: 'תשלומים שהתקבלו' },
+  { key: 'overdue', label: 'תשלומים באיחור' },
 ];
 
 const COLUMNS: { key: PaymentSortKey; label: string; flex?: number }[] = [
-  { key: 'displayName', label: 'שם', flex: 1.1 },
-  { key: 'paymentType', label: 'סוג', flex: 0.75 },
-  { key: 'mode', label: 'אופן', flex: 0.65 },
-  { key: 'indexed', label: 'מדד', flex: 0.45 },
+  { key: 'displayName', label: 'שם התשלום', flex: 1.1 },
+  { key: 'paymentType', label: 'סוג תשלום', flex: 0.75 },
+  { key: 'mode', label: 'אופן תשלום', flex: 0.65 },
+  { key: 'indexed', label: 'הצמדה למדד', flex: 0.45 },
   { key: 'linkLabel', label: 'שיוך', flex: 0.75 },
-  { key: 'dueDate', label: 'מועד', flex: 0.65 },
+  { key: 'dueDate', label: 'מועד ביצוע', flex: 0.65 },
   { key: 'progressLabel', label: 'נותר', flex: 0.85 },
   { key: 'amount', label: 'סכום', flex: 0.7 },
 ];
@@ -79,8 +82,19 @@ function linkScopeFromScope(scope: ScopeFilter): 'all' | LinkKind {
   return 'all';
 }
 
+function paramStr(v: string | string[] | undefined): string {
+  if (v === undefined) return '';
+  return Array.isArray(v) ? (v[0] ?? '') : v;
+}
+
 export function PaymentsListScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    dateFrom?: string;
+    dateTo?: string;
+    statusTab?: string;
+    excludeReceived?: string;
+  }>();
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<ScopeFilter>('all');
   const [entityId, setEntityId] = useState<string | null>(null);
@@ -90,6 +104,20 @@ export function PaymentsListScreen() {
   const [dateTo, setDateTo] = useState('');
   const [sortKey, setSortKey] = useState<PaymentSortKey>('dueDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    const df = paramStr(params.dateFrom);
+    const dt = paramStr(params.dateTo);
+    const st = paramStr(params.statusTab);
+    if (df) setDateFrom(df);
+    if (dt) setDateTo(dt);
+    if (st === 'all' || st === 'future' || st === 'received' || st === 'overdue') {
+      setStatusTab(st);
+    }
+  }, [params.dateFrom, params.dateTo, params.statusTab]);
+
+  const excludeReceived = paramStr(params.excludeReceived) === '1';
 
   const linkScope = linkScopeFromScope(scope);
 
@@ -114,8 +142,9 @@ export function PaymentsListScreen() {
         statusTab,
         dateFrom,
         dateTo,
+        excludeReceived: excludeReceived || undefined,
       }),
-    [search, linkScope, entityId, groupFilter, statusTab, dateFrom, dateTo],
+    [search, linkScope, entityId, groupFilter, statusTab, dateFrom, dateTo, excludeReceived],
   );
 
   const sorted = useMemo(() => sortPaymentRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
@@ -130,6 +159,14 @@ export function PaymentsListScreen() {
     return { inSum, outSum, net: inSum - outSum };
   }, [sorted]);
 
+  const summaryScopeLabel = useMemo(() => {
+    if (scope === 'all') return 'כללי';
+    if (!entityId) return scope === 'by_asset' ? 'לפי נכס — כל הישויות' : 'לפי פרויקט — כל הישויות';
+    const e = PAYMENT_ENTITY_OPTIONS.find((x) => x.id === entityId);
+    if (!e) return '';
+    return `${e.kind === 'asset' ? 'נכס' : 'פרויקט'}: ${e.name}`;
+  }, [scope, entityId]);
+
   const exportData = useCallback(async () => {
     const header = 'שם,סוג,אופן,מדד,שיוך,מועד,נותר,סכום,כיוון\n';
     const lines = sorted.map((r) =>
@@ -140,8 +177,8 @@ export function PaymentsListScreen() {
         r.indexed ? 'כן' : 'לא',
         `"${r.linkLabel}"`,
         r.dueDate,
-        `"${r.progressLabel}"`,
-        r.amount,
+        `"${formatDigitRunsInText(r.progressLabel)}"`,
+        formatIlsInteger(r.amount),
         r.direction === 'inbound' ? 'הכנסה' : 'הוצאה',
       ].join(','),
     );
@@ -152,10 +189,43 @@ export function PaymentsListScreen() {
     }
   }, [sorted]);
 
+  const onRowDownload = useCallback((r: PaymentListRow) => {
+    Alert.alert('הורדה', `במימוש אמיתי יורד מסמך עבור "${r.displayName}".`, [{ text: 'אישור' }]);
+  }, []);
+
+  const onRowShare = useCallback(async (r: PaymentListRow) => {
+    try {
+      await Share.share({
+        message: `${r.displayName}\n${PAYMENT_TYPE_LABELS[r.paymentType]}\nמועד: ${r.dueDate}\n${r.direction === 'inbound' ? 'הכנסה' : 'הוצאה'}: ₪${formatIlsInteger(r.amount)}`,
+        title: r.displayName,
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const onRowDuplicate = useCallback((r: PaymentListRow) => {
+    Alert.alert('שכפול', `ייווצר עותק טיוטה של "${r.displayName}" בהמשך.`, [{ text: 'אישור' }]);
+  }, []);
+
+  const onRowEdit = useCallback((r: PaymentListRow) => {
+    Alert.alert('עריכה', `מסך עריכה לתשלום "${r.displayName}" יתחבר ל-API בהמשך.`, [{ text: 'אישור' }]);
+  }, []);
+
+  const onRowDelete = useCallback((r: PaymentListRow) => {
+    Alert.alert('מחיקה', `למחוק את "${r.displayName}"?`, [
+      { text: 'ביטול', style: 'cancel' },
+      { text: 'מחק', style: 'destructive', onPress: () => {} },
+    ]);
+  }, []);
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">
+        <Pressable onPress={() => setDrawerOpen(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
+          <MaterialCommunityIcons name="menu" size={24} color={Colors.onPrimary} />
+        </Pressable>
+        <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ flex: 1, textAlign: 'right' }}>
           תשלומים
         </AppText>
         <View style={styles.headerActions}>
@@ -171,7 +241,10 @@ export function PaymentsListScreen() {
       {/* Economic snapshot */}
       <View style={styles.summaryCard}>
         <AppText variant="labelSm" weight="bold" color="onPrimary" style={styles.summaryTitle}>
-          תמונת מצב (לפי סינון)
+          תמונת מצב כלכלית (לפי סינון)
+        </AppText>
+        <AppText variant="caption" color="onPrimary" style={{ textAlign: 'right', opacity: 0.88, marginBottom: Spacing.xs }}>
+          פילוח: {summaryScopeLabel}
         </AppText>
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
@@ -203,10 +276,34 @@ export function PaymentsListScreen() {
         </View>
       </View>
 
-      {/* Scope: general / by asset / by project */}
       <View style={styles.toolbar}>
+        <AppText variant="labelMd" weight="bold" style={styles.toolbarSectionTitle}>
+          בראש הדף
+        </AppText>
+        <AppText variant="caption" color="variant" style={styles.toolbarSectionSub}>
+          חיפוש · סינון נכס/פרויקט · סוג תשלום · סטטוס · טווח תאריכים · ייצוא מהכותרת · מיון מעמודות
+        </AppText>
+
+        <View style={styles.searchRow}>
+          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="חיפוש חופשי..."
+            placeholderTextColor={Colors.onSurfaceMuted}
+            value={search}
+            onChangeText={setSearch}
+            textAlign="right"
+            returnKeyType="search"
+          />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')} hitSlop={8} accessibilityLabel="נקה חיפוש">
+              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+            </Pressable>
+          )}
+        </View>
+
         <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          פילוח
+          סינון לפי נכס / פרויקט
         </AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
           {SCOPE_OPTIONS.map((o) => (
@@ -247,23 +344,6 @@ export function PaymentsListScreen() {
           </ScrollView>
         )}
 
-        <View style={styles.searchRow}>
-          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="חיפוש חופשי..."
-            placeholderTextColor={Colors.onSurfaceMuted}
-            value={search}
-            onChangeText={setSearch}
-            textAlign="right"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
-            </Pressable>
-          )}
-        </View>
-
         <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
           סוג תשלום
         </AppText>
@@ -278,7 +358,7 @@ export function PaymentsListScreen() {
         </ScrollView>
 
         <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          סטטוס תשלום
+          סטטוס (עתידיים / התקבלו / באיחור)
         </AppText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
           {STATUS_TABS.map((t) => (
@@ -298,6 +378,10 @@ export function PaymentsListScreen() {
           <TextInput style={styles.dateInput} placeholder="עד DD/MM/YYYY" placeholderTextColor={Colors.onSurfaceMuted} value={dateTo} onChangeText={setDateTo} textAlign="right" />
         </View>
       </View>
+
+      <AppText variant="caption" color="variant" style={styles.sortHint}>
+        לחיצה על כותרת עמודה משנה את סדר המיון (עולה / יורד)
+      </AppText>
 
       <View style={styles.tableHeader}>
         {COLUMNS.map((col) => {
@@ -339,53 +423,78 @@ export function PaymentsListScreen() {
             const inbound = item.direction === 'inbound';
             const amtColor = inbound ? Colors.inbound : Colors.outbound;
             return (
-              <Pressable
-                onPress={() => router.push(`/(app)/payments/${item.id}`)}
-                style={({ pressed }) => [styles.tableRow, pressed && { opacity: 0.92 }]}
-              >
-                <View style={[styles.td, { flex: 1.1 }]}>
-                  <AppText variant="bodySm" weight="semiBold" numberOfLines={2}>
-                    {item.displayName}
-                  </AppText>
+              <View style={styles.tableRowWrap}>
+                <Pressable
+                  onPress={() => router.push(`/(app)/payments/${item.id}`)}
+                  style={({ pressed }) => [styles.tableRow, pressed && { opacity: 0.92 }]}
+                  accessibilityRole="button"
+                >
+                  <View style={[styles.td, { flex: 1.1 }]}>
+                    <AppText variant="bodySm" weight="semiBold" numberOfLines={2}>
+                      {item.displayName}
+                    </AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.75 }]}>
+                    <AppText variant="caption" color="variant" numberOfLines={2}>
+                      {PAYMENT_TYPE_LABELS[item.paymentType]}
+                    </AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.65 }]}>
+                    <AppText variant="caption" numberOfLines={1}>
+                      {PAYMENT_MODE_LABELS[item.mode]}
+                    </AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.45 }]}>
+                    <AppText variant="caption">{item.indexed ? 'כן' : 'לא'}</AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.75 }]}>
+                    <AppText variant="caption" numberOfLines={1}>
+                      {item.linkLabel}
+                    </AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.65 }]}>
+                    <AppText variant="caption" color="muted">
+                      {item.dueDate}
+                    </AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.85 }]}>
+                    <AppText variant="caption" numberOfLines={2}>
+                      {formatDigitRunsInText(item.progressLabel)}
+                    </AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.7, alignItems: 'flex-end' }]}>
+                    <View style={styles.amountCell}>
+                      <MaterialCommunityIcons name="currency-ils" size={14} color={amtColor} />
+                      <AppText variant="bodySm" weight="bold" style={{ color: amtColor }}>
+                        {inbound ? '+' : '−'}{formatIlsInteger(item.amount)}
+                      </AppText>
+                    </View>
+                  </View>
+                </Pressable>
+                <View style={styles.rowQuickActions}>
+                  <Pressable onPress={() => onRowDownload(item)} style={styles.rowQuickBtn} accessibilityLabel="הורדה">
+                    <MaterialCommunityIcons name="download-outline" size={18} color={Colors.primary} />
+                  </Pressable>
+                  <Pressable onPress={() => onRowShare(item)} style={styles.rowQuickBtn} accessibilityLabel="שיתוף">
+                    <MaterialCommunityIcons name="share-variant-outline" size={18} color={Colors.primary} />
+                  </Pressable>
+                  <Pressable onPress={() => onRowDuplicate(item)} style={styles.rowQuickBtn} accessibilityLabel="שכפול">
+                    <MaterialCommunityIcons name="content-copy" size={18} color={Colors.primary} />
+                  </Pressable>
+                  <Pressable onPress={() => onRowEdit(item)} style={styles.rowQuickBtn} accessibilityLabel="עריכה">
+                    <MaterialCommunityIcons name="pencil-outline" size={18} color={Colors.primary} />
+                  </Pressable>
+                  <Pressable onPress={() => onRowDelete(item)} style={styles.rowQuickBtn} accessibilityLabel="מחיקה">
+                    <MaterialCommunityIcons name="delete-outline" size={18} color={Colors.error} />
+                  </Pressable>
                 </View>
-                <View style={[styles.td, { flex: 0.75 }]}>
-                  <AppText variant="caption" color="variant" numberOfLines={2}>
-                    {PAYMENT_TYPE_LABELS[item.paymentType]}
-                  </AppText>
-                </View>
-                <View style={[styles.td, { flex: 0.65 }]}>
-                  <AppText variant="caption" numberOfLines={1}>
-                    {PAYMENT_MODE_LABELS[item.mode]}
-                  </AppText>
-                </View>
-                <View style={[styles.td, { flex: 0.45 }]}>
-                  <AppText variant="caption">{item.indexed ? 'כן' : 'לא'}</AppText>
-                </View>
-                <View style={[styles.td, { flex: 0.75 }]}>
-                  <AppText variant="caption" numberOfLines={1}>
-                    {item.linkLabel}
-                  </AppText>
-                </View>
-                <View style={[styles.td, { flex: 0.65 }]}>
-                  <AppText variant="caption" color="muted">
-                    {item.dueDate}
-                  </AppText>
-                </View>
-                <View style={[styles.td, { flex: 0.85 }]}>
-                  <AppText variant="caption" numberOfLines={2}>
-                    {item.progressLabel}
-                  </AppText>
-                </View>
-                <View style={[styles.td, { flex: 0.7, alignItems: 'flex-end' }]}>
-                  <AppText variant="bodySm" weight="bold" style={{ color: amtColor }}>
-                    {inbound ? '+' : '−'}₪{formatIlsInteger(item.amount)}
-                  </AppText>
-                </View>
-              </Pressable>
+              </View>
             );
           }}
         />
       )}
+
+      <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </View>
   );
 }
@@ -435,7 +544,25 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineVariant,
     paddingBottom: Spacing.sm,
   },
+  toolbarSectionTitle: {
+    textAlign: 'right',
+    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
+    marginTop: Spacing.md,
+    color: Colors.onBackground,
+  },
+  toolbarSectionSub: {
+    textAlign: 'right',
+    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
+    marginBottom: Spacing.sm,
+  },
   filterLabel: { textAlign: 'right', marginRight: CONTENT_HORIZONTAL_PADDING, marginTop: Spacing.xs },
+  sortHint: {
+    textAlign: 'right',
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingTop: Spacing.xs,
+    paddingBottom: 2,
+    backgroundColor: Colors.surface,
+  },
   chipsRow: {
     flexDirection: 'row-reverse',
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
@@ -506,14 +633,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     minHeight: MIN_TOUCH,
   },
+  tableRowWrap: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+    backgroundColor: Colors.surface,
+  },
   tableRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     paddingVertical: Spacing.md,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
-    backgroundColor: Colors.surface,
+  },
+  rowQuickActions: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: Spacing.xs,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingBottom: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineLight,
+  },
+  rowQuickBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceVariant,
+  },
+  amountCell: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 2,
   },
   td: { paddingHorizontal: 2, justifyContent: 'center' },
 });

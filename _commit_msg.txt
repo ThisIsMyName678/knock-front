@@ -1,0 +1,15 @@
+feat: UI overhaul — drawer menu, monthly calendar, RTL fixes, modules
+
+- Add DrawerMenu component (hamburger side panel) with navigation links,
+  account settings, bulk import, privacy/terms; remove bottom tab bar footer
+- Dashboard: replace weekly strip with full monthly calendar with prev/next
+  month navigation, day selection and event dots; add hamburger to header
+- Notifications: RTL text alignment, clickable items linking to specific
+  routes, date+time format replacing relative time labels
+- Assets/Projects: project occupancy shown as X/Y (rented/total) from real
+  data; fix project title alignment to right; feed items clickable with routes
+- Contacts quick filter: rename label from plumber role to generic role holder
+- Tasks: hamburger button, search first in filter order, kind chips with icons
+- Payments: hamburger button, recurring count picker dropdown 1-12
+- Settings: hamburger button in header
+- Dashboard agenda: task events show kind-specific icons

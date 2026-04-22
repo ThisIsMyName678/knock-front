@@ -42,9 +42,12 @@ type FeedItem = {
   kind: FeedKind;
   title: string;
   dateIso: string;
+  targetId?: string;
 };
 
 type ContractInfo = {
+  id: string;
+  contractId: string;
   tenantName: string;
   startDate: string;
   endDate: string;
@@ -85,11 +88,28 @@ type ContactItem = {
 
 // ─── Mock data generators ─────────────────────────────────────────────────────
 
+const TARGET_IDS: Record<FeedKind, string[]> = {
+  task: ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'],
+  payment: ['pay1', 'pay2', 'pay3', 'pay4', 'pay5'],
+  message: [],
+  contract: ['c1', 'c2'],
+};
+
+function feedRoute(kind: FeedKind, targetId?: string): string | null {
+  if (!targetId) return null;
+  if (kind === 'task') return `/(app)/tasks/${targetId}`;
+  if (kind === 'payment') return `/(app)/payments/${targetId}`;
+  if (kind === 'contract') return `/(app)/contracts/${targetId}`;
+  return null;
+}
+
 function makeFeed(): FeedItem[] {
   const now = Date.now();
   const kinds: FeedKind[] = ['task', 'payment', 'message', 'contract'];
-  return Array.from({ length: 30 }, (_, i) => {
+  const rows = Array.from({ length: 30 }, (_, i) => {
     const kind = kinds[i % 4]!;
+    const ids = TARGET_IDS[kind];
+    const targetId = ids.length ? ids[i % ids.length] : undefined;
     return {
       id: `f${i}`,
       kind,
@@ -99,13 +119,31 @@ function makeFeed(): FeedItem[] {
         : kind === 'message' ? 'הודעה מהדייר'
         : 'חוזה עודכן',
       dateIso: new Date(now - i * 1000 * 60 * 60 * 5).toISOString(),
+      targetId,
     };
   });
+  return rows.sort((a, b) => new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime());
 }
 
 const MOCK_CONTRACTS: ContractInfo[] = [
-  { tenantName: 'יוסי כהן', startDate: '01/01/2024', endDate: '31/12/2025', monthlyRent: 7200, active: true },
-  { tenantName: 'דנה לוי', startDate: '01/01/2022', endDate: '31/12/2023', monthlyRent: 6500, active: false },
+  {
+    id: 'ctr1',
+    contractId: 'c1',
+    tenantName: 'יוסי כהן',
+    startDate: '01/01/2024',
+    endDate: '31/12/2025',
+    monthlyRent: 7200,
+    active: true,
+  },
+  {
+    id: 'ctr2',
+    contractId: 'c2',
+    tenantName: 'דנה לוי',
+    startDate: '01/01/2022',
+    endDate: '31/12/2023',
+    monthlyRent: 6500,
+    active: false,
+  },
 ];
 
 const MOCK_TASKS: TaskItem[] = [
@@ -129,7 +167,7 @@ const MOCK_PAYMENTS: PaymentItem[] = [
 const MOCK_CONTACTS: ContactItem[] = [
   { id: 'c1', name: 'יוסי כהן', role: 'דייר', phone: '050-1234567' },
   { id: 'c2', name: 'מיכל לוי', role: 'מנהל נכס', phone: '052-9876543' },
-  { id: 'c3', name: 'שירות חרום', role: 'אינסטלטור', phone: '054-1111222' },
+  { id: 'c3', name: 'שירות חרום', role: 'בעל תפקיד', phone: '054-1111222' },
 ];
 
 // Recommended document checklist
@@ -213,7 +251,73 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'contacts', label: 'אנשי קשר' },
 ];
 
-function TabBar({ active, onSelect }: { active: TabKey; onSelect: (k: TabKey) => void }) {
+function TabSearchField({
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <View style={tabSearchStyles.wrap}>
+      <View style={tabSearchStyles.row}>
+        <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceMuted} />
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.onSurfaceMuted}
+          style={tabSearchStyles.input}
+          textAlign="right"
+          returnKeyType="search"
+        />
+        {value.length > 0 ? (
+          <Pressable onPress={() => onChangeText('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="נקה">
+            <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const tabSearchStyles = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  row: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  input: {
+    flex: 1,
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.sm,
+    color: Colors.onBackground,
+    paddingVertical: 0,
+  },
+});
+
+function TabBar({
+  tabs,
+  active,
+  onSelect,
+}: {
+  tabs: { key: TabKey; label: string }[];
+  active: TabKey;
+  onSelect: (k: TabKey) => void;
+}) {
   return (
     <View style={tabStyles.bar}>
       <ScrollView
@@ -221,7 +325,7 @@ function TabBar({ active, onSelect }: { active: TabKey; onSelect: (k: TabKey) =>
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={tabStyles.row}
       >
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const isActive = t.key === active;
           return (
             <Pressable
@@ -381,10 +485,17 @@ function FeedTab() {
     { key: 'contract' as const, label: 'חוזים' },
   ];
   const [filter, setFilter] = useState<'all' | FeedKind>('all');
-  const filtered = filter === 'all' ? items : items.filter((i) => i.kind === filter);
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(() => {
+    const byKind = filter === 'all' ? items : items.filter((i) => i.kind === filter);
+    const q = search.trim().toLowerCase();
+    if (!q) return byKind;
+    return byKind.filter((i) => i.title.toLowerCase().includes(q));
+  }, [items, filter, search]);
 
   return (
     <View style={{ flex: 1 }}>
+      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש בפיד..." />
       <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
       <FlatList
         data={filtered}
@@ -394,23 +505,38 @@ function FeedTab() {
         ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
         renderItem={({ item }) => {
           const color = feedColor(item.kind);
+          const route = feedRoute(item.kind, item.targetId);
+          const Inner = (
+            <View style={listStyles.feedCard}>
+              <View style={listStyles.feedCardInner}>
+                <View style={[listStyles.feedIconWrap, { backgroundColor: `${color}18` }]}>
+                  <MaterialCommunityIcons name={feedIcon(item.kind)} size={16} color={color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="bodyMd" weight="semiBold" numberOfLines={1} style={{ textAlign: 'right' }}>{item.title}</AppText>
+                  <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>{fmtDateTime(item.dateIso)}</AppText>
+                </View>
+                {route ? <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} /> : null}
+              </View>
+            </View>
+          );
           return (
             <View style={listStyles.feedRow}>
               <View style={listStyles.feedLeft}>
                 <View style={[listStyles.feedDot, { backgroundColor: color }]} />
                 <View style={[listStyles.feedLine, { backgroundColor: color }]} />
               </View>
-              <View style={listStyles.feedCard}>
-                <View style={listStyles.feedCardInner}>
-                  <View style={[listStyles.feedIconWrap, { backgroundColor: `${color}18` }]}>
-                    <MaterialCommunityIcons name={feedIcon(item.kind)} size={16} color={color} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <AppText variant="bodyMd" weight="semiBold" numberOfLines={1}>{item.title}</AppText>
-                    <AppText variant="caption" color="muted">{fmtDateTime(item.dateIso)}</AppText>
-                  </View>
-                </View>
-              </View>
+              {route ? (
+                <Pressable
+                  style={({ pressed }) => [{ flex: 1 }, pressed && { opacity: 0.82 }]}
+                  onPress={() => router.push(route as any)}
+                  accessibilityRole="button"
+                >
+                  {Inner}
+                </Pressable>
+              ) : (
+                <View style={{ flex: 1 }}>{Inner}</View>
+              )}
             </View>
           );
         }}
@@ -423,10 +549,9 @@ function FeedTab() {
 
 function MainTab({ mode, entityId }: { mode: DetailMode; entityId: string }) {
   if (mode === 'project') {
-    // Embedded asset grid scoped to this project
     return (
       <View style={{ flex: 1 }}>
-        <EntityListScreen mode="assets" />
+        <EntityListScreen mode="assets" embedded scopedProjectId={entityId} />
       </View>
     );
   }
@@ -447,7 +572,7 @@ function MainTab({ mode, entityId }: { mode: DetailMode; entityId: string }) {
       <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
       <FlatList
         data={filtered}
-        keyExtractor={(_, i) => String(i)}
+        keyExtractor={(item) => item.id}
         scrollEnabled={false}
         contentContainerStyle={listStyles.content}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
@@ -463,7 +588,7 @@ function MainTab({ mode, entityId }: { mode: DetailMode; entityId: string }) {
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={listStyles.row}>
                   <AppText variant="bodyMd" weight="bold" style={{ flex: 1 }}>{item.tenantName}</AppText>
-                  <Badge label={item.active ? 'פעיל' : 'לא פעיל'} preset={item.active ? 'success' : 'neutral'} />
+                  <Badge label={item.active ? 'פעיל' : 'לא פעיל / לא בתוקף'} preset={item.active ? 'success' : 'neutral'} />
                 </View>
                 <AppText variant="bodySm" color="variant">{item.startDate} – {item.endDate}</AppText>
               </View>
@@ -474,11 +599,11 @@ function MainTab({ mode, entityId }: { mode: DetailMode; entityId: string }) {
               <AppText variant="bodyMd" weight="bold" color="primary">{fmtIls(item.monthlyRent)}</AppText>
             </View>
             <Pressable
-              onPress={() => router.push('/(app)/contracts')}
+              onPress={() => router.push(`/(app)/contracts/${item.contractId}`)}
               style={({ pressed }) => [listStyles.contractLink, pressed && { opacity: 0.75 }]}
               accessibilityRole="button"
             >
-              <AppText variant="bodySm" color="primary" weight="semiBold">צפה בחוזה המלא</AppText>
+              <AppText variant="bodySm" color="primary" weight="semiBold">צפה בחוזה במודול חוזים</AppText>
               <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.primary} />
             </Pressable>
           </Card>
@@ -498,10 +623,22 @@ function TasksTab({ entityId }: { entityId: string }) {
     { key: 'closed' as const, label: 'סגור' },
   ];
   const [filter, setFilter] = useState<'all' | TaskItem['status']>('all');
-  const filtered = MOCK_TASKS.filter((t) => filter === 'all' || t.status === filter);
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(() => {
+    const byStatus = MOCK_TASKS.filter((t) => filter === 'all' || t.status === filter);
+    const q = search.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter(
+      (t) =>
+        t.description.toLowerCase().includes(q) ||
+        t.category.toLowerCase().includes(q) ||
+        t.date.includes(q),
+    );
+  }, [filter, search]);
 
   return (
     <View style={{ flex: 1 }}>
+      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש לפי תיאור, קטגוריה או תאריך..." />
       <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
       <FlatList
         data={filtered}
@@ -530,7 +667,12 @@ function TasksTab({ entityId }: { entityId: string }) {
         )}
       />
       <TabFab
-        onPress={() => router.push('/(app)/tasks/new')}
+        onPress={() =>
+          router.push({
+            pathname: '/(app)/tasks/new',
+            params: { contextEntityId: entityId },
+          })
+        }
         accessibilityLabel="קריאת שירות חדשה"
       />
     </View>
@@ -547,16 +689,23 @@ function DocumentsTab({ entityId }: { entityId: string }) {
     { key: 'רשויות' as const, label: 'רשויות' },
   ];
   const [filter, setFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
   const [checkedDocs, setCheckedDocs] = useState<Record<string, boolean>>({});
   const [showChecklist, setShowChecklist] = useState(false);
 
-  const filtered = filter === 'all' ? MOCK_DOCS : MOCK_DOCS.filter((d) => d.category === filter);
+  const filtered = useMemo(() => {
+    const byCat = filter === 'all' ? MOCK_DOCS : MOCK_DOCS.filter((d) => d.category === filter);
+    const q = search.trim().toLowerCase();
+    if (!q) return byCat;
+    return byCat.filter((d) => d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q));
+  }, [filter, search]);
 
   const toggleDoc = (name: string) =>
     setCheckedDocs((prev) => ({ ...prev, [name]: !prev[name] }));
 
   return (
     <View style={{ flex: 1 }}>
+      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש מסמכים..." />
       <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
       <ScrollView contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]} showsVerticalScrollIndicator={false}>
         {/* Recommended checklist toggle */}
@@ -637,7 +786,12 @@ function DocumentsTab({ entityId }: { entityId: string }) {
         ))}
       </ScrollView>
       <TabFab
-        onPress={() => router.push('/(app)/documents/new')}
+        onPress={() =>
+          router.push({
+            pathname: '/(app)/documents/new',
+            params: { contextEntityId: entityId },
+          })
+        }
         accessibilityLabel="העלאת מסמך חדש"
       />
     </View>
@@ -653,10 +807,22 @@ function PaymentsTab({ entityId }: { entityId: string }) {
     { key: 'outbound' as const, label: 'הוצאות' },
   ];
   const [filter, setFilter] = useState<'all' | 'inbound' | 'outbound'>('all');
-  const filtered = MOCK_PAYMENTS.filter((p) => filter === 'all' || p.direction === filter);
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(() => {
+    const byDir = MOCK_PAYMENTS.filter((p) => filter === 'all' || p.direction === filter);
+    const q = search.trim().toLowerCase();
+    if (!q) return byDir;
+    return byDir.filter(
+      (p) =>
+        p.category.toLowerCase().includes(q) ||
+        p.date.includes(q) ||
+        String(p.amount).includes(q),
+    );
+  }, [filter, search]);
 
   return (
     <View style={{ flex: 1 }}>
+      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש תשלומים..." />
       <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
       <View style={[listStyles.content, { paddingBottom: 80 }]}>
         {/* Table header */}
@@ -689,7 +855,12 @@ function PaymentsTab({ entityId }: { entityId: string }) {
         })}
       </View>
       <TabFab
-        onPress={() => router.push('/(app)/payments/new')}
+        onPress={() =>
+          router.push({
+            pathname: '/(app)/payments/new',
+            params: { contextEntityId: entityId },
+          })
+        }
         accessibilityLabel="הוספת תשלום"
       />
     </View>
@@ -699,10 +870,27 @@ function PaymentsTab({ entityId }: { entityId: string }) {
 // ─── Tab: Contacts ────────────────────────────────────────────────────────────
 
 function ContactsTab({ entityId }: { entityId: string }) {
+  const roleOptions = useMemo((): { key: string; label: string }[] => {
+    const roles = Array.from(new Set(MOCK_CONTACTS.map((c) => c.role))).sort((a, b) => a.localeCompare(b, 'he'));
+    return [{ key: 'all', label: 'הכל' }, ...roles.map((r) => ({ key: r, label: r }))];
+  }, []);
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const filteredContacts = useMemo(() => {
+    const byRole = roleFilter === 'all' ? MOCK_CONTACTS : MOCK_CONTACTS.filter((c) => c.role === roleFilter);
+    const q = search.trim().toLowerCase();
+    if (!q) return byRole;
+    return byRole.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.phone.replace(/\s/g, '').includes(q) || c.role.toLowerCase().includes(q),
+    );
+  }, [roleFilter, search]);
+
   return (
     <View style={{ flex: 1 }}>
+      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש אנשי קשר..." />
+      <FilterRow options={roleOptions} active={roleFilter} onSelect={setRoleFilter} />
       <FlatList
-        data={MOCK_CONTACTS}
+        data={filteredContacts}
         keyExtractor={(item) => item.id}
         scrollEnabled={false}
         contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]}
@@ -752,8 +940,13 @@ function ContactsTab({ entityId }: { entityId: string }) {
         )}
       />
       <TabFab
-        onPress={() => router.push('/(app)/contacts/new')}
-        accessibilityLabel="הוספת איש קשר"
+        onPress={() =>
+          router.push({
+            pathname: '/(app)/contacts/new-role',
+            params: { contextEntityId: entityId },
+          })
+        }
+        accessibilityLabel="הוספת בעל תפקיד"
       />
     </View>
   );
@@ -851,7 +1044,6 @@ export function DetailTabsScreen({
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('feed');
 
-  const tabLabel = TABS.find((t) => t.key === activeTab)?.label ?? '';
   const mainTabLabel = mode === 'project' ? 'נכסים' : 'חוזה';
 
   const tabsWithLabels = TABS.map((t) =>
@@ -891,12 +1083,12 @@ export function DetailTabsScreen({
         </Pressable>
 
         <View style={screenStyles.headerCenter}>
-          <AppText variant="headingMd" weight="bold" color="onPrimary" numberOfLines={1}>
+          <AppText variant="headingMd" weight="bold" color="onPrimary" numberOfLines={1} style={{ textAlign: 'right', width: '100%' }}>
             {name}
           </AppText>
-          <View style={screenStyles.headerAddress}>
+          <View style={[screenStyles.headerAddress, { alignSelf: 'flex-start' }]}>
             <MaterialCommunityIcons name="map-marker-outline" size={13} color="rgba(255,255,255,0.75)" />
-            <AppText variant="caption" color="onPrimary" numberOfLines={1} style={{ opacity: 0.85 }}>
+            <AppText variant="caption" color="onPrimary" numberOfLines={1} style={{ opacity: 0.85, textAlign: 'right' }}>
               {address}
             </AppText>
           </View>
@@ -908,10 +1100,7 @@ export function DetailTabsScreen({
       </View>
 
       {/* Tabs */}
-      <TabBar
-        active={activeTab}
-        onSelect={setActiveTab}
-      />
+      <TabBar tabs={tabsWithLabels} active={activeTab} onSelect={setActiveTab} />
 
       {/* Content area scrolls independently */}
       <ScrollView
@@ -939,6 +1128,6 @@ const screenStyles = StyleSheet.create({
     ...Shadow.md,
   },
   iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerCenter: { flex: 1, alignItems: 'center', gap: 2 },
+  headerCenter: { flex: 1, alignItems: 'flex-start', gap: 2 },
   headerAddress: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4 },
 });

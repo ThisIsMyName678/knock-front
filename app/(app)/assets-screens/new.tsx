@@ -99,7 +99,7 @@ const AIR_DIRECTIONS: { key: AirDirection; label: string }[] = [
 const AMENITIES: { key: AmenityKey; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
   { key: 'garden', label: 'גינה', icon: 'flower-outline' },
   { key: 'balcony', label: 'מרפסת', icon: 'door-sliding-open' },
-  { key: 'furnished', label: 'מרוהטת', icon: 'sofa-outline' },
+  { key: 'furnished', label: 'הוספת רהיטים / מרוהטת', icon: 'sofa-outline' },
   { key: 'elevator', label: 'מעלית', icon: 'elevator-passenger-outline' },
   { key: 'shelter', label: 'ממ"ד', icon: 'shield-home-outline' },
   { key: 'solarWater', label: 'דוד שמש', icon: 'white-balance-sunny' },

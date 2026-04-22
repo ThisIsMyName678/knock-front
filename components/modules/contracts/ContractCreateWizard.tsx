@@ -20,9 +20,11 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
   CONTRACT_TYPE_LABELS,
+  CONTRACT_ACCESS_LABELS,
   filterEntitiesByQuery,
   type ContractTypeKey,
   type EntityLinkOption,
+  type ContractAccessLevel,
 } from '@/lib/mocks/contracts';
 import {
   Colors,
@@ -68,14 +70,7 @@ const FILE_CATEGORIES = [
 
 type FileCategory = (typeof FILE_CATEGORIES)[number];
 
-export type FileVisibility = 'owner_only' | 'tenant_only' | 'employee_only' | 'public';
-
-const VISIBILITY_OPTIONS: { key: FileVisibility; label: string }[] = [
-  { key: 'owner_only', label: 'פרטי (בעל נכס בלבד)' },
-  { key: 'tenant_only', label: 'שוכר בלבד' },
-  { key: 'employee_only', label: 'עובד בלבד' },
-  { key: 'public', label: 'ציבורי' },
-];
+const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['owner_only', 'tenant_only', 'employee_only', 'public'];
 
 type PaymentDraft = {
   id: string;
@@ -91,7 +86,7 @@ type FileDraft = {
   category: FileCategory;
   displayName: string;
   mockSource: string;
-  visibility: FileVisibility;
+  visibility: ContractAccessLevel;
 };
 
 function pad2(n: number) {
@@ -132,6 +127,7 @@ export function ContractCreateWizard() {
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderUnit, setReminderUnit] = useState<'days' | 'weeks' | 'months'>('days');
   const [reminderAmount, setReminderAmount] = useState('30');
+  const [contractAccess, setContractAccess] = useState<ContractAccessLevel>('owner_only');
 
   // Step 2
   const [payments, setPayments] = useState<PaymentDraft[]>([]);
@@ -148,7 +144,7 @@ export function ContractCreateWizard() {
   // Step 4
   const [fileCategory, setFileCategory] = useState<FileCategory>('צילום חוזה');
   const [fileName, setFileName] = useState('');
-  const [defaultFileVisibility, setDefaultFileVisibility] = useState<FileVisibility>('owner_only');
+  const [defaultFileVisibility, setDefaultFileVisibility] = useState<ContractAccessLevel>('owner_only');
   const [files, setFiles] = useState<FileDraft[]>([]);
   const [categoryModal, setCategoryModal] = useState(false);
 
@@ -240,6 +236,9 @@ export function ContractCreateWizard() {
 
   const goNext = () => {
     if (step === 0 && !step1Valid) return;
+    if (step === 0) {
+      setDefaultFileVisibility(contractAccess);
+    }
     if (step === 1) {
       openFinishPaymentStep();
       return;
@@ -297,6 +296,31 @@ export function ContractCreateWizard() {
               <Input label="שם החוזה" placeholder="לדוגמה: חוזה שכירות 2026" value={contractName} onChangeText={setContractName} containerStyle={{ marginBottom: Spacing.md }} />
 
               <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>
+                הרשאות גישה לחוזה
+              </AppText>
+              <View style={styles.visGrid}>
+                {ACCESS_LEVEL_ORDER.map((k) => (
+                  <Pressable
+                    key={k}
+                    onPress={() => setContractAccess(k)}
+                    style={[styles.visChip, contractAccess === k && styles.visChipActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: contractAccess === k }}
+                  >
+                    <AppText
+                      variant="caption"
+                      weight={contractAccess === k ? 'bold' : 'regular'}
+                      style={{ color: contractAccess === k ? Colors.onPrimary : Colors.onSurfaceVariant }}
+                      numberOfLines={4}
+                      align="center"
+                    >
+                      {CONTRACT_ACCESS_LABELS[k]}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </View>
+
+              <AppText variant="labelMd" weight="semiBold" style={[styles.blockLabel, { marginTop: Spacing.lg }]}>
                 סוג חוזה
               </AppText>
               <View style={styles.typeGrid}>
@@ -365,7 +389,12 @@ export function ContractCreateWizard() {
                 )}
               </View>
 
-              <Input label="שם השוכר / רוכש / נותן שירות" value={counterpartyName} onChangeText={setCounterpartyName} containerStyle={{ marginTop: Spacing.md }} />
+              <Input
+                label="שם השוכר / רוכש / נותן שירות"
+                value={counterpartyName}
+                onChangeText={setCounterpartyName}
+                containerStyle={{ marginTop: Spacing.md }}
+              />
               {contractType === 'supplier_work' && (
                 <Input label="סוג השירות" placeholder="לדוגמה: ניקיון" value={serviceType} onChangeText={setServiceType} containerStyle={{ marginTop: Spacing.md }} />
               )}
@@ -507,17 +536,26 @@ export function ContractCreateWizard() {
               <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>
                 הרשאות גישה לקבצים חדשים
               </AppText>
+              <AppText variant="caption" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                ברירת מחדל מסונכנת להרשאות החוזה; ניתן לשנות לפני כל העלאה.
+              </AppText>
               <View style={styles.visGrid}>
-                {VISIBILITY_OPTIONS.map((v) => (
-                  <Pressable key={v.key} onPress={() => setDefaultFileVisibility(v.key)} style={[styles.visChip, defaultFileVisibility === v.key && styles.visChipActive]}>
+                {ACCESS_LEVEL_ORDER.map((k) => (
+                  <Pressable
+                    key={k}
+                    onPress={() => setDefaultFileVisibility(k)}
+                    style={[styles.visChip, defaultFileVisibility === k && styles.visChipActive]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: defaultFileVisibility === k }}
+                  >
                     <AppText
                       variant="caption"
-                      weight={defaultFileVisibility === v.key ? 'bold' : 'regular'}
-                      style={{ color: defaultFileVisibility === v.key ? Colors.onPrimary : Colors.onSurfaceVariant }}
-                      numberOfLines={3}
+                      weight={defaultFileVisibility === k ? 'bold' : 'regular'}
+                      style={{ color: defaultFileVisibility === k ? Colors.onPrimary : Colors.onSurfaceVariant }}
+                      numberOfLines={4}
                       align="center"
                     >
-                      {v.label}
+                      {CONTRACT_ACCESS_LABELS[k]}
                     </AppText>
                   </Pressable>
                 ))}
@@ -574,7 +612,7 @@ export function ContractCreateWizard() {
                           {f.category} · {f.mockSource}
                         </AppText>
                       </View>
-                      <Badge label={VISIBILITY_OPTIONS.find((x) => x.key === f.visibility)?.label ?? f.visibility} preset="neutral" />
+                      <Badge label={CONTRACT_ACCESS_LABELS[f.visibility]} preset="neutral" />
                     </View>
                   ))}
                 </View>

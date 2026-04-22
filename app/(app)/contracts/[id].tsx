@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import {
   CONTRACT_TYPE_LABELS,
   CONTRACT_STATUS_LABELS,
+  CONTRACT_ACCESS_LABELS,
   getContractDetailMock,
 } from '@/lib/mocks/contracts';
 import { Colors, Spacing, Shadow, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
@@ -73,6 +74,9 @@ export default function ContractDetailScreen() {
   const rows: { label: string; value: string }[] = [
     { label: 'שם החוזה', value: detail.contractName },
     { label: 'סוג חוזה', value: CONTRACT_TYPE_LABELS[detail.contractType] },
+    ...(detail.accessLevel
+      ? [{ label: 'הרשאות גישה', value: CONTRACT_ACCESS_LABELS[detail.accessLevel] }]
+      : []),
     { label: 'שיוך', value: `${detail.linkKind === 'project' ? 'פרויקט' : 'נכס'}: ${detail.linkLabel}` },
     { label: 'שם השוכר / רוכש / נותן שירות', value: detail.counterpartyName },
     { label: 'תאריך הסכם', value: detail.agreementDate },

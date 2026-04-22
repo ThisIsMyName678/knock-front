@@ -12,7 +12,7 @@ import {
   PAYMENT_TYPE_LABELS,
   PAYMENT_MODE_LABELS,
 } from '@/lib/mocks/payments';
-import { formatIlsInteger } from '@/lib/format/currency';
+import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 
 export default function PaymentDetailScreen() {
@@ -82,7 +82,7 @@ export default function PaymentDetailScreen() {
     { label: 'הצמדה למדד', value: detail.indexed ? 'כן' : 'לא' },
     { label: 'שיוך', value: `${detail.linkKind === 'project' ? 'פרויקט' : 'נכס'}: ${detail.linkLabel}` },
     { label: 'מועד ביצוע', value: detail.dueDate },
-    { label: 'נותר / התקדמות', value: detail.progressLabel },
+    { label: 'נותר / התקדמות', value: formatDigitRunsInText(detail.progressLabel) },
     { label: 'אמצעי תשלום', value: detail.means ?? '—' },
     { label: 'שולם על ידי', value: detail.payerLabel ?? '—' },
     ...(detail.contractLabel ? [{ label: 'חוזה', value: detail.contractLabel }] : []),

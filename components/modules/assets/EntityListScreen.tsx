@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -26,59 +26,23 @@ import {
   MIN_TOUCH,
 } from '@/constants/tokens';
 
+import type { AssetEntity, Entity, OccupancyStatus, ProjectEntity, UserRole } from '@/lib/mocks/assets';
+import {
+  MOCK_ASSETS,
+  MOCK_PROJECTS,
+  assetsForProject,
+  assetsStandaloneForEnterpriseList,
+} from '@/lib/mocks/assets';
+import { useSubscriptionPlan } from '@/hooks/useSubscriptionPlan';
+import { DrawerMenu } from '@/components/ui/DrawerMenu';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type EntityMode = 'projects' | 'assets';
 
-export type OccupancyStatus = 'rented' | 'vacant' | 'construction';
-
-export type UserRole =
-  | { kind: 'owner' }
-  | { kind: 'tenant' }
-  | { kind: 'custom'; label: string };
-
-export type ProjectEntity = {
-  id: string;
-  kind: 'project';
-  name: string;
-  address: string;
-  assetCount: number;
-  occupancy: OccupancyStatus;
-  role: UserRole;
-};
-
-export type AssetEntity = {
-  id: string;
-  kind: 'asset';
-  name: string;
-  address: string;
-  occupancy: OccupancyStatus;
-  role: UserRole;
-};
-
-export type Entity = ProjectEntity | AssetEntity;
+export type { AssetEntity, Entity, OccupancyStatus, ProjectEntity, UserRole } from '@/lib/mocks/assets';
 
 type FilterKey = 'all' | OccupancyStatus;
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_PROJECTS: ProjectEntity[] = [
-  { id: 'p1', kind: 'project', name: 'מגדלי הים', address: 'הרצל 10, תל אביב', assetCount: 12, occupancy: 'rented', role: { kind: 'owner' } },
-  { id: 'p2', kind: 'project', name: 'גני הדר', address: 'ביאליק 3, ר״ג', assetCount: 7, occupancy: 'rented', role: { kind: 'custom', label: 'מנהל פרויקט' } },
-  { id: 'p3', kind: 'project', name: 'בית ספיר', address: 'המלך ג׳ורג׳ 5, ירושלים', assetCount: 4, occupancy: 'vacant', role: { kind: 'owner' } },
-  { id: 'p4', kind: 'project', name: 'פרויקט חוף', address: 'הנמל 2, חיפה', assetCount: 9, occupancy: 'construction', role: { kind: 'custom', label: 'מנהל אתר' } },
-  { id: 'p5', kind: 'project', name: 'מתחם הפארק', address: 'רוטשילד 22, ת״א', assetCount: 3, occupancy: 'vacant', role: { kind: 'owner' } },
-  { id: 'p6', kind: 'project', name: 'שיכון דרום', address: 'שד׳ ירושלים 5, באר שבע', assetCount: 18, occupancy: 'rented', role: { kind: 'tenant' } },
-];
-
-const MOCK_ASSETS: AssetEntity[] = [
-  { id: 'a1', kind: 'asset', name: 'דירה 4B', address: 'הרצל 10, תל אביב', occupancy: 'rented', role: { kind: 'owner' } },
-  { id: 'a2', kind: 'asset', name: 'דירה 7A', address: 'הרצל 10, תל אביב', occupancy: 'vacant', role: { kind: 'owner' } },
-  { id: 'a3', kind: 'asset', name: 'בית פרטי', address: 'הנרי דנאה 3, נהריה', occupancy: 'rented', role: { kind: 'tenant' } },
-  { id: 'a4', kind: 'asset', name: 'משרד 201', address: 'ביאליק 3, ר״ג', occupancy: 'vacant', role: { kind: 'custom', label: 'מנהל נכס' } },
-  { id: 'a5', kind: 'asset', name: 'חנות קרקע', address: 'דיזנגוף 120, ת״א', occupancy: 'rented', role: { kind: 'owner' } },
-  { id: 'a6', kind: 'asset', name: 'דירת גג', address: 'שינקין 4, ת״א', occupancy: 'construction', role: { kind: 'owner' } },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -143,22 +107,37 @@ function EntityCard({ entity, onPress }: { entity: Entity; onPress: () => void }
           </AppText>
         </View>
 
-        {/* Project-only: asset count */}
-        {isProject && (
-          <View style={styles.cardMeta}>
-            <MaterialCommunityIcons name="home-outline" size={11} color={Colors.primary} />
-            <AppText variant="caption" color="primary" weight="semiBold">
-              {(entity as ProjectEntity).assetCount} נכסים
-            </AppText>
-          </View>
-        )}
+        {/* Project-only: asset count + occupancy X/Y */}
+        {isProject && (() => {
+          const projectAssets = assetsForProject(entity.id);
+          const total = projectAssets.length;
+          const rented = projectAssets.filter((a) => a.occupancy === 'rented').length;
+          return (
+            <>
+              <View style={styles.cardMeta}>
+                <MaterialCommunityIcons name="home-outline" size={11} color={Colors.primary} />
+                <AppText variant="caption" color="primary" weight="semiBold">
+                  {total} נכסים
+                </AppText>
+              </View>
+              <View style={[styles.cardMeta, { marginTop: 2 }]}>
+                <MaterialCommunityIcons name="home-account" size={11} color={Colors.success} />
+                <AppText variant="caption" weight="semiBold" style={{ color: Colors.success }}>
+                  {rented}/{total} מושכרים
+                </AppText>
+              </View>
+            </>
+          );
+        })()}
 
-        {/* Occupancy status */}
-        <Badge
-          label={occupancyLabel(entity.occupancy)}
-          preset={occupancyPreset(entity.occupancy)}
-          style={styles.occupancyBadge}
-        />
+        {/* Asset-only: Occupancy status badge */}
+        {!isProject && (
+          <Badge
+            label={occupancyLabel(entity.occupancy)}
+            preset={occupancyPreset(entity.occupancy)}
+            style={styles.occupancyBadge}
+          />
+        )}
       </View>
     </Pressable>
   );
@@ -238,6 +217,10 @@ function CreateChoiceSheet({
 
 type Props = {
   mode: EntityMode;
+  /** מסך מוטמע (טאב פרויקט) — ללא כותרת ירוקה רחבה */
+  embedded?: boolean;
+  /** הצגת נכסים השייכים לפרויקט זה בלבד */
+  scopedProjectId?: string;
 };
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -247,22 +230,41 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'construction', label: 'בבנייה' },
 ];
 
-export function EntityListScreen({ mode }: Props) {
+export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Props) {
   const insets = useSafeAreaInsets();
+  const plan = useSubscriptionPlan();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const rawData: Entity[] = mode === 'projects' ? MOCK_PROJECTS : MOCK_ASSETS;
+  const rawData: Entity[] = useMemo(() => {
+    if (scopedProjectId) {
+      return assetsForProject(scopedProjectId);
+    }
+    if (mode === 'projects') {
+      const orphans = plan === 'enterprise' ? assetsStandaloneForEnterpriseList() : [];
+      return [...MOCK_PROJECTS, ...orphans];
+    }
+    return MOCK_ASSETS;
+  }, [mode, scopedProjectId, plan]);
 
-  const filtered = rawData.filter((e) => {
-    const matchSearch =
-      e.name.includes(search) || e.address.includes(search);
-    const matchFilter = filter === 'all' || e.occupancy === filter;
-    return matchSearch && matchFilter;
-  });
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rawData.filter((e) => {
+      const hay = `${e.name} ${e.address}`.toLowerCase();
+      const matchSearch = !q || hay.includes(q);
+      const matchFilter = filter === 'all' || e.occupancy === filter;
+      return matchSearch && matchFilter;
+    });
+  }, [rawData, search, filter]);
 
-  const title = mode === 'projects' ? 'פרויקטים' : 'נכסים';
+  const title =
+    mode === 'projects' && plan === 'enterprise' && !scopedProjectId
+      ? 'פרויקטים ונכסים'
+      : mode === 'projects'
+        ? 'פרויקטים'
+        : 'נכסים';
   const emptyIcon = mode === 'projects' ? 'briefcase-outline' : 'home-outline';
 
   const handleCardPress = useCallback(
@@ -283,23 +285,13 @@ export function EntityListScreen({ mode }: Props) {
     [handleCardPress],
   );
 
-  return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">{title}</AppText>
-        <Pressable
-          onPress={() => setSheetVisible(true)}
-          style={styles.addBtn}
-          accessibilityRole="button"
-          accessibilityLabel="הוסף חדש"
-        >
-          <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
-        </Pressable>
-      </View>
+  const showOrphansHint =
+    plan === 'enterprise' && mode === 'projects' && !scopedProjectId && !embedded && assetsStandaloneForEnterpriseList().length > 0;
 
+  const body = (
+    <>
       {/* Search */}
-      <View style={styles.searchBar}>
+      <View style={[styles.searchBar, embedded && styles.searchBarEmbedded]}>
         <View style={styles.searchRow}>
           <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
           <TextInput
@@ -319,12 +311,21 @@ export function EntityListScreen({ mode }: Props) {
         </View>
       </View>
 
+      {showOrphansHint ? (
+        <View style={styles.hintBanner}>
+          <MaterialCommunityIcons name="information-outline" size={18} color={Colors.primary} />
+          <AppText variant="bodySm" color="primary" style={{ flex: 1, textAlign: 'right' }}>
+            נכסים ללא שיוך פרויקט מוצגים כאן יחד עם הפרויקטים
+          </AppText>
+        </View>
+      ) : null}
+
       {/* Filter chips */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filtersRow}
-        style={styles.filtersScroll}
+        style={[styles.filtersScroll, embedded && styles.filtersScrollEmbedded]}
       >
         {FILTERS.map((f) => (
           <Pressable
@@ -348,11 +349,21 @@ export function EntityListScreen({ mode }: Props) {
       {/* Grid */}
       {filtered.length === 0 ? (
         <EmptyState
-          title={`לא נמצאו ${title}`}
+          title={scopedProjectId ? 'אין נכסים בפרויקט זה' : `לא נמצאו ${title}`}
           description="נסה לשנות את הסינון או החיפוש"
           icon={<MaterialCommunityIcons name={emptyIcon} size={32} color={Colors.primary} />}
-          actionLabel={mode === 'projects' ? 'פרויקט חדש' : 'נכס חדש'}
-          onAction={() => setSheetVisible(true)}
+          actionLabel={
+            embedded
+              ? 'נכס חדש'
+              : mode === 'projects'
+                ? 'פרויקט חדש'
+                : 'נכס חדש'
+          }
+          onAction={
+            embedded
+              ? () => router.push('/(app)/assets-screens/new')
+              : () => setSheetVisible(true)
+          }
           style={{ flex: 1 }}
         />
       ) : (
@@ -362,7 +373,7 @@ export function EntityListScreen({ mode }: Props) {
           numColumns={3}
           contentContainerStyle={[
             styles.grid,
-            { paddingBottom: insets.bottom + Spacing['2xl'] },
+            { paddingBottom: embedded ? Spacing['2xl'] : insets.bottom + Spacing['2xl'] },
           ]}
           columnWrapperStyle={styles.gridRow}
           showsVerticalScrollIndicator={false}
@@ -370,12 +381,52 @@ export function EntityListScreen({ mode }: Props) {
         />
       )}
 
-      {/* Create choice sheet */}
-      <CreateChoiceSheet
-        visible={sheetVisible}
-        onClose={() => setSheetVisible(false)}
-        mode={mode}
-      />
+      {!embedded ? (
+        <CreateChoiceSheet
+          visible={sheetVisible}
+          onClose={() => setSheetVisible(false)}
+          mode={mode}
+        />
+      ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <View style={styles.embeddedWrap}>
+        {scopedProjectId ? (
+          <AppText variant="labelMd" weight="bold" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+            נכסים בפרויקט
+          </AppText>
+        ) : null}
+        {body}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable onPress={() => setDrawerOpen(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
+          <MaterialCommunityIcons name="menu" size={24} color={Colors.onPrimary} />
+        </Pressable>
+        <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ flex: 1, textAlign: 'right' }}>
+          {title}
+        </AppText>
+        <Pressable
+          onPress={() => setSheetVisible(true)}
+          style={styles.addBtn}
+          accessibilityRole="button"
+          accessibilityLabel="הוסף חדש"
+        >
+          <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
+        </Pressable>
+      </View>
+
+      {body}
+
+      <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </View>
   );
 }
@@ -386,6 +437,17 @@ const CARD_GAP = Spacing.sm;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  embeddedWrap: { flex: 1, backgroundColor: Colors.background },
+  hintBanner: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primaryContainer,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
 
   header: {
     flexDirection: 'row-reverse',
@@ -412,6 +474,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineVariant,
   },
+  searchBarEmbedded: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    backgroundColor: 'transparent',
+    borderBottomWidth: 0,
+  },
   searchRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
@@ -434,6 +502,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineVariant,
     flexGrow: 0,
+  },
+  filtersScrollEmbedded: {
+    backgroundColor: 'transparent',
+    borderBottomWidth: 0,
   },
   filtersRow: {
     flexDirection: 'row-reverse',

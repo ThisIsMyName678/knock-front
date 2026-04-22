@@ -11,6 +11,16 @@ export const CONTRACT_TYPE_LABELS: Record<ContractTypeKey, string> = {
   other: 'אחר',
 };
 
+/** הרשאות גישה לחוזה / לקבצים בהעלאה (אותו מפתח לשני השימושים ב־UI) */
+export type ContractAccessLevel = 'owner_only' | 'tenant_only' | 'employee_only' | 'public';
+
+export const CONTRACT_ACCESS_LABELS: Record<ContractAccessLevel, string> = {
+  owner_only: 'פרטי (בעל הנכס בלבד)',
+  tenant_only: 'שוכר בלבד (שוכר ובעל הנכס)',
+  employee_only: 'עובד בלבד (עובד ובעל הנכס)',
+  public: 'ציבורי',
+};
+
 export type ContractStatusKey = 'active' | 'expired' | 'draft';
 
 export const CONTRACT_STATUS_LABELS: Record<ContractStatusKey, string> = {
@@ -221,6 +231,7 @@ export type ContractDetailMock = ContractListRow & {
   email?: string;
   contactName?: string;
   endDate?: string;
+  accessLevel?: ContractAccessLevel;
 };
 
 export function getContractDetailMock(id: string): ContractDetailMock | null {
@@ -235,6 +246,7 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
           email: 'yossi@example.com',
           contactName: 'יוסי כהן',
           endDate: '31/12/2025',
+          accessLevel: 'tenant_only',
         }
       : row.id === 'c2'
         ? {
@@ -244,6 +256,7 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
             email: 'michal@example.com',
             contactName: 'מיכל לוי',
             endDate: '28/02/2026',
+            accessLevel: 'owner_only',
           }
         : {
             monthlyAmount: '—',
@@ -252,6 +265,7 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
             email: '—',
             contactName: row.counterpartyName,
             endDate: '—',
+            accessLevel: 'public',
           };
   return { ...row, ...extras };
 }

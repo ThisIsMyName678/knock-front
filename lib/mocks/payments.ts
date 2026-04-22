@@ -279,6 +279,8 @@ export function filterPaymentRows(
     statusTab: StatusBucket | 'all';
     dateFrom: string;
     dateTo: string;
+    /** כשמוגדר (למשל מהדשבורד), מסתיר תשלומים בסטטוס התקבל */
+    excludeReceived?: boolean;
   },
 ): PaymentListRow[] {
   const q = opts.search.trim().toLowerCase();
@@ -286,6 +288,7 @@ export function filterPaymentRows(
     if (opts.linkScope !== 'all' && r.linkKind !== opts.linkScope) return false;
     if (opts.entityId && r.linkId !== opts.entityId) return false;
     if (!paymentMatchesGroupFilter(r.paymentType, opts.groupFilter)) return false;
+    if (opts.excludeReceived && r.statusBucket === 'received') return false;
     if (opts.statusTab !== 'all' && r.statusBucket !== opts.statusTab) return false;
     const t = parseDdMmYyyy(r.dueDate);
     if (opts.dateFrom.trim()) {

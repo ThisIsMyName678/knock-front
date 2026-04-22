@@ -4,5 +4,7 @@
 export type SubscriptionPlan = 'basic' | 'pro' | 'enterprise';
 
 export function useSubscriptionPlan(): SubscriptionPlan {
-  return 'enterprise';
+  // ברירת מחדל: מסלול שאינו אנטרפרייז → מסך "נכסים" הוא רשימת נכסים.
+  // החלף ל־'enterprise' לבדיקת מסך פרויקטים + נכסים בודדים.
+  return 'basic';
 }

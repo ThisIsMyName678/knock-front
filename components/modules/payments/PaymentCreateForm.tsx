@@ -60,7 +60,7 @@ const GUARANTEE_TYPES = [
   'ערבות אישית / כתב ערבות',
   'ערבות בנקאית',
   'פקדון מזומן',
-  'שעבוד חוב',
+  'שטח חוב',
   "צ'ק ביטחון",
 ] as const;
 
@@ -98,6 +98,7 @@ export function PaymentCreateForm() {
   const [linkSelected, setLinkSelected] = useState<(typeof PAYMENT_ENTITY_OPTIONS)[0] | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
   const [contractModal, setContractModal] = useState(false);
+  const [recCountModal, setRecCountModal] = useState(false);
   const [contractId, setContractId] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<PaymentTypeKey>('rent');
   const [maintenanceCallId, setMaintenanceCallId] = useState<string | null>(null);
@@ -127,7 +128,11 @@ export function PaymentCreateForm() {
   const [reminderDay, setReminderDay] = useState('1');
   const [reminderUnit, setReminderUnit] = useState<'days' | 'months'>('days');
   const [docName, setDocName] = useState('');
-  const [dateModal, setDateModal] = useState<{ visible: boolean; target: 'due' | 'row' | null; rowId: string | null }>({
+  const [dateModal, setDateModal] = useState<{
+    visible: boolean;
+    target: 'due' | 'row' | 'recEnd' | 'guaranteeEnd' | null;
+    rowId: string | null;
+  }>({
     visible: false,
     target: null,
     rowId: null,
@@ -201,12 +206,14 @@ export function PaymentCreateForm() {
     return { basePts, curPts, pct, adj, final: base + adj };
   }, [indexEnabled, totalAmount, indexAmount]);
 
-  const openDatePick = (target: 'due' | 'row', rowId?: string) => {
+  const openDatePick = (target: 'due' | 'row' | 'recEnd' | 'guaranteeEnd', rowId?: string) => {
     setDateModal({ visible: true, target, rowId: rowId ?? null });
   };
 
   const applyPresetDate = (label: string) => {
     if (dateModal.target === 'due') setDueDate(label);
+    if (dateModal.target === 'recEnd') setRecEndDate(label);
+    if (dateModal.target === 'guaranteeEnd') setGuaranteeEnd(label);
     if (dateModal.target === 'row' && dateModal.rowId) {
       setInstRows((prev) => prev.map((r) => (r.id === dateModal.rowId ? { ...r, dueDate: label } : r)));
     }
@@ -443,8 +450,24 @@ export function PaymentCreateForm() {
                   </Pressable>
                 ))}
               </View>
-              <Input label="מספר חזרות (1–12)" value={recCount} onChangeText={(t) => setRecCount(t.replace(/[^\d]/g, '').slice(0, 2))} keyboardType="number-pad" containerStyle={{ marginTop: Spacing.sm }} />
-              <Input label="תאריך סיום מחזוריות" value={recEndDate} onChangeText={setRecEndDate} placeholder="DD/MM/YYYY" containerStyle={{ marginTop: Spacing.sm }} />
+              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
+                מספר חזרות (1–12)
+              </AppText>
+              <Pressable onPress={() => setRecCountModal(true)} style={[styles.dropdown, { marginTop: Spacing.xs }]}>
+                <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.primary} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
+                  {Math.min(12, Math.max(1, parseInt(recCount, 10) || 1))}
+                </AppText>
+              </Pressable>
+              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
+                תאריך סיום מחזוריות
+              </AppText>
+              <Pressable onPress={() => openDatePick('recEnd')} style={[styles.dropdown, { marginTop: Spacing.xs }]}>
+                <MaterialCommunityIcons name="calendar" size={20} color={Colors.primary} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
+                  {recEndDate || 'בחר תאריך בלוח שנה'}
+                </AppText>
+              </Pressable>
               {recurringPreview && (
                 <AppText variant="bodySm" color="primary" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
                   ייווצרו כ־{recurringPreview.events} תשלומים; סה״כ מתוכנן: ₪{formatIlsInteger(recurringPreview.planned)}
@@ -491,6 +514,29 @@ export function PaymentCreateForm() {
                   {row.shafif && (
                     <Input label="ימים +" value={row.shafifDays} onChangeText={(t) => setInstRows((p) => p.map((r) => (r.id === row.id ? { ...r, shafifDays: t } : r)))} keyboardType="number-pad" />
                   )}
+                  <AppText variant="labelSm" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
+                    אמצעי תשלום
+                  </AppText>
+                  <View style={styles.rowChips}>
+                    {MEANS_OPTIONS.map((m) => (
+                      <Pressable
+                        key={m.key}
+                        onPress={() => setInstRows((p) => p.map((r) => (r.id === row.id ? { ...r, means: m.key } : r)))}
+                        style={[styles.miniChip, row.means === m.key && styles.miniChipActive]}
+                      >
+                        <AppText variant="caption" style={{ color: row.means === m.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                          {m.label}
+                        </AppText>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={styles.switchRow}>
+                    <Switch
+                      value={row.indexed}
+                      onValueChange={(v) => setInstRows((p) => p.map((r) => (r.id === row.id ? { ...r, indexed: v } : r)))}
+                    />
+                    <AppText variant="bodySm">הצמדה למדד</AppText>
+                  </View>
                 </View>
               ))}
             </View>
@@ -519,7 +565,15 @@ export function PaymentCreateForm() {
                   </Pressable>
                 ))}
               </ScrollView>
-              <Input label="תאריך סיום ביטחון" value={guaranteeEnd} onChangeText={setGuaranteeEnd} placeholder="DD/MM/YYYY" containerStyle={{ marginTop: Spacing.sm }} />
+              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
+                תאריך סיום ביטחון
+              </AppText>
+              <Pressable onPress={() => openDatePick('guaranteeEnd')} style={[styles.dropdown, { marginTop: Spacing.xs }]}>
+                <MaterialCommunityIcons name="calendar" size={20} color={Colors.primary} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
+                  {guaranteeEnd || 'בחר תאריך'}
+                </AppText>
+              </Pressable>
             </View>
           )}
 
@@ -673,6 +727,28 @@ export function PaymentCreateForm() {
                 style={styles.sheetRow}
               >
                 <AppText variant="bodyMd">{c.label}</AppText>
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={recCountModal} transparent animationType="slide" onRequestClose={() => setRecCountModal(false)}>
+        <Pressable style={styles.modalBg} onPress={() => setRecCountModal(false)}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>
+              בחירת מספר חזרות
+            </AppText>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+              <Pressable
+                key={n}
+                onPress={() => {
+                  setRecCount(String(n));
+                  setRecCountModal(false);
+                }}
+                style={styles.sheetRow}
+              >
+                <AppText variant="bodyMd">{n}</AppText>
               </Pressable>
             ))}
           </Pressable>

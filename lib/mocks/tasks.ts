@@ -333,6 +333,8 @@ export function filterTaskRows(
     assignee: string | null;
     dateFrom: string;
     dateTo: string;
+    /** סינון מדויק לסטטוס זרימה (למשל מהדשבורד — משימות חדשות) */
+    workflowStatusExact?: WorkflowStatus | null;
   },
 ): TaskListRow[] {
   const q = opts.search.trim().toLowerCase();
@@ -342,6 +344,7 @@ export function filterTaskRows(
     if (opts.linkScope !== 'all' && r.linkKind !== opts.linkScope) return false;
     if (opts.entityId && r.linkId !== opts.entityId) return false;
     if (opts.assignee && r.assigneeName !== opts.assignee) return false;
+    if (opts.workflowStatusExact && r.workflowStatus !== opts.workflowStatusExact) return false;
 
     if (opts.statusTab !== 'all') {
       if (opts.statusTab === 'in_progress' && r.workflowStatus !== 'in_progress') return false;
@@ -379,8 +382,9 @@ export function paymentsForTaskLink(linkId: string) {
   return MOCK_PAYMENTS_LIST.filter((p) => p.linkId === linkId);
 }
 
+/** n ההודעות האחרונות בסדר כרונולוגי (ישנה → חדשה), לתצוגת צ'אט */
 export function lastMessages(messages: TaskMessage[], n: number): TaskMessage[] {
-  return messages.slice(-n).reverse();
+  return messages.slice(-n);
 }
 
 export type TaskSortKey = 'dueDate' | 'title' | 'priority';
