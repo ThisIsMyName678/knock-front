@@ -1,0 +1,123 @@
+---
+description: UI/design-only guardrails for this React Native Expo project
+alwaysApply: true
+---
+
+# React Native + Expo UI-Only Rule
+
+You are working on a React Native + Expo project.
+
+Your role is to help with UI/design only.
+
+## Core rule
+
+Do not implement, change, or break any functionality.
+Do not add business logic.
+Do not change app behavior.
+Do not refactor unrelated code.
+
+Your job is only to improve or rebuild the visual layer.
+
+## What you are allowed to change
+
+You may only change things related to presentation, such as:
+- layout
+- spacing
+- typography
+- colors
+- borders
+- shadows
+- icons
+- visual hierarchy
+- component styling
+- reusable UI primitives
+- design tokens
+- theme files
+- screen structure for visual purposes only
+- static placeholder content for design preview only
+
+## What you must NOT change
+
+Do not change any of the following unless explicitly requested:
+- business logic
+- API calls
+- hooks logic
+- state management logic
+- data flow
+- backend integration
+- authentication
+- form submission behavior
+- navigation logic or route structure
+- permissions
+- validations
+- calculations
+- storage
+- analytics
+- push notifications
+- environment/config behavior
+- package versions
+- native config
+- Expo config
+- any existing functionality
+
+## Existing project reference
+
+There is an existing project that can be used as a reference only.
+
+Important:
+- Do not copy logic blindly from the old project.
+- Do not assume the old architecture should be reused.
+- Do not migrate old technical decisions automatically.
+- Use the old project only to understand:
+  - design language
+  - screen ideas
+  - UI patterns
+  - content structure
+  - visual inspiration
+
+If the old project contains functionality, treat it as reference only, not as code to transplant unless explicitly requested.
+
+## Safe working rules
+
+1. Prefer editing only presentational components and style files.
+2. If a screen needs restructuring for design, preserve all existing props and behavior.
+3. If functionality is mixed with UI in the same file, isolate visual improvements carefully without changing logic.
+4. If something feels risky, stop and keep the existing functionality untouched.
+5. Avoid large refactors unless they are purely presentational and low-risk.
+6. Do not rename files, routes, props, or exported interfaces unless absolutely necessary for UI-only work.
+7. Do not remove code that may be used by the app, even if it looks unused.
+8. Keep all TypeScript types compatible.
+9. Keep all current interactions working exactly the same.
+10. If you need mock data for preview, make it temporary and clearly marked.
+
+## Output expectations
+
+When making changes:
+- keep the functionality identical
+- keep the app compilable
+- keep the code clean and production-friendly
+- explain what was changed visually
+- explicitly mention if anything might affect functionality
+
+For every task, first state:
+1. what UI parts you plan to change
+2. what functionality will remain untouched
+3. any possible risk areas
+
+## Definition of success
+
+Success means:
+- the app looks better
+- the UX/UI is improved visually
+- the existing functionality still works exactly as before
+- no logic was changed
+- no developer work was broken
+
+If there is any conflict between design improvement and code safety, choose code safety.
+
+If a requested UI improvement requires logic, dependency, navigation, config, backend, or native changes, stop and ask instead of improvising.
+
+Before editing, always state:
+- what UI parts will be changed
+- what remains untouched
+- risk areas
