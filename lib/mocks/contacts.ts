@@ -414,6 +414,16 @@ export function consumePendingContacts(): ContactListRow[] {
   return out;
 }
 
+/**
+ * Mock email-based system lookup.
+ * Returns true if the email matches a known system user.
+ */
+export function checkEmailInSystem(email: string): boolean {
+  const e = email.trim().toLowerCase();
+  if (!e || !e.includes('@')) return false;
+  return MOCK_CONTACTS_LIST.some((c) => c.hasUserInSystem && c.email.toLowerCase() === e);
+}
+
 export function getContactDetailMock(id: string): ContactListRow | null {
   const fromSnap = activeRowsSnapshot?.find((r) => r.id === id);
   if (fromSnap) return fromSnap;

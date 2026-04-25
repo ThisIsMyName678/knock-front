@@ -3,7 +3,7 @@
  */
 
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
-import { MOCK_CONTRACTS_LIST } from '@/lib/mocks/contracts';
+import { MOCK_CONTRACTS_LIST, getContractDetailMock } from '@/lib/mocks/contracts';
 import { MOCK_PAYMENTS_LIST, type PaymentListRow } from '@/lib/mocks/payments';
 import { MOCK_TASKS_LIST, type TaskKind, type TaskListRow, type WorkflowStatus } from '@/lib/mocks/tasks';
 import { assetOccupancyStats } from '@/lib/mocks/assets';
@@ -220,37 +220,60 @@ function paymentStatusLabel(bucket: PaymentListRow['statusBucket']): string {
 }
 
 function eventsFromPayments(): DashboardCalendarEvent[] {
-  return MOCK_PAYMENTS_LIST.map((p, i) => {
-    const dk = dateKeyFromDdMmYyyy(p.dueDate);
-    if (!dk) return null;
-    return {
-      id: `pay-ev-${p.id}`,
-      source: 'payment' as const,
-      title: p.displayName,
-      dateKey: dk,
-      sortOrder: i,
-      statusLabel: paymentStatusLabel(p.statusBucket),
-      detail: `${p.linkLabel} · ${p.progressLabel}`,
-      href: `/(app)/payments/${p.id}`,
-    };
-  }).filter(Boolean) as DashboardCalendarEvent[];
+  return MOCK_PAYMENTS_LIST
+    .filter((p) => p.statusBucket !== 'received') // Only show upcoming/overdue payments
+    .map((p, i) => {
+      const dk = dateKeyFromDdMmYyyy(p.dueDate);
+      if (!dk) return null;
+      return {
+        id: `pay-ev-${p.id}`,
+        source: 'payment' as const,
+        title: p.displayName,
+        dateKey: dk,
+        sortOrder: i,
+        statusLabel: paymentStatusLabel(p.statusBucket),
+        detail: `${p.linkLabel} · ${p.direction === 'inbound' ? 'הכנסה' : 'הוצאה'} · ${p.progressLabel}`,
+        href: `/(app)/payments/${p.id}`,
+      };
+    }).filter(Boolean) as DashboardCalendarEvent[];
 }
 
 function eventsFromContracts(): DashboardCalendarEvent[] {
-  return MOCK_CONTRACTS_LIST.map((c, i) => {
+  const events: DashboardCalendarEvent[] = [];
+  MOCK_CONTRACTS_LIST.forEach((c, i) => {
+    // Signing date event
     const dk = dateKeyFromDdMmYyyy(c.agreementDate);
-    if (!dk) return null;
-    return {
-      id: `ctr-ev-${c.id}`,
-      source: 'contract' as const,
-      title: c.contractName,
-      dateKey: dk,
-      sortOrder: 100 + i,
-      statusLabel: c.status === 'active' ? 'פעיל' : c.status === 'draft' ? 'טיוטה' : 'פג תוקף',
-      detail: c.counterpartyName,
-      href: `/(app)/contracts/${c.id}`,
-    };
-  }).filter(Boolean) as DashboardCalendarEvent[];
+    if (dk) {
+      events.push({
+        id: `ctr-ev-${c.id}`,
+        source: 'contract' as const,
+        title: c.contractName,
+        dateKey: dk,
+        sortOrder: 100 + i,
+        statusLabel: c.status === 'active' ? 'פעיל' : c.status === 'draft' ? 'טיוטה' : 'פג תוקף',
+        detail: c.counterpartyName,
+        href: `/(app)/contracts/${c.id}`,
+      });
+    }
+    // Renewal/expiry date event (from detail)
+    const detail = getContractDetailMock(c.id);
+    if (detail?.endDate && detail.endDate !== '—') {
+      const renewDk = dateKeyFromDdMmYyyy(detail.endDate);
+      if (renewDk) {
+        events.push({
+          id: `ctr-ren-${c.id}`,
+          source: 'contract' as const,
+          title: `חידוש נדרש: ${c.contractName}`,
+          dateKey: renewDk,
+          sortOrder: 150 + i,
+          statusLabel: c.status === 'expired' ? 'פג תוקף' : 'חידוש קרוב',
+          detail: `${c.counterpartyName} · תוקף פג`,
+          href: `/(app)/contracts/${c.id}`,
+        });
+      }
+    }
+  });
+  return events;
 }
 
 function eventsFromTasks(): DashboardCalendarEvent[] {

@@ -4,7 +4,6 @@ import {
   FlatList,
   StyleSheet,
   Pressable,
-  TextInput,
   Modal,
   ScrollView,
   Animated,
@@ -34,7 +33,8 @@ import {
   assetsStandaloneForEnterpriseList,
 } from '@/lib/mocks/assets';
 import { useSubscriptionPlan } from '@/hooks/useSubscriptionPlan';
-import { DrawerMenu } from '@/components/ui/DrawerMenu';
+import { AppHeader } from '@/components/ui/AppHeader';
+import { FilterBar } from '@/components/ui/FilterBar';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -236,7 +236,6 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [sheetVisible, setSheetVisible] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const rawData: Entity[] = useMemo(() => {
     if (scopedProjectId) {
@@ -290,26 +289,13 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
 
   const body = (
     <>
-      {/* Search */}
-      <View style={[styles.searchBar, embedded && styles.searchBarEmbedded]}>
-        <View style={styles.searchRow}>
-          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={`חיפוש ${title.toLowerCase()}...`}
-            placeholderTextColor={Colors.onSurfaceMuted}
-            value={search}
-            onChangeText={setSearch}
-            textAlign="right"
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="נקה חיפוש">
-              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
-            </Pressable>
-          )}
-        </View>
-      </View>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        tabs={FILTERS.map((f) => ({ key: f.key, label: f.label }))}
+        activeTab={filter}
+        onTabChange={(k) => setFilter(k as FilterKey)}
+      />
 
       {showOrphansHint ? (
         <View style={styles.hintBanner}>
@@ -319,32 +305,6 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
           </AppText>
         </View>
       ) : null}
-
-      {/* Filter chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filtersRow}
-        style={[styles.filtersScroll, embedded && styles.filtersScrollEmbedded]}
-      >
-        {FILTERS.map((f) => (
-          <Pressable
-            key={f.key}
-            onPress={() => setFilter(f.key)}
-            style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: filter === f.key }}
-          >
-            <AppText
-              variant="labelMd"
-              weight={filter === f.key ? 'bold' : 'regular'}
-              style={{ color: filter === f.key ? Colors.onPrimary : Colors.onSurfaceVariant }}
-            >
-              {f.label}
-            </AppText>
-          </Pressable>
-        ))}
-      </ScrollView>
 
       {/* Grid */}
       {filtered.length === 0 ? (
@@ -406,27 +366,19 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => setDrawerOpen(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
-          <MaterialCommunityIcons name="menu" size={24} color={Colors.onPrimary} />
-        </Pressable>
-        <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ flex: 1, textAlign: 'right' }}>
-          {title}
-        </AppText>
-        <Pressable
-          onPress={() => setSheetVisible(true)}
-          style={styles.addBtn}
-          accessibilityRole="button"
-          accessibilityLabel="הוסף חדש"
-        >
-          <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
-        </Pressable>
-      </View>
+      <AppHeader title={title} showMenu />
 
       {body}
 
-      <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      {/* FAB */}
+      <Pressable
+        onPress={() => setSheetVisible(true)}
+        style={[styles.fab, { bottom: insets.bottom + Spacing.lg }]}
+        accessibilityRole="button"
+        accessibilityLabel="הוסף חדש"
+      >
+        <MaterialCommunityIcons name="plus" size={26} color={Colors.onPrimary} />
+      </Pressable>
     </View>
   );
 }
@@ -449,84 +401,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
 
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 
-  searchBar: {
-    padding: CONTENT_HORIZONTAL_PADDING,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineVariant,
-  },
-  searchBarEmbedded: {
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    backgroundColor: 'transparent',
-    borderBottomWidth: 0,
-  },
-  searchRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.surfaceVariant,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.onBackground,
-    paddingVertical: 0,
-  },
-
-  filtersScroll: {
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineVariant,
-    flexGrow: 0,
-  },
-  filtersScrollEmbedded: {
-    backgroundColor: 'transparent',
-    borderBottomWidth: 0,
-  },
-  filtersRow: {
-    flexDirection: 'row-reverse',
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  filterChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-    minHeight: 34,
-    justifyContent: 'center',
-  },
-  filterChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
 
   grid: {
     padding: CONTENT_HORIZONTAL_PADDING,
@@ -634,5 +509,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: Radius.md,
     backgroundColor: Colors.surfaceVariant,
+  },
+  fab: {
+    position: 'absolute',
+    left: CONTENT_HORIZONTAL_PADDING,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.md,
   },
 });

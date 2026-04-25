@@ -5,6 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -62,15 +63,7 @@ export default function ContactDetailScreen() {
   if (!contact) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary">
-            איש קשר
-          </AppText>
-          <View style={styles.iconBtn} />
-        </View>
+        <AppHeader title="איש קשר" showBack />
         <View style={{ flex: 1, justifyContent: 'center', padding: CONTENT_HORIZONTAL_PADDING }}>
           <AppText variant="bodyMd" align="center" color="variant">
             לא נמצא איש קשר
@@ -106,15 +99,7 @@ export default function ContactDetailScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-          <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-        </Pressable>
-        <AppText variant="headingMd" weight="bold" color="onPrimary" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
-          איש קשר
-        </AppText>
-        <View style={styles.iconBtn} />
-      </View>
+      <AppHeader title="איש קשר" showBack />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
@@ -216,6 +201,8 @@ export default function ContactDetailScreen() {
           </AppText>
         </Card>
 
+        <Button label="עריכת פרטים" onPress={() => router.push(`/(app)/contacts/edit/${contact.id}`)} fullWidth variant="secondary" size="lg" />
+
         {!contact.hasUserInSystem && contact.inviteToken ? (
           <Button label="הזמנה לאפליקציה (לינק)" onPress={onInvite} fullWidth variant="secondary" size="lg" />
         ) : null}
@@ -228,17 +215,6 @@ export default function ContactDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   profileCard: {
     backgroundColor: Colors.surface,

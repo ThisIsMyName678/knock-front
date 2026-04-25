@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 
 const PLANS = [
@@ -41,11 +42,7 @@ export default function SubscriptionScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button"><MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} /></Pressable>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">מסלולי מנוי</AppText>
-        <View style={styles.iconBtn} />
-      </View>
+      <AppHeader title="מסלולי מנוי" showBack />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
         {/* Billing toggle */}
@@ -115,8 +112,6 @@ export default function SubscriptionScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.primary, paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingBottom: Spacing.base, paddingTop: Spacing.sm, ...Shadow.md },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   billingToggle: { flexDirection: 'row-reverse', backgroundColor: Colors.surfaceVariant, borderRadius: Radius.full, padding: 4, gap: 4 },
   billingBtn: { flex: 1, alignItems: 'center', paddingVertical: Spacing.sm, borderRadius: Radius.full },

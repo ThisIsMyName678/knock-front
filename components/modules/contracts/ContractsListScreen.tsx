@@ -4,7 +4,6 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  TextInput,
   Share,
   FlatList,
 } from 'react-native';
@@ -14,6 +13,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { AppHeader } from '@/components/ui/AppHeader';
+import { FilterBar } from '@/components/ui/FilterBar';
+import { FilterSheet } from '@/components/ui/FilterSheet';
+import type { FilterSection } from '@/components/ui/FilterSheet';
 import {
   MOCK_CONTRACTS_LIST,
   MOCK_ENTITY_LINKS,
@@ -70,6 +73,7 @@ function statusPreset(s: ContractListRow['status']): React.ComponentProps<typeof
 
 export function ContractsListScreen() {
   const insets = useSafeAreaInsets();
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [linkScope, setLinkScope] = useState<LinkScopeFilter>('all');
   const [typeFilter, setTypeFilter] = useState<ContractTypeFilter>('all');
@@ -101,6 +105,47 @@ export function ContractsListScreen() {
 
   const sorted = useMemo(() => sortContractRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
 
+  const entityOptionsForScope = useMemo(
+    () =>
+      MOCK_ENTITY_LINKS.filter((e) => e.kind === linkScope).map((e) => ({ key: e.id, label: e.name })),
+    [linkScope],
+  );
+
+  const activeSecondaryCount = useMemo(() => {
+    let count = 0;
+    if (linkScope !== 'all') count++;
+    return count;
+  }, [linkScope]);
+
+  const filterSections: FilterSection[] = useMemo(
+    () => [
+      {
+        kind: 'chips',
+        label: 'שיוך לפי',
+        options: LINK_SCOPE_OPTIONS.map((o) => ({ key: o.key, label: o.label })),
+        value: linkScope,
+        onChange: (k) => {
+          setLinkScope(k as LinkScopeFilter);
+          setEntityId(null);
+        },
+      },
+      {
+        kind: 'conditionalChips',
+        label: linkScope === 'asset' ? 'בחר נכס' : 'בחר פרויקט',
+        options: entityOptionsForScope,
+        value: entityId,
+        onChange: setEntityId,
+        visible: linkScope !== 'all',
+      },
+    ],
+    [linkScope, entityId, entityOptionsForScope],
+  );
+
+  const resetSecondaryFilters = useCallback(() => {
+    setLinkScope('all');
+    setEntityId(null);
+  }, []);
+
   const exportCsv = useCallback(async () => {
     const header = 'שם,סוג,שיוך,צד שני,תאריך,סטטוס\n';
     const lines = sorted.map(
@@ -117,133 +162,24 @@ export function ContractsListScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">
-          חוזים
-        </AppText>
-        <View style={styles.headerActions}>
-          <Pressable onPress={exportCsv} style={styles.headerIconBtn} accessibilityRole="button" accessibilityLabel="יצוא">
-            <MaterialCommunityIcons name="tray-arrow-up" size={22} color={Colors.onPrimary} />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/(app)/contracts/new')}
-            style={styles.addBtn}
-            accessibilityRole="button"
-            accessibilityLabel="חוזה חדש"
-          >
-            <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
-          </Pressable>
-        </View>
-      </View>
+      <AppHeader title="חוזים" showMenu />
 
-      <View style={styles.toolbar}>
-        <AppText variant="labelMd" weight="bold" style={styles.toolbarTitle}>
-          חיפוש וסינון
-        </AppText>
-        <AppText variant="caption" color="variant" style={styles.toolbarSubtitle}>
-          חיפוש חופשי · סינון לפי נכס או פרויקט · סוג חוזה · ייצוא · מיון עמודות
-        </AppText>
-        <View style={styles.searchRow}>
-          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="חיפוש חופשי..."
-            placeholderTextColor={Colors.onSurfaceMuted}
-            value={search}
-            onChangeText={setSearch}
-            textAlign="right"
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="נקה">
-              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
-            </Pressable>
-          )}
-        </View>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        tabs={TYPE_FILTER_OPTIONS.map((o) => ({ key: o.key, label: o.label }))}
+        activeTab={typeFilter}
+        onTabChange={(k) => setTypeFilter(k as ContractTypeFilter)}
+        activeSecondaryCount={activeSecondaryCount}
+        onFiltersPress={() => setFilterSheetOpen(true)}
+      />
 
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          סינון לפי נכס / פרויקט
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {LINK_SCOPE_OPTIONS.map((o) => (
-            <Pressable
-              key={o.key}
-              onPress={() => {
-                setLinkScope(o.key);
-                setEntityId(null);
-              }}
-              style={[styles.chip, linkScope === o.key && styles.chipActive]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: linkScope === o.key }}
-            >
-              <AppText
-                variant="labelMd"
-                weight={linkScope === o.key ? 'bold' : 'regular'}
-                style={{ color: linkScope === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}
-              >
-                {o.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {(linkScope === 'asset' || linkScope === 'project') && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-            <Pressable
-              onPress={() => setEntityId(null)}
-              style={[styles.chip, entityId === null && styles.chipActive]}
-              accessibilityRole="button"
-            >
-              <AppText variant="labelMd" weight={entityId === null ? 'bold' : 'regular'} style={{ color: entityId === null ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                כל הישויות
-              </AppText>
-            </Pressable>
-            {MOCK_ENTITY_LINKS.filter((e) => e.kind === linkScope).map((e) => (
-              <Pressable
-                key={e.id}
-                onPress={() => setEntityId(e.id)}
-                style={[styles.chip, entityId === e.id && styles.chipActive]}
-                accessibilityRole="button"
-              >
-                <AppText
-                  variant="labelMd"
-                  weight={entityId === e.id ? 'bold' : 'regular'}
-                  style={{ color: entityId === e.id ? Colors.onPrimary : Colors.onSurfaceVariant }}
-                  numberOfLines={1}
-                >
-                  {e.name}
-                </AppText>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          סוג חוזה
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {TYPE_FILTER_OPTIONS.map((o) => (
-            <Pressable
-              key={o.key}
-              onPress={() => setTypeFilter(o.key)}
-              style={[styles.chip, typeFilter === o.key && styles.chipActive]}
-              accessibilityRole="button"
-            >
-              <AppText
-                variant="labelMd"
-                weight={typeFilter === o.key ? 'bold' : 'regular'}
-                style={{ color: typeFilter === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}
-              >
-                {o.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
-      <AppText variant="caption" color="variant" style={styles.sortHint}>
-        לחיצה על כותרת עמודה משנה את סדר המיון (עולה / יורד)
-      </AppText>
+      <FilterSheet
+        visible={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        onReset={resetSecondaryFilters}
+        sections={filterSections}
+      />
 
       {/* Table header */}
       <View style={styles.tableHeader}>
@@ -332,104 +268,21 @@ export function ContractsListScreen() {
           )}
         />
       )}
+      {/* FAB */}
+      <Pressable
+        onPress={() => router.push('/(app)/contracts/new')}
+        style={[styles.fab, { bottom: insets.bottom + Spacing.lg }]}
+        accessibilityRole="button"
+        accessibilityLabel="הוסף חוזה"
+      >
+        <MaterialCommunityIcons name="plus" size={26} color={Colors.onPrimary} />
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  headerActions: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm },
-  headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolbar: {
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineVariant,
-    paddingBottom: Spacing.sm,
-  },
-  toolbarTitle: {
-    textAlign: 'right',
-    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
-    marginTop: Spacing.md,
-    marginBottom: 2,
-    color: Colors.onBackground,
-  },
-  toolbarSubtitle: {
-    textAlign: 'right',
-    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
-    marginBottom: Spacing.sm,
-  },
-  searchRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-    backgroundColor: Colors.surfaceVariant,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.onBackground,
-    paddingVertical: 0,
-  },
-  filterLabel: { textAlign: 'right', marginRight: CONTENT_HORIZONTAL_PADDING, marginTop: Spacing.xs },
-  chipsRow: {
-    flexDirection: 'row-reverse',
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingVertical: Spacing.xs,
-    gap: Spacing.sm,
-  },
-  chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-    minHeight: 34,
-    justifyContent: 'center',
-  },
-  chipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  sortHint: {
-    textAlign: 'right',
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingTop: Spacing.xs,
-    paddingBottom: 2,
-    backgroundColor: Colors.surface,
-  },
   tableHeader: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
@@ -468,5 +321,16 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
     paddingHorizontal: 6,
     paddingVertical: 4,
+  },
+  fab: {
+    position: 'absolute',
+    left: CONTENT_HORIZONTAL_PADDING,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.md,
   },
 });

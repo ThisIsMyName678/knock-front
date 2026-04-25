@@ -11,6 +11,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 
 export default function NewProjectScreen() {
@@ -21,15 +22,7 @@ export default function NewProjectScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="חזרה">
-          <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-        </Pressable>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">
-          פרויקט חדש
-        </AppText>
-        <View style={styles.backBtn} />
-      </View>
+      <AppHeader title="פרויקט חדש" showBack />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
@@ -81,17 +74,6 @@ export default function NewProjectScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.md },
   card: {
     backgroundColor: Colors.surface,

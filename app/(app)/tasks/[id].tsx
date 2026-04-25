@@ -33,6 +33,8 @@ import {
   type TaskKind,
 } from '@/lib/mocks/tasks';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, FontFamily, FontSize } from '@/constants/tokens';
+import { Input } from '@/components/ui/Input';
+import { AppHeader } from '@/components/ui/AppHeader';
 
 const STATUS_OPTIONS: WorkflowStatus[] = ['not_started', 'open', 'in_progress', 'completed', 'cancelled'];
 
@@ -68,6 +70,34 @@ export default function TaskDetailRoute() {
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
 
+  // Edit mode
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState(base?.title ?? '');
+  const [editAssignee, setEditAssignee] = useState(base?.assigneeName ?? '');
+  const [editDueDate, setEditDueDate] = useState(base?.dueDate ?? '');
+  const [editStartDate, setEditStartDate] = useState(base?.startDate ?? '');
+  const [editPriority, setEditPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>(base?.priority ?? 'medium');
+  const [localTitle, setLocalTitle] = useState(base?.title ?? '');
+  const [localAssignee, setLocalAssignee] = useState(base?.assigneeName ?? '');
+  const [localDueDate, setLocalDueDate] = useState(base?.dueDate ?? '');
+
+  const openEdit = () => {
+    const t = base;
+    setEditTitle(localTitle);
+    setEditAssignee(localAssignee);
+    setEditDueDate(localDueDate);
+    setEditStartDate(t?.startDate ?? '');
+    setEditPriority(t?.priority ?? 'medium');
+    setEditOpen(true);
+  };
+
+  const saveEdit = () => {
+    setLocalTitle(editTitle.trim() || (base?.title ?? ''));
+    setLocalAssignee(editAssignee.trim() || (base?.assigneeName ?? ''));
+    setLocalDueDate(editDueDate.trim() || (base?.dueDate ?? ''));
+    setEditOpen(false);
+  };
+
   useEffect(() => {
     const t = getTaskDetailMock(String(id ?? ''));
     if (t) {
@@ -100,15 +130,7 @@ export default function TaskDetailRoute() {
   if (!task) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary">
-            משימה
-          </AppText>
-          <View style={styles.iconBtn} />
-        </View>
+        <AppHeader title="משימה" showBack />
         <View style={{ flex: 1, justifyContent: 'center', padding: CONTENT_HORIZONTAL_PADDING }}>
           <AppText variant="bodyMd" align="center" color="variant">
             לא נמצאה משימה
@@ -125,26 +147,10 @@ export default function TaskDetailRoute() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
-            {isMaintenance ? 'קריאת תחזוקה' : 'פרטי משימה'}
-          </AppText>
-          {!task.assigneeHasUser ? (
-            <Pressable
-              onPress={() => Alert.alert('לינק הזמנה (דמה)', MOCK_TASK_INVITE_URL)}
-              style={styles.iconBtn}
-              accessibilityRole="button"
-              accessibilityLabel="לינק הזמנה"
-            >
-              <MaterialCommunityIcons name="link-variant" size={22} color={Colors.onPrimary} />
-            </Pressable>
-          ) : (
-            <View style={styles.iconBtn} />
-          )}
-        </View>
+        <AppHeader
+          title={isMaintenance ? 'קריאת תחזוקה' : 'פרטי משימה'}
+          showBack
+        />
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
           {isMaintenance && (
@@ -164,7 +170,7 @@ export default function TaskDetailRoute() {
                   {TASK_KIND_LABELS[task.taskKind]}
                 </AppText>
                 <AppText variant="headingSm" weight="bold">
-                  {task.title}
+                  {localTitle || task.title}
                 </AppText>
                 <View style={styles.badgeRow}>
                   <Badge label={TASK_PRIORITY_LABELS[task.priority]} preset={priorityPreset(task.priority)} />
@@ -185,10 +191,10 @@ export default function TaskDetailRoute() {
             </AppText>
             {[
               { label: 'שיוך', value: `${task.linkKind === 'asset' ? 'נכס' : 'פרויקט'}: ${task.linkLabel}` },
-              { label: 'אחראי', value: task.assigneeName },
+              { label: 'אחראי', value: localAssignee || task.assigneeName },
               { label: 'נוצר על ידי', value: task.createdBy },
               { label: 'תאריך התחלה', value: task.startDate },
-              { label: 'תאריך יעד', value: task.dueDate },
+              { label: 'תאריך יעד', value: localDueDate || task.dueDate },
               ...(task.endDate ? [{ label: 'תאריך סיום', value: task.endDate }] : []),
             ].map((row) => (
               <View key={row.label} style={styles.detailRow}>
@@ -204,7 +210,7 @@ export default function TaskDetailRoute() {
               <Pressable onPress={() => Alert.alert('לינק הזמנה (דמה)', MOCK_TASK_INVITE_URL)} style={styles.inviteRow}>
                 <MaterialCommunityIcons name="account-plus-outline" size={22} color={Colors.primary} />
                 <AppText variant="bodySm" color="primary" weight="semiBold" style={{ flex: 1, textAlign: 'right' }}>
-                  הזמנת אחראי כשוכר או עובד (לינק מותאם)
+                  שיוך בעל תפקיד למשימה (לינק מותאם)
                 </AppText>
               </Pressable>
             ) : null}
@@ -400,6 +406,50 @@ export default function TaskDetailRoute() {
             </Pressable>
           </Pressable>
         </Modal>
+
+        {/* ─── Edit modal ─── */}
+        <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setEditOpen(false)}>
+            <Pressable style={[styles.composeSheet, { paddingBottom: insets.bottom + Spacing.lg }]} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.editModalHeader}>
+                <Pressable onPress={() => setEditOpen(false)} style={styles.iconBtnDark} accessibilityRole="button">
+                  <MaterialCommunityIcons name="close" size={22} color={Colors.onBackground} />
+                </Pressable>
+                <AppText variant="headingSm" weight="bold" style={{ flex: 1, textAlign: 'right' }}>
+                  עריכת משימה
+                </AppText>
+                <Pressable onPress={saveEdit} style={styles.saveBtn} accessibilityRole="button">
+                  <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>שמור</AppText>
+                </Pressable>
+              </View>
+
+              <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View style={{ padding: Spacing.base, gap: Spacing.md }}>
+                  <Input label="כותרת" value={editTitle} onChangeText={setEditTitle} />
+                  <Input label="אחראי" value={editAssignee} onChangeText={setEditAssignee} />
+                  <Input label="תאריך יעד (DD/MM/YYYY)" value={editDueDate} onChangeText={setEditDueDate} keyboardType="numeric" />
+                  <Input label="תאריך התחלה (DD/MM/YYYY)" value={editStartDate} onChangeText={setEditStartDate} keyboardType="numeric" />
+
+                  <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right' }}>עדיפות</AppText>
+                  <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm }}>
+                    {(['urgent', 'high', 'medium', 'low'] as const).map((p) => (
+                      <Pressable
+                        key={p}
+                        onPress={() => setEditPriority(p)}
+                        style={[styles.editChip, editPriority === p && styles.editChipActive]}
+                        accessibilityRole="button"
+                      >
+                        <AppText variant="caption" weight={editPriority === p ? 'bold' : 'regular'} style={{ color: editPriority === p ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                          {TASK_PRIORITY_LABELS[p]}
+                        </AppText>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </KeyboardAvoidingView>
   );
@@ -407,17 +457,6 @@ export default function TaskDetailRoute() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   iconBtnDark: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   maintenanceBanner: {
@@ -515,4 +554,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  editModalHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+    gap: Spacing.sm,
+  },
+  saveBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.md,
+  },
+  editChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  editChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
 });

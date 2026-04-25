@@ -4,7 +4,6 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  TextInput,
   FlatList,
   Modal,
 } from 'react-native';
@@ -15,6 +14,10 @@ import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FilterBar } from '@/components/ui/FilterBar';
+import { FilterSheet } from '@/components/ui/FilterSheet';
+import type { FilterSection } from '@/components/ui/FilterSheet';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
   MOCK_TASKS_LIST,
@@ -45,7 +48,6 @@ import {
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
-import { DrawerMenu } from '@/components/ui/DrawerMenu';
 
 type ScopeFilter = 'all' | 'by_asset' | 'by_project';
 
@@ -137,7 +139,7 @@ export function TasksListScreen() {
   const [sortKey, setSortKey] = useState<TaskSortKey>('dueDate');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [statusModalTaskId, setStatusModalTaskId] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   useEffect(() => {
     const w = paramStr(params.workflowStatus);
@@ -207,140 +209,102 @@ export function TasksListScreen() {
     return [];
   }, [scope]);
 
+  const activeSecondaryCount = useMemo(() => {
+    let count = 0;
+    if (taskKind !== 'all') count++;
+    if (priority !== 'all') count++;
+    if (scope !== 'all') count++;
+    if (assignee !== null) count++;
+    if (dateFrom || dateTo) count++;
+    return count;
+  }, [taskKind, priority, scope, assignee, dateFrom, dateTo]);
+
+  const filterSections: FilterSection[] = useMemo(
+    () => [
+      {
+        kind: 'chips',
+        label: 'סוג משימה',
+        options: TASK_KIND_OPTIONS.map((o) => ({
+          key: String(o.key),
+          label: o.label,
+          icon: o.key !== 'all' ? String(iconName(o.key as TaskKind)) : undefined,
+        })),
+        value: taskKind,
+        onChange: (k) => setTaskKind(k as TaskKindFilter),
+      },
+      {
+        kind: 'chips',
+        label: 'דחיפות',
+        options: PRIORITY_OPTIONS.map((o) => ({ key: String(o.key), label: o.label })),
+        value: priority,
+        onChange: (k) => setPriority(k as TaskPriorityFilter),
+      },
+      {
+        kind: 'chips',
+        label: 'שיוך לפי',
+        options: SCOPE_OPTIONS.map((o) => ({ key: o.key, label: o.label })),
+        value: scope,
+        onChange: (k) => {
+          setScope(k as ScopeFilter);
+          setEntityId(null);
+        },
+      },
+      {
+        kind: 'conditionalChips',
+        label: scope === 'by_asset' ? 'בחר נכס' : 'בחר פרויקט',
+        options: entitiesForScope.map((e) => ({ key: e.id, label: e.name })),
+        value: entityId,
+        onChange: setEntityId,
+        visible: scope !== 'all',
+      },
+      {
+        kind: 'conditionalChips',
+        label: 'עובד / אחראי',
+        options: MOCK_ASSIGNEE_NAMES.map((name) => ({ key: name, label: name })),
+        value: assignee,
+        onChange: setAssignee,
+        visible: true,
+      },
+      {
+        kind: 'dateRange',
+        label: 'טווח תאריך יעד',
+        from: dateFrom,
+        to: dateTo,
+        onFromChange: setDateFrom,
+        onToChange: setDateTo,
+      },
+      {
+        kind: 'sort',
+        label: 'מיון',
+        options: [
+          { key: 'dueDate', label: 'תאריך יעד' },
+          { key: 'title', label: 'כותרת' },
+          { key: 'priority', label: 'דחיפות' },
+        ],
+        sortKey,
+        sortDir,
+        onSortKeyChange: (k) => {
+          setSortKey(k as TaskSortKey);
+          setSortDir('asc');
+        },
+        onSortDirToggle: () => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')),
+      },
+    ],
+    [taskKind, priority, scope, entityId, entitiesForScope, assignee, dateFrom, dateTo, sortKey, sortDir],
+  );
+
+  const resetSecondaryFilters = useCallback(() => {
+    setTaskKind('all');
+    setPriority('all');
+    setScope('all');
+    setEntityId(null);
+    setAssignee(null);
+    setDateFrom('');
+    setDateTo('');
+  }, []);
+
   const listHeader = (
     <>
-      <View style={styles.toolbar}>
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          חיפוש חופשי
-        </AppText>
-        <View style={styles.searchRow}>
-          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="כותרת, שיוך, עובד, סוג משימה..."
-            placeholderTextColor={Colors.onSurfaceMuted}
-            value={search}
-            onChangeText={setSearch}
-            textAlign="right"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
-            </Pressable>
-          )}
-        </View>
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          סוג משימה
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {TASK_KIND_OPTIONS.map((o) => (
-            <Pressable key={String(o.key)} onPress={() => setTaskKind(o.key)} style={[styles.chip, styles.chipWithIcon, taskKind === o.key && styles.chipActive]} accessibilityRole="button">
-              {o.key !== 'all' ? (
-                <MaterialCommunityIcons
-                  name={iconName(o.key as TaskKind)}
-                  size={18}
-                  color={taskKind === o.key ? Colors.onPrimary : Colors.primary}
-                />
-              ) : null}
-              <AppText variant="labelMd" weight={taskKind === o.key ? 'bold' : 'regular'} style={{ color: taskKind === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {o.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          דחיפות
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {PRIORITY_OPTIONS.map((o) => (
-            <Pressable key={String(o.key)} onPress={() => setPriority(o.key)} style={[styles.chip, priority === o.key && styles.chipActive]} accessibilityRole="button">
-              <AppText variant="labelMd" weight={priority === o.key ? 'bold' : 'regular'} style={{ color: priority === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {o.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          שיוך נכס / פרויקט
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {SCOPE_OPTIONS.map((o) => (
-            <Pressable
-              key={o.key}
-              onPress={() => {
-                setScope(o.key);
-                setEntityId(null);
-              }}
-              style={[styles.chip, scope === o.key && styles.chipActive]}
-              accessibilityRole="button"
-            >
-              <AppText variant="labelMd" weight={scope === o.key ? 'bold' : 'regular'} style={{ color: scope === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {o.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {(scope === 'by_asset' || scope === 'by_project') && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-            <Pressable onPress={() => setEntityId(null)} style={[styles.chip, entityId === null && styles.chipActive]}>
-              <AppText variant="labelMd" weight={entityId === null ? 'bold' : 'regular'} style={{ color: entityId === null ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                כל הישויות
-              </AppText>
-            </Pressable>
-            {entitiesForScope.map((e) => (
-              <Pressable key={e.id} onPress={() => setEntityId(e.id)} style={[styles.chip, entityId === e.id && styles.chipActive]}>
-                <AppText variant="labelMd" weight={entityId === e.id ? 'bold' : 'regular'} numberOfLines={1} style={{ color: entityId === e.id ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                  {e.name}
-                </AppText>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          עובד / אחראי
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          <Pressable onPress={() => setAssignee(null)} style={[styles.chip, assignee === null && styles.chipActive]}>
-            <AppText variant="labelMd" weight={assignee === null ? 'bold' : 'regular'} style={{ color: assignee === null ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-              הכל
-            </AppText>
-          </Pressable>
-          {MOCK_ASSIGNEE_NAMES.map((name) => (
-            <Pressable key={name} onPress={() => setAssignee(name)} style={[styles.chip, assignee === name && styles.chipActive]}>
-              <AppText variant="labelMd" weight={assignee === name ? 'bold' : 'regular'} numberOfLines={1} style={{ color: assignee === name ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {name}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          טווח תאריך יעד
-        </AppText>
-        <View style={styles.dateRow}>
-          <TextInput style={styles.dateInput} placeholder="מ־ DD/MM/YYYY" placeholderTextColor={Colors.onSurfaceMuted} value={dateFrom} onChangeText={setDateFrom} textAlign="right" />
-          <TextInput style={styles.dateInput} placeholder="עד DD/MM/YYYY" placeholderTextColor={Colors.onSurfaceMuted} value={dateTo} onChangeText={setDateTo} textAlign="right" />
-        </View>
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          תצוגה לפי סטטוס
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {STATUS_TABS.map((t) => (
-            <Pressable key={t.key} onPress={() => setStatusTab(t.key)} style={[styles.chip, statusTab === t.key && styles.chipActive]}>
-              <AppText variant="labelMd" weight={statusTab === t.key ? 'bold' : 'regular'} style={{ color: statusTab === t.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {t.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
       {recentMine.length > 0 && (
         <View style={styles.recentBlock}>
           <AppText variant="labelMd" weight="bold" style={styles.recentTitle}>
@@ -364,44 +328,33 @@ export function TasksListScreen() {
         </View>
       )}
 
-      <View style={styles.sortBar}>
-        <AppText variant="labelSm" weight="semiBold" color="variant">
-          מיון:
-        </AppText>
-        {(['dueDate', 'title', 'priority'] as TaskSortKey[]).map((k) => {
-          const labels: Record<TaskSortKey, string> = { dueDate: 'תאריך יעד', title: 'כותרת', priority: 'דחיפות' };
-          const active = sortKey === k;
-          return (
-            <Pressable key={k} onPress={() => onSortPress(k)} style={[styles.sortChip, active && styles.sortChipActive]}>
-              <AppText variant="caption" weight={active ? 'bold' : 'regular'} style={{ color: active ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {labels[k]}
-              </AppText>
-              {active && <MaterialCommunityIcons name={sortDir === 'asc' ? 'arrow-up' : 'arrow-down'} size={12} color={Colors.onPrimary} />}
-            </Pressable>
-          );
-        })}
-      </View>
     </>
   );
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => setDrawerOpen(true)} style={styles.addBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
-          <MaterialCommunityIcons name="menu" size={24} color={Colors.onPrimary} />
-        </Pressable>
-        <View style={{ flex: 1, alignItems: 'flex-end' }}>
-          <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ textAlign: 'right' }}>
-            משימות
-          </AppText>
-          <AppText variant="caption" color="onPrimary" style={{ opacity: 0.88, textAlign: 'right', marginTop: 2 }}>
-            כל הנכסים והפרויקטים · כל סוגי המשימות
-          </AppText>
-        </View>
-        <Pressable onPress={() => router.push('/(app)/tasks/new')} style={styles.addBtn} accessibilityRole="button">
-          <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
-        </Pressable>
-      </View>
+      <AppHeader
+        title="משימות"
+        subtitle="כל הנכסים והפרויקטים · כל סוגי המשימות"
+        showMenu
+      />
+
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        tabs={STATUS_TABS.map((t) => ({ key: t.key, label: t.label }))}
+        activeTab={statusTab}
+        onTabChange={(k) => setStatusTab(k as TaskStatusTab)}
+        activeSecondaryCount={activeSecondaryCount}
+        onFiltersPress={() => setFilterSheetOpen(true)}
+      />
+
+      <FilterSheet
+        visible={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        onReset={resetSecondaryFilters}
+        sections={filterSections}
+      />
 
       <FlatList
         data={sorted}
@@ -491,92 +444,12 @@ export function TasksListScreen() {
         </Pressable>
       </Modal>
 
-      <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolbar: {
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineVariant,
-    paddingBottom: Spacing.sm,
-  },
-  filterLabel: { textAlign: 'right', marginRight: CONTENT_HORIZONTAL_PADDING, marginTop: Spacing.xs },
-  chipsRow: {
-    flexDirection: 'row-reverse',
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingVertical: Spacing.xs,
-    gap: Spacing.sm,
-  },
-  chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-    minHeight: 34,
-    justifyContent: 'center',
-  },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipWithIcon: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.sm },
-  searchRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-    backgroundColor: Colors.surfaceVariant,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.onBackground,
-    paddingVertical: 0,
-  },
-  dateRow: {
-    flexDirection: 'row-reverse',
-    gap: Spacing.sm,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    marginBottom: Spacing.sm,
-  },
-  dateInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.sm,
-    backgroundColor: Colors.surfaceVariant,
-  },
   recentBlock: {
     paddingVertical: Spacing.md,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
@@ -609,27 +482,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sortBar: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surfaceVariant,
-  },
-  sortChip: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-  },
-  sortChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   cardInner: { flexDirection: 'row-reverse', alignItems: 'stretch' },
   cardMain: { flex: 1, padding: Spacing.base },
   taskRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: Spacing.md },

@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
-import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { AppHeader } from '@/components/ui/AppHeader';
+import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 
 const REPORTS = [
   { id: 'r1', title: 'דו״ח הכנסות חודשי', desc: 'סיכום הכנסות לפי פרויקט', icon: 'chart-bar', color: Colors.success },
@@ -19,9 +19,7 @@ export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">דוחות</AppText>
-      </View>
+      <AppHeader title="דוחות" showMenu />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
         {REPORTS.map((r) => (
           <Card key={r.id} onPress={() => {}} style={{ marginBottom: 0 }}>
@@ -44,7 +42,6 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: { backgroundColor: Colors.primary, paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingBottom: Spacing.base, paddingTop: Spacing.sm, ...Shadow.md },
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base, gap: Spacing.md },
   row: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md },
   icon: { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },

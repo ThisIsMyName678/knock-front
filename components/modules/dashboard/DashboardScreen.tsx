@@ -40,7 +40,19 @@ import {
   type TasksDashboardPreset,
 } from '@/lib/mocks/dashboard';
 import { TASK_KIND_ICONS, type TaskKind } from '@/lib/mocks/tasks';
-import { DrawerMenu } from '@/components/ui/DrawerMenu';
+import { AppHeader } from '@/components/ui/AppHeader';
+import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
+import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
+
+type EventKind = 'meeting' | 'call' | 'task' | 'maintenance' | 'personal' | 'other';
+const EVENT_KIND_OPTIONS: { key: EventKind; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
+  { key: 'meeting', label: 'פגישה', icon: 'account-group-outline' },
+  { key: 'call', label: 'שיחה', icon: 'phone-outline' },
+  { key: 'task', label: 'משימה', icon: 'checkbox-marked-outline' },
+  { key: 'maintenance', label: 'תחזוקה', icon: 'hammer-wrench' },
+  { key: 'personal', label: 'אישי', icon: 'account-outline' },
+  { key: 'other', label: 'אחר', icon: 'dots-horizontal' },
+];
 
 const GOOGLE_CALENDAR_URL = 'https://calendar.google.com/calendar/embed?src=en.israel%23holiday%40group.v.calendar.google.com';
 
@@ -233,10 +245,15 @@ export function DashboardScreen() {
   const [manualEvents, setManualEvents] = useState<DashboardCalendarEvent[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
-  const [newReminder, setNewReminder] = useState<'0' | '15' | '30' | '60' | '120' | '1440'>('30');
+  const [newEventKind, setNewEventKind] = useState<EventKind | ''>('');
+  const [newContactId, setNewContactId] = useState<string | null>(null);
+  const [newReminder, setNewReminder] = useState<'0' | '15' | '30' | '60' | '120' | '1440' | 'custom'>('30');
+  const [reminderCustomDate, setReminderCustomDate] = useState('');
+  const [reminderCustomTime, setReminderCustomTime] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
   const [agendaStatusForId, setAgendaStatusForId] = useState<Record<string, string>>({});
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [statusModalEventId, setStatusModalEventId] = useState<string | null>(null);
 
   const payments7d = useMemo(() => countPaymentsDueNext7Days(), []);
@@ -276,14 +293,62 @@ export function DashboardScreen() {
     router.push({ pathname: '/(app)/tasks', params: tasksDashboardQueryParams(preset) });
   }, []);
 
+  const openCreateModal = useCallback(() => {
+    setNewTitle('');
+    setNewDate(formatDdMmYyyy(selectedDate));
+    setNewTime('');
+    setNewEventKind('');
+    setNewContactId(null);
+    setContactSearch('');
+    setNewReminder('30');
+    setReminderCustomDate('');
+    setReminderCustomTime('');
+    setCreateOpen(true);
+  }, [selectedDate]);
+
+  const filteredContacts = useMemo(() => {
+    const q = contactSearch.trim();
+    if (!q) return [];
+    return MOCK_CONTACTS_LIST.filter(
+      (c) => c.displayName.includes(q) || c.linkLabel.includes(q),
+    ).slice(0, 8);
+  }, [contactSearch]);
+
   const onSaveManualEvent = useCallback(() => {
     const title = newTitle.trim();
     if (!title) {
       Alert.alert('חסרה כותרת', 'הזן כותרת לאירוע.');
       return;
     }
-    const dk = toLocalDateKey(selectedDate);
-    const mins = newReminder === '0' ? undefined : parseInt(newReminder, 10);
+    // Parse date input or fall back to selected calendar date
+    const dateStr = newDate.trim();
+    let dk = toLocalDateKey(selectedDate);
+    if (dateStr) {
+      const m = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) {
+        const parsed = new Date(parseInt(m[3]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[1]!, 10));
+        if (!isNaN(parsed.getTime())) dk = toLocalDateKey(parsed);
+      }
+    }
+    let reminderLabel = 'ללא תזכורת';
+    let reminderMins: number | undefined;
+    if (newReminder === 'custom') {
+      const datePart = reminderCustomDate.trim();
+      const timePart = reminderCustomTime.trim();
+      if (datePart || timePart) {
+        reminderLabel = `תזכורת ב-${[datePart, timePart].filter(Boolean).join(' ')}`;
+      }
+    } else if (newReminder !== '0') {
+      reminderMins = parseInt(newReminder, 10);
+      reminderLabel = `תזכורת ${reminderMins} דק׳ לפני`;
+    }
+    const contact = newContactId ? MOCK_CONTACTS_LIST.find((c) => c.id === newContactId) : null;
+    const kindLabel = newEventKind ? EVENT_KIND_OPTIONS.find((k) => k.key === newEventKind)?.label : '';
+    const detailParts = [
+      kindLabel,
+      contact ? `איש קשר: ${contact.displayName}` : '',
+      reminderLabel,
+    ].filter(Boolean);
     const id = `man-${Date.now()}`;
     setManualEvents((prev) => [
       ...prev,
@@ -295,49 +360,22 @@ export function DashboardScreen() {
         timeLabel: newTime.trim() || undefined,
         sortOrder: 900 + prev.length,
         statusLabel: 'חדש',
-        detail: mins ? `תזכורת ${mins} דק׳ לפני` : 'ללא תזכורת',
-        reminderMinutesBefore: mins,
+        detail: detailParts.join(' · '),
+        reminderMinutesBefore: reminderMins,
       },
     ]);
-    setNewTitle('');
-    setNewTime('');
-    setNewReminder('30');
     setCreateOpen(false);
-  }, [newTitle, newTime, newReminder, selectedDate]);
+  }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, reminderCustomDate, reminderCustomTime, selectedDate]);
 
   const statusModalEvent = statusModalEventId ? agenda.find((e) => e.id === statusModalEventId) : null;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => setDrawerOpen(true)}
-          style={({ pressed }) => [styles.headerBtn, pressed && { opacity: 0.7 }]}
-          accessibilityRole="button"
-          accessibilityLabel="תפריט ראשי"
-        >
-          <MaterialCommunityIcons name="menu" size={26} color={Colors.onPrimary} />
-        </Pressable>
-
-        <View style={styles.headerRight}>
-          <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ textAlign: 'right' }}>
-            שלום, מנהל 👋
-          </AppText>
-          <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85, textAlign: 'right' }}>
-            דשבורד — {new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </AppText>
-        </View>
-
-        <Pressable
-          onPress={() => router.push('/(app)/notifications')}
-          style={({ pressed }) => [styles.headerBtn, pressed && { opacity: 0.7 }]}
-          accessibilityRole="button"
-          accessibilityLabel="התראות"
-        >
-          <MaterialCommunityIcons name="bell-outline" size={24} color={Colors.onPrimary} />
-          <View style={styles.notifDot} />
-        </Pressable>
-      </View>
+      <AppHeader
+        title="שלום, ניר 👋"
+        subtitle={`דשבורד — ${new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+        showMenu
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -480,7 +518,7 @@ export function DashboardScreen() {
               </AppText>
             </Pressable>
             <Pressable
-              onPress={() => setCreateOpen(true)}
+              onPress={openCreateModal}
               style={({ pressed }) => [styles.plusFab, pressed && { opacity: 0.88 }]}
               accessibilityRole="button"
               accessibilityLabel="אירוע חדש"
@@ -554,32 +592,132 @@ export function DashboardScreen() {
 
       <Modal visible={createOpen} animationType="slide" transparent onRequestClose={() => setCreateOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setCreateOpen(false)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <AppText variant="headingSm" weight="bold" align="right" style={{ marginBottom: Spacing.md }}>
-              אירוע חדש
-            </AppText>
-            <AppText variant="caption" color="variant" align="right" style={{ marginBottom: Spacing.xs }}>
-              ליום הנבחר במערכת (שמירה מקומית בלבד)
-            </AppText>
+          <ScrollView style={styles.modalSheet} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onStartShouldSetResponder={() => true}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <AppText variant="headingSm" weight="bold" align="right">
+                אירוע חדש
+              </AppText>
+              <Pressable onPress={() => setCreateOpen(false)} hitSlop={8}>
+                <MaterialCommunityIcons name="close" size={22} color={Colors.onSurfaceMuted} />
+              </Pressable>
+            </View>
+
+            {/* כותרת */}
+            <AppText variant="labelSm" weight="semiBold" align="right" style={styles.fieldLabel}>כותרת *</AppText>
             <TextInput
               value={newTitle}
               onChangeText={setNewTitle}
-              placeholder="כותרת"
+              placeholder="כותרת האירוע"
               placeholderTextColor={Colors.onSurfaceMuted}
               style={styles.input}
               textAlign="right"
             />
-            <TextInput
-              value={newTime}
-              onChangeText={setNewTime}
-              placeholder="שעה (למשל 09:30)"
-              placeholderTextColor={Colors.onSurfaceMuted}
-              style={styles.input}
-              textAlign="right"
-            />
-            <AppText variant="labelSm" weight="semiBold" align="right" style={{ marginTop: Spacing.sm }}>
-              תזכורת לפני האירוע
-            </AppText>
+
+            {/* סוג אירוע */}
+            <AppText variant="labelSm" weight="semiBold" align="right" style={styles.fieldLabel}>סוג אירוע</AppText>
+            <View style={styles.kindGrid}>
+              {EVENT_KIND_OPTIONS.map((opt) => {
+                const active = newEventKind === opt.key;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => setNewEventKind(active ? '' : opt.key)}
+                    style={[styles.kindChip, active && styles.kindChipOn]}
+                  >
+                    <MaterialCommunityIcons name={opt.icon} size={16} color={active ? Colors.primary : Colors.onSurfaceMuted} />
+                    <AppText variant="labelSm" weight={active ? 'semiBold' : 'regular'} style={{ color: active ? Colors.primary : Colors.onBackground }}>
+                      {opt.label}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* תאריך ושעה */}
+            <AppText variant="labelSm" weight="semiBold" align="right" style={styles.fieldLabel}>תאריך ושעה</AppText>
+            <View style={styles.dateTimeRow}>
+              <TextInput
+                value={newTime}
+                onChangeText={setNewTime}
+                placeholder="שעה (09:30)"
+                placeholderTextColor={Colors.onSurfaceMuted}
+                style={[styles.input, styles.inputHalf, { marginBottom: 0 }]}
+                textAlign="right"
+                keyboardType="numbers-and-punctuation"
+              />
+              <TextInput
+                value={newDate}
+                onChangeText={setNewDate}
+                placeholder="DD/MM/YYYY"
+                placeholderTextColor={Colors.onSurfaceMuted}
+                style={[styles.input, styles.inputHalf, { marginBottom: 0 }]}
+                textAlign="right"
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+
+            {/* שיוך איש קשר */}
+            <AppText variant="labelSm" weight="semiBold" align="right" style={[styles.fieldLabel, { marginTop: Spacing.md }]}>שיוך איש קשר</AppText>
+            {newContactId ? (
+              <Pressable
+                onPress={() => { setNewContactId(null); setContactSearch(''); }}
+                style={styles.contactRowOn}
+              >
+                <View style={[styles.contactAvatar, { backgroundColor: Colors.primaryContainer }]}>
+                  <MaterialCommunityIcons name="account-outline" size={18} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="bodyMd" weight="semiBold" style={{ textAlign: 'right', color: Colors.primary }}>
+                    {MOCK_CONTACTS_LIST.find((c) => c.id === newContactId)?.displayName}
+                  </AppText>
+                  <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+                    {MOCK_CONTACTS_LIST.find((c) => c.id === newContactId)?.linkLabel}
+                  </AppText>
+                </View>
+                <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+              </Pressable>
+            ) : (
+              <>
+                <TextInput
+                  value={contactSearch}
+                  onChangeText={setContactSearch}
+                  placeholder="התחל להקליד שם לחיפוש..."
+                  placeholderTextColor={Colors.onSurfaceMuted}
+                  style={styles.input}
+                  textAlign="right"
+                />
+                {contactSearch.trim().length > 0 && filteredContacts.length === 0 && (
+                  <AppText variant="caption" color="muted" align="right" style={{ marginBottom: Spacing.sm }}>
+                    לא נמצאו תוצאות
+                  </AppText>
+                )}
+                {filteredContacts.length > 0 && (
+                  <View style={styles.contactList}>
+                    {filteredContacts.map((c) => (
+                      <Pressable
+                        key={c.id}
+                        onPress={() => { setNewContactId(c.id); setContactSearch(''); }}
+                        style={styles.contactRow}
+                      >
+                        <View style={styles.contactAvatar}>
+                          <MaterialCommunityIcons name="account-outline" size={18} color={Colors.onSurfaceMuted} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <AppText variant="bodyMd" style={{ textAlign: 'right' }}>
+                            {c.displayName}
+                          </AppText>
+                          <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>{c.linkLabel}</AppText>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* תזכורת */}
+            <AppText variant="labelSm" weight="semiBold" align="right" style={styles.fieldLabel}>תזכורת</AppText>
             <View style={styles.reminderChips}>
               {(
                 [
@@ -588,7 +726,8 @@ export function DashboardScreen() {
                   { k: '30' as const, lab: '30 דק׳' },
                   { k: '60' as const, lab: 'שעה' },
                   { k: '120' as const, lab: 'שעתיים' },
-                  { k: '1440' as const, lab: 'יום' },
+                  { k: '1440' as const, lab: 'יום לפני' },
+                  { k: 'custom' as const, lab: 'מותאם' },
                 ] as const
               ).map((o) => (
                 <Pressable
@@ -602,19 +741,38 @@ export function DashboardScreen() {
                 </Pressable>
               ))}
             </View>
+            {newReminder === 'custom' && (
+              <View style={styles.reminderCustomRow}>
+                <TextInput
+                  value={reminderCustomTime}
+                  onChangeText={setReminderCustomTime}
+                  placeholder="שעה (09:00)"
+                  placeholderTextColor={Colors.onSurfaceMuted}
+                  style={[styles.input, styles.inputHalf, { marginBottom: 0 }]}
+                  textAlign="right"
+                  keyboardType="numbers-and-punctuation"
+                />
+                <TextInput
+                  value={reminderCustomDate}
+                  onChangeText={setReminderCustomDate}
+                  placeholder="תאריך (DD/MM/YYYY)"
+                  placeholderTextColor={Colors.onSurfaceMuted}
+                  style={[styles.input, styles.inputHalf, { marginBottom: 0 }]}
+                  textAlign="right"
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
+            )}
+
             <View style={styles.modalActions}>
               <Pressable onPress={() => setCreateOpen(false)} style={styles.modalGhost}>
-                <AppText variant="labelMd" weight="semiBold" color="variant">
-                  ביטול
-                </AppText>
+                <AppText variant="labelMd" weight="semiBold" color="variant">ביטול</AppText>
               </Pressable>
               <Pressable onPress={onSaveManualEvent} style={styles.modalPrimary}>
-                <AppText variant="labelMd" weight="bold" color="onPrimary">
-                  שמירה
-                </AppText>
+                <AppText variant="labelMd" weight="bold" color="onPrimary">שמירה</AppText>
               </Pressable>
             </View>
-          </Pressable>
+          </ScrollView>
         </Pressable>
       </Modal>
 
@@ -647,42 +805,12 @@ export function DashboardScreen() {
         </Pressable>
       </Modal>
 
-      <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  headerRight: { flex: 1, gap: 2, paddingHorizontal: Spacing.sm },
-  headerBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  notifDot: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.error,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-  },
   content: {
     padding: CONTENT_HORIZONTAL_PADDING,
     gap: Spacing.xl,
@@ -845,5 +973,76 @@ const styles = StyleSheet.create({
   statusOption: {
     paddingVertical: Spacing.sm,
     alignItems: 'flex-end',
+  },
+  modalHeader: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  fieldLabel: {
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  kindGrid: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  kindChip: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surface,
+  },
+  kindChipOn: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryContainer,
+  },
+  dateTimeRow: {
+    flexDirection: 'row-reverse',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  inputHalf: {
+    flex: 1,
+  },
+  contactList: {
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  reminderCustomRow: {
+    flexDirection: 'row-reverse',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  contactRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surface,
+  },
+  contactRowOn: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryContainer,
+  },
+  contactAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

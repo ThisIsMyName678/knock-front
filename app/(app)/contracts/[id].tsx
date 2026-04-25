@@ -14,6 +14,7 @@ import {
   getContractDetailMock,
 } from '@/lib/mocks/contracts';
 import { Colors, Spacing, Shadow, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
+import { AppHeader } from '@/components/ui/AppHeader';
 
 export default function ContractDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -37,8 +38,8 @@ export default function ContractDetailScreen() {
   }, []);
 
   const onEdit = useCallback(() => {
-    Alert.alert('עריכה', 'מסך עריכה יתחבר ל-API בהמשך.', [{ text: 'אישור' }]);
-  }, []);
+    if (detail) router.push(`/(app)/contracts/edit/${detail.id}`);
+  }, [detail]);
 
   const onDelete = useCallback(() => {
     Alert.alert('מחיקת חוזה', 'האם למחוק את החוזה?', [
@@ -50,15 +51,7 @@ export default function ContractDetailScreen() {
   if (!detail) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary">
-            חוזה
-          </AppText>
-          <View style={{ width: 40 }} />
-        </View>
+        <AppHeader title="חוזה" showBack />
         <View style={styles.emptyWrap}>
           <AppText variant="bodyMd" color="variant" align="center">
             לא נמצא חוזה
@@ -90,17 +83,7 @@ export default function ContractDetailScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-          <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-        </Pressable>
-        <AppText variant="headingMd" weight="bold" color="onPrimary" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
-          פרטי חוזה
-        </AppText>
-        <Pressable onPress={onEdit} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="עריכה">
-          <MaterialCommunityIcons name="pencil-outline" size={22} color={Colors.onPrimary} />
-        </Pressable>
-      </View>
+      <AppHeader title="פרטי חוזה" showBack />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
         <Card>
@@ -169,17 +152,6 @@ export default function ContractDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   emptyWrap: { flex: 1, justifyContent: 'center', padding: Spacing.xl },
   contractHeader: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md },

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption } from '@/lib/mocks/contracts';
@@ -107,15 +108,7 @@ export function ContactRoleCreateForm() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary">
-            הוספת בעל תפקיד
-          </AppText>
-          <View style={styles.iconBtn} />
-        </View>
+        <AppHeader title="הוספת בעל תפקיד" showBack />
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.card}>
@@ -192,17 +185,6 @@ export function ContactRoleCreateForm() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base },
   card: {
     backgroundColor: Colors.surface,

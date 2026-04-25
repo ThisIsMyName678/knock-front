@@ -15,14 +15,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
   CONTRACT_TYPE_LABELS,
   CONTRACT_ACCESS_LABELS,
+  MOCK_ENTITY_LINKS,
   filterEntitiesByQuery,
   type ContractTypeKey,
+  type ContractListRow,
+  type ContractDetailMock,
   type EntityLinkOption,
   type ContractAccessLevel,
 } from '@/lib/mocks/contracts';
@@ -106,24 +110,26 @@ function randomId() {
   return `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function ContractCreateWizard() {
+export function ContractCreateWizard({ initialData }: { initialData?: ContractListRow | ContractDetailMock } = {}) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
 
   // Step 1
-  const [contractName, setContractName] = useState('');
-  const [contractType, setContractType] = useState<ContractTypeKey | ''>('');
-  const [linkQuery, setLinkQuery] = useState('');
-  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(null);
+  const [contractName, setContractName] = useState(() => initialData?.contractName ?? '');
+  const [contractType, setContractType] = useState<ContractTypeKey | ''>(() => initialData?.contractType ?? '');
+  const [linkQuery, setLinkQuery] = useState(() => initialData?.linkLabel ?? '');
+  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() =>
+    initialData ? (MOCK_ENTITY_LINKS.find((e) => e.id === initialData.linkId) ?? null) : null,
+  );
   const [showEntitySuggest, setShowEntitySuggest] = useState(false);
-  const [counterpartyName, setCounterpartyName] = useState('');
+  const [counterpartyName, setCounterpartyName] = useState(() => initialData?.counterpartyName ?? '');
   const [serviceType, setServiceType] = useState('');
-  const [idNumber, setIdNumber] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [agreementDate, setAgreementDate] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
+  const [idNumber, setIdNumber] = useState(() => (initialData as ContractDetailMock | undefined)?.idNumber ?? '');
+  const [phone, setPhone] = useState(() => (initialData as ContractDetailMock | undefined)?.phone ?? '');
+  const [email, setEmail] = useState(() => (initialData as ContractDetailMock | undefined)?.email ?? '');
+  const [contactName, setContactName] = useState(() => (initialData as ContractDetailMock | undefined)?.contactName ?? '');
+  const [agreementDate, setAgreementDate] = useState(() => initialData?.agreementDate ?? '');
+  const [expiryDate, setExpiryDate] = useState(() => (initialData as ContractDetailMock | undefined)?.endDate ?? '');
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderUnit, setReminderUnit] = useState<'days' | 'weeks' | 'months'>('days');
   const [reminderAmount, setReminderAmount] = useState('30');
@@ -255,17 +261,7 @@ export function ContractCreateWizard() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={goBack} style={styles.iconBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary">
-            חוזה חדש
-          </AppText>
-          <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>
-            {step + 1}/{STEPS.length}
-          </AppText>
-        </View>
+        <AppHeader title={initialData ? 'עריכת חוזה' : 'חוזה חדש'} showBack onBack={goBack} />
 
         <View style={styles.stepRow}>
           {STEPS.map((label, i) => (
@@ -692,17 +688,6 @@ export function ContractCreateWizard() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   stepRow: {
     flexDirection: 'row-reverse',
     justifyContent: 'center',

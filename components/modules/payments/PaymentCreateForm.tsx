@@ -18,6 +18,8 @@ import { AppText } from '@/components/ui/Text';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AmountField } from '@/components/ui/AmountField';
+import { AppHeader } from '@/components/ui/AppHeader';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import {
   PAYMENT_TYPE_LABELS,
   PAYMENT_ENTITY_OPTIONS,
@@ -26,7 +28,9 @@ import {
   filterEntitiesForPaymentQuery,
   type PaymentTypeKey,
   type PaymentModeKey,
+  type PaymentDetailMock,
 } from '@/lib/mocks/payments';
+import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
 import {
   Colors,
@@ -37,6 +41,8 @@ import {
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+
+// ─── Types & constants ────────────────────────────────────────────────────────
 
 const ALL_PAYMENT_TYPES = Object.keys(PAYMENT_TYPE_LABELS) as PaymentTypeKey[];
 
@@ -71,9 +77,21 @@ type InstallmentRow = {
   amountDigits: string;
   means: string;
   indexed: boolean;
-  shafif: boolean;
-  shafifDays: string;
 };
+
+type Reminder = {
+  id: string;
+  offsetDays: number;
+};
+
+const REMINDER_PRESETS: { label: string; days: number }[] = [
+  { label: 'יום לפני', days: 1 },
+  { label: '3 ימים לפני', days: 3 },
+  { label: 'שבוע לפני', days: 7 },
+  { label: 'חודש לפני', days: 30 },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function randomId() {
   return `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -89,29 +107,51 @@ function digitsToInt(d: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-export function PaymentCreateForm() {
+function todayDdMmYyyy(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function reminderOffsetLabel(days: number): string {
+  if (days === 1) return 'יום אחד לפני';
+  if (days === 7) return 'שבוע לפני';
+  if (days === 30) return 'חודש לפני';
+  return `${days} ימים לפני`;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetailMock } = {}) {
   const insets = useSafeAreaInsets();
 
-  const [paymentName, setPaymentName] = useState('');
-  const [direction, setDirection] = useState<'in' | 'out'>('in');
-  const [linkQuery, setLinkQuery] = useState('');
-  const [linkSelected, setLinkSelected] = useState<(typeof PAYMENT_ENTITY_OPTIONS)[0] | null>(null);
+  const [paymentName, setPaymentName] = useState(() => initialData?.displayName ?? '');
+  const [direction, setDirection] = useState<'in' | 'out'>(() => initialData?.direction === 'inbound' ? 'in' : 'out');
+  const [linkQuery, setLinkQuery] = useState(() => initialData?.linkLabel ?? '');
+  const [linkSelected, setLinkSelected] = useState<(typeof PAYMENT_ENTITY_OPTIONS)[0] | null>(() =>
+    initialData ? (PAYMENT_ENTITY_OPTIONS.find((e) => e.id === initialData.linkId) ?? null) : null,
+  );
   const [showSuggest, setShowSuggest] = useState(false);
+
+  // Modals
   const [contractModal, setContractModal] = useState(false);
   const [recCountModal, setRecCountModal] = useState(false);
+  const [paymentTypeModal, setPaymentTypeModal] = useState(false);
+  const [datePickerTarget, setDatePickerTarget] = useState<'due' | 'row' | 'guaranteeEnd' | null>(null);
+  const [datePickerRowId, setDatePickerRowId] = useState<string | null>(null);
+
   const [contractId, setContractId] = useState<string | null>(null);
-  const [paymentType, setPaymentType] = useState<PaymentTypeKey>('rent');
+  const [paymentType, setPaymentType] = useState<PaymentTypeKey>(() => initialData?.paymentType ?? 'rent');
   const [maintenanceCallId, setMaintenanceCallId] = useState<string | null>(null);
-  const [amountExVat, setAmountExVat] = useState('');
-  const [amountIncVat, setAmountIncVat] = useState('');
+  const [amountExVat, setAmountExVat] = useState(() => initialData?.amountNet ? String(initialData.amountNet) : '');
+  const [amountIncVat, setAmountIncVat] = useState(() => initialData?.amountGross ? String(initialData.amountGross) : '');
   const [vatPct, setVatPct] = useState('18');
   const [vatSource, setVatSource] = useState<'ex' | 'inc'>('ex');
-  const [means, setMeans] = useState('bank');
-  const [dueDate, setDueDate] = useState('');
-  const [paymentMode, setPaymentMode] = useState<PaymentModeKey>('full');
+  const [means, setMeans] = useState(() => initialData?.means ?? 'bank');
+  const [dueDate, setDueDate] = useState(() => initialData?.dueDate ?? todayDdMmYyyy());
+  const [paymentMode, setPaymentMode] = useState<PaymentModeKey>(() => initialData?.mode ?? 'recurring');
   const [recCycle, setRecCycle] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
   const [recCount, setRecCount] = useState('12');
-  const [recEndDate, setRecEndDate] = useState('');
   const [instTotal, setInstTotal] = useState('');
   const [instCount, setInstCount] = useState('3');
   const [instRows, setInstRows] = useState<InstallmentRow[]>([]);
@@ -123,20 +163,13 @@ export function PaymentCreateForm() {
   const [indexKind, setIndexKind] = useState<'cpi' | 'construction'>('cpi');
   const [indexAmount, setIndexAmount] = useState('');
   const [indexAsOf, setIndexAsOf] = useState('');
-  const [payerKind, setPayerKind] = useState<'owner' | 'tenant' | 'employee' | 'buyer' | 'other'>('owner');
-  const [employeeName, setEmployeeName] = useState('');
-  const [reminderDay, setReminderDay] = useState('1');
-  const [reminderUnit, setReminderUnit] = useState<'days' | 'months'>('days');
+  const [payerContactId, setPayerContactId] = useState<string | null>(null);
+  const [payerSearch, setPayerSearch] = useState('');
+  const [notes, setNotes] = useState(() => initialData ? '' : '');
+  const [reminders, setReminders] = useState<Reminder[]>([{ id: 'default', offsetDays: 1 }]);
   const [docName, setDocName] = useState('');
-  const [dateModal, setDateModal] = useState<{
-    visible: boolean;
-    target: 'due' | 'row' | 'recEnd' | 'guaranteeEnd' | null;
-    rowId: string | null;
-  }>({
-    visible: false,
-    target: null,
-    rowId: null,
-  });
+
+  // ── Derived ────────────────────────────────────────────────────────────────
 
   const entities = useMemo(() => filterEntitiesForPaymentQuery(linkQuery), [linkQuery]);
   const contracts = useMemo(
@@ -145,13 +178,28 @@ export function PaymentCreateForm() {
   );
   const maintCalls = useMemo(() => maintenanceCallsForLink(linkSelected?.id ?? ''), [linkSelected]);
 
+  // Contacts linked to the selected asset/project (for payer selection)
+  const linkedContacts = useMemo(() => {
+    if (!linkSelected) return [];
+    return MOCK_CONTACTS_LIST.filter((c) => c.linkId === linkSelected.id);
+  }, [linkSelected]);
+
+  // Autocomplete suggestions for payer search
+  const payerSuggestions = useMemo(() => {
+    const q = payerSearch.trim();
+    if (!q) return linkedContacts.slice(0, 8);
+    return linkedContacts
+      .filter((c) => c.displayName.includes(q) || (c.phone && c.phone.includes(q)))
+      .slice(0, 8);
+  }, [linkedContacts, payerSearch]);
+
   const totalAmount = digitsToInt(amountIncVat) || digitsToInt(amountExVat);
 
   const recurringPreview = useMemo(() => {
-    if (paymentMode !== 'recurring' || !recEndDate || totalAmount <= 0) return null;
+    if (paymentMode !== 'recurring' || totalAmount <= 0) return null;
     const n = Math.min(12, Math.max(1, parseInt(recCount, 10) || 1));
     return { events: n, planned: totalAmount * n };
-  }, [paymentMode, recEndDate, recCount, totalAmount]);
+  }, [paymentMode, recCount, totalAmount]);
 
   const regenerateInstallments = useCallback(() => {
     const total = digitsToInt(instTotal);
@@ -172,8 +220,6 @@ export function PaymentCreateForm() {
         amountDigits: String(amt),
         means: 'bank',
         indexed: false,
-        shafif: false,
-        shafifDays: '30',
       });
     }
     setInstRows(rows);
@@ -193,7 +239,8 @@ export function PaymentCreateForm() {
     const d = parseInt(shafifDays, 10) || 0;
     const dt = new Date();
     dt.setDate(dt.getDate() + d);
-    return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()}`;
   }, [paymentMode, shafifDays]);
 
   const indexSummary = useMemo(() => {
@@ -206,18 +253,41 @@ export function PaymentCreateForm() {
     return { basePts, curPts, pct, adj, final: base + adj };
   }, [indexEnabled, totalAmount, indexAmount]);
 
-  const openDatePick = (target: 'due' | 'row' | 'recEnd' | 'guaranteeEnd', rowId?: string) => {
-    setDateModal({ visible: true, target, rowId: rowId ?? null });
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  // When rent type selected → auto-set recurring monthly 12
+  const onPaymentTypeSelect = (t: PaymentTypeKey) => {
+    setPaymentType(t);
+    if (t === 'rent') {
+      setPaymentMode('recurring');
+      setRecCycle('monthly');
+      setRecCount('12');
+    }
+    setPaymentTypeModal(false);
   };
 
-  const applyPresetDate = (label: string) => {
-    if (dateModal.target === 'due') setDueDate(label);
-    if (dateModal.target === 'recEnd') setRecEndDate(label);
-    if (dateModal.target === 'guaranteeEnd') setGuaranteeEnd(label);
-    if (dateModal.target === 'row' && dateModal.rowId) {
-      setInstRows((prev) => prev.map((r) => (r.id === dateModal.rowId ? { ...r, dueDate: label } : r)));
+  const openDatePicker = (target: 'due' | 'row' | 'guaranteeEnd', rowId?: string) => {
+    setDatePickerTarget(target);
+    setDatePickerRowId(rowId ?? null);
+  };
+
+  const applyDate = (dateStr: string) => {
+    if (datePickerTarget === 'due') setDueDate(dateStr);
+    if (datePickerTarget === 'guaranteeEnd') setGuaranteeEnd(dateStr);
+    if (datePickerTarget === 'row' && datePickerRowId) {
+      setInstRows((prev) => prev.map((r) => (r.id === datePickerRowId ? { ...r, dueDate: dateStr } : r)));
     }
-    setDateModal({ visible: false, target: null, rowId: null });
+    setDatePickerTarget(null);
+    setDatePickerRowId(null);
+  };
+
+  const addReminder = (days: number) => {
+    if (reminders.some((r) => r.offsetDays === days)) return; // no duplicates
+    setReminders((prev) => [...prev, { id: randomId(), offsetDays: days }]);
+  };
+
+  const removeReminder = (id: string) => {
+    setReminders((prev) => prev.filter((r) => r.id !== id));
   };
 
   const mockAttach = () => {
@@ -229,29 +299,38 @@ export function PaymentCreateForm() {
 
   const valid = paymentName.trim().length > 0 && linkSelected !== null;
 
+  // Current date picker value
+  const currentDatePickerValue = datePickerTarget === 'due'
+    ? dueDate
+    : datePickerTarget === 'guaranteeEnd'
+      ? guaranteeEnd
+      : datePickerTarget === 'row' && datePickerRowId
+        ? (instRows.find((r) => r.id === datePickerRowId)?.dueDate ?? '')
+        : '';
+
+  const datePickerTitle = datePickerTarget === 'due'
+    ? 'תאריך מועד ביצוע'
+    : datePickerTarget === 'guaranteeEnd'
+      ? 'תאריך סיום ביטחון'
+      : 'תאריך תשלום';
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn}>
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary">
-            יצירת תשלום
-          </AppText>
-          <View style={{ width: 40 }} />
-        </View>
+        <AppHeader title={initialData ? 'עריכת תשלום' : 'יצירת תשלום'} showBack />
 
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* ─── שם תשלום ─── */}
           <Input label="שם תשלום" value={paymentName} onChangeText={setPaymentName} containerStyle={{ marginBottom: Spacing.md }} />
 
-          <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>
-            כיוון
-          </AppText>
+          {/* ─── כיוון ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>כיוון</AppText>
           <View style={styles.directionRow}>
             {(['in', 'out'] as const).map((d) => (
               <Pressable
@@ -267,6 +346,7 @@ export function PaymentCreateForm() {
             ))}
           </View>
 
+          {/* ─── שיוך לנכס ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
             שיוך לנכס / פרויקט (חובה)
           </AppText>
@@ -287,7 +367,7 @@ export function PaymentCreateForm() {
               <AppText variant="bodySm" style={{ flex: 1 }}>
                 {linkSelected.name} — {linkSelected.address}
               </AppText>
-              <Pressable onPress={() => { setLinkSelected(null); setLinkQuery(''); setContractId(null); }}>
+              <Pressable onPress={() => { setLinkSelected(null); setLinkQuery(''); setContractId(null); setPayerContactId(null); }}>
                 <MaterialCommunityIcons name="close-circle" size={20} color={Colors.onSurfaceMuted} />
               </Pressable>
             </View>
@@ -310,6 +390,7 @@ export function PaymentCreateForm() {
             </View>
           )}
 
+          {/* ─── שיוך לחוזה ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
             שיוך לחוזה (לא חובה)
           </AppText>
@@ -320,29 +401,30 @@ export function PaymentCreateForm() {
             </AppText>
           </Pressable>
 
+          {/* ─── סוג תשלום (dropdown) ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
             סוג תשלום
           </AppText>
-          <View style={styles.typeGrid}>
-            {ALL_PAYMENT_TYPES.map((t) => (
-              <Pressable key={t} onPress={() => setPaymentType(t)} style={[styles.typeChip, paymentType === t && styles.typeChipActive]}>
-                <AppText variant="caption" numberOfLines={2} align="center" weight={paymentType === t ? 'bold' : 'regular'} style={{ color: paymentType === t ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                  {PAYMENT_TYPE_LABELS[t]}
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
+          <Pressable onPress={() => setPaymentTypeModal(true)} style={styles.dropdown}>
+            <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.onSurfaceVariant} />
+            <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
+              {PAYMENT_TYPE_LABELS[paymentType]}
+            </AppText>
+          </Pressable>
+          {paymentType === 'rent' && (
+            <View style={styles.hintRow}>
+              <MaterialCommunityIcons name="information-outline" size={14} color={Colors.primary} />
+              <AppText variant="caption" color="primary">שכירות: הוגדר אוטומטית כמחזורי חודשי × 12</AppText>
+            </View>
+          )}
 
+          {/* ─── שיוך קריאת תחזוקה ─── */}
           {paymentType === 'maintenance' && linkSelected && (
             <View style={{ marginTop: Spacing.md }}>
-              <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>
-                שיוך לקריאת תחזוקה (לא חובה)
-              </AppText>
+              <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>שיוך לקריאת תחזוקה (לא חובה)</AppText>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row-reverse', gap: Spacing.sm }}>
                 <Pressable onPress={() => setMaintenanceCallId(null)} style={[styles.miniChip, !maintenanceCallId && styles.miniChipActive]}>
-                  <AppText variant="caption" style={{ color: !maintenanceCallId ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                    ללא
-                  </AppText>
+                  <AppText variant="caption" style={{ color: !maintenanceCallId ? Colors.onPrimary : Colors.onSurfaceVariant }}>ללא</AppText>
                 </Pressable>
                 {maintCalls.map((m) => (
                   <Pressable key={m.id} onPress={() => setMaintenanceCallId(m.id)} style={[styles.miniChip, maintenanceCallId === m.id && styles.miniChipActive]}>
@@ -355,9 +437,8 @@ export function PaymentCreateForm() {
             </View>
           )}
 
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-            סכומים ומע״מ
-          </AppText>
+          {/* ─── סכומים ומע״מ ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>סכומים ומע״מ</AppText>
           <AmountField
             label="סכום ללא מע״מ (₪)"
             value={amountExVat}
@@ -365,8 +446,7 @@ export function PaymentCreateForm() {
               setAmountExVat(d);
               setVatSource('ex');
               const ex = parseInt(d, 10) || 0;
-              const pct = parsePct(vatPct);
-              if (ex > 0) setAmountIncVat(String(Math.round(ex * (1 + pct / 100))));
+              if (ex > 0) setAmountIncVat(String(Math.round(ex * (1 + parsePct(vatPct) / 100))));
             }}
             containerStyle={{ marginBottom: Spacing.sm }}
           />
@@ -377,8 +457,7 @@ export function PaymentCreateForm() {
               setAmountIncVat(d);
               setVatSource('inc');
               const inc = parseInt(d, 10) || 0;
-              const pct = parsePct(vatPct);
-              if (inc > 0) setAmountExVat(String(Math.round(inc / (1 + pct / 100))));
+              if (inc > 0) setAmountExVat(String(Math.round(inc / (1 + parsePct(vatPct) / 100))));
             }}
           />
           <Input
@@ -388,24 +467,21 @@ export function PaymentCreateForm() {
               setVatPct(t);
               if (vatSource === 'ex' && amountExVat) {
                 const ex = digitsToInt(amountExVat);
-                const pct = parsePct(t);
-                if (ex > 0) setAmountIncVat(String(Math.round(ex * (1 + pct / 100))));
+                if (ex > 0) setAmountIncVat(String(Math.round(ex * (1 + parsePct(t) / 100))));
               } else if (vatSource === 'inc' && amountIncVat) {
                 const inc = digitsToInt(amountIncVat);
-                const pct = parsePct(t);
-                if (inc > 0) setAmountExVat(String(Math.round(inc / (1 + pct / 100))));
+                if (inc > 0) setAmountExVat(String(Math.round(inc / (1 + parsePct(t) / 100))));
               }
             }}
             keyboardType="decimal-pad"
             containerStyle={{ marginTop: Spacing.sm }}
           />
 
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-            אמצעי תשלום
-          </AppText>
-          <View style={styles.typeGrid}>
+          {/* ─── אמצעי תשלום ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>אמצעי תשלום</AppText>
+          <View style={styles.rowChips}>
             {MEANS_OPTIONS.map((m) => (
-              <Pressable key={m.key} onPress={() => setMeans(m.key)} style={[styles.typeChip, means === m.key && styles.typeChipActive]}>
+              <Pressable key={m.key} onPress={() => setMeans(m.key)} style={[styles.miniChip, means === m.key && styles.miniChipActive]}>
                 <AppText variant="caption" weight={means === m.key ? 'bold' : 'regular'} style={{ color: means === m.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
                   {m.label}
                 </AppText>
@@ -413,22 +489,18 @@ export function PaymentCreateForm() {
             ))}
           </View>
 
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
-            תאריך מועד ביצוע תשלום
-          </AppText>
-          <Pressable onPress={() => openDatePick('due')} style={styles.dropdown}>
+          {/* ─── תאריך מועד ביצוע ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>תאריך מועד ביצוע תשלום</AppText>
+          <Pressable onPress={() => openDatePicker('due')} style={styles.dropdown}>
             <MaterialCommunityIcons name="calendar" size={20} color={Colors.primary} />
-            <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-              {dueDate || 'בחר תאריך'}
-            </AppText>
+            <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>{dueDate || 'בחר תאריך'}</AppText>
           </Pressable>
 
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-            אופן תשלום (דיפולט: מלא)
-          </AppText>
-          <View style={styles.typeGrid}>
+          {/* ─── אופן תשלום ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>אופן תשלום</AppText>
+          <View style={styles.rowChips}>
             {MODES.map((m) => (
-              <Pressable key={m.key} onPress={() => setPaymentMode(m.key)} style={[styles.typeChip, paymentMode === m.key && styles.typeChipActive]}>
+              <Pressable key={m.key} onPress={() => setPaymentMode(m.key)} style={[styles.miniChip, paymentMode === m.key && styles.miniChipActive]}>
                 <AppText variant="caption" weight={paymentMode === m.key ? 'bold' : 'regular'} style={{ color: paymentMode === m.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
                   {m.label}
                 </AppText>
@@ -436,11 +508,10 @@ export function PaymentCreateForm() {
             ))}
           </View>
 
+          {/* ─── מחזוריות ─── */}
           {paymentMode === 'recurring' && (
             <View style={styles.card}>
-              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>
-                מחזוריות
-              </AppText>
+              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>מחזוריות</AppText>
               <View style={styles.rowChips}>
                 {(['weekly', 'monthly', 'yearly'] as const).map((c) => (
                   <Pressable key={c} onPress={() => setRecCycle(c)} style={[styles.miniChip, recCycle === c && styles.miniChipActive]}>
@@ -450,52 +521,40 @@ export function PaymentCreateForm() {
                   </Pressable>
                 ))}
               </View>
-              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
-                מספר חזרות (1–12)
-              </AppText>
+              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.md, textAlign: 'right' }}>מספר חזרות (1–12)</AppText>
               <Pressable onPress={() => setRecCountModal(true)} style={[styles.dropdown, { marginTop: Spacing.xs }]}>
                 <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.primary} />
                 <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
                   {Math.min(12, Math.max(1, parseInt(recCount, 10) || 1))}
                 </AppText>
               </Pressable>
-              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
-                תאריך סיום מחזוריות
-              </AppText>
-              <Pressable onPress={() => openDatePick('recEnd')} style={[styles.dropdown, { marginTop: Spacing.xs }]}>
-                <MaterialCommunityIcons name="calendar" size={20} color={Colors.primary} />
-                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                  {recEndDate || 'בחר תאריך בלוח שנה'}
-                </AppText>
-              </Pressable>
               {recurringPreview && (
                 <AppText variant="bodySm" color="primary" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
-                  ייווצרו כ־{recurringPreview.events} תשלומים; סה״כ מתוכנן: ₪{formatIlsInteger(recurringPreview.planned)}
+                  ייווצרו {recurringPreview.events} תשלומים; סה״כ מתוכנן: ₪{formatIlsInteger(recurringPreview.planned)}
                 </AppText>
               )}
             </View>
           )}
 
+          {/* ─── תשלומים מפוצלים ─── */}
           {paymentMode === 'installments' && (
             <View style={styles.card}>
-              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>
-                תשלומים מפוצלים
-              </AppText>
+              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>תשלומים מפוצלים</AppText>
               <AmountField label="סכום כולל" value={instTotal} onChangeValue={setInstTotal} />
               <Input label="מספר תשלומים" value={instCount} onChangeText={(t) => setInstCount(t.replace(/[^\d]/g, '').slice(0, 2))} keyboardType="number-pad" containerStyle={{ marginTop: Spacing.sm }} />
               <AppText variant="caption" color="variant" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
-                סה״כ מתוכנן מהשורות: ₪{formatIlsInteger(installmentsTotalPlanned)}
-              </AppText>
-              <AppText variant="caption" color="muted" style={{ marginTop: Spacing.xs, textAlign: 'right' }}>
-                בתשלומים מפוצלים ניתן ליצור תזכורת נפרדת לכל שורה (תצוגה בלבד).
+                סה״כ מהשורות: ₪{formatIlsInteger(installmentsTotalPlanned)}
               </AppText>
               {instRows.map((row, idx) => (
                 <View key={row.id} style={styles.instBlock}>
-                  <AppText variant="labelMd" weight="bold">
-                    תשלום {idx + 1}
-                  </AppText>
-                  <Input label="שם" value={row.title} onChangeText={(t) => setInstRows((p) => p.map((r) => (r.id === row.id ? { ...r, title: t } : r)))} containerStyle={{ marginTop: Spacing.xs }} />
-                  <Pressable onPress={() => openDatePick('row', row.id)} style={[styles.dropdown, { marginTop: Spacing.sm }]}>
+                  <AppText variant="labelMd" weight="bold">תשלום {idx + 1}</AppText>
+                  <Input
+                    label="שם"
+                    value={row.title}
+                    onChangeText={(t) => setInstRows((p) => p.map((r) => (r.id === row.id ? { ...r, title: t } : r)))}
+                    containerStyle={{ marginTop: Spacing.xs }}
+                  />
+                  <Pressable onPress={() => openDatePicker('row', row.id)} style={[styles.dropdown, { marginTop: Spacing.sm }]}>
                     <MaterialCommunityIcons name="calendar" size={18} color={Colors.primary} />
                     <AppText variant="bodySm" style={{ flex: 1, textAlign: 'right' }}>
                       {row.dueDate || 'תאריך תשלום'}
@@ -507,16 +566,7 @@ export function PaymentCreateForm() {
                     onChangeValue={(d) => setInstRows((p) => p.map((r) => (r.id === row.id ? { ...r, amountDigits: d } : r)))}
                     containerStyle={{ marginTop: Spacing.sm }}
                   />
-                  <View style={styles.switchRow}>
-                    <Switch value={row.shafif} onValueChange={(v) => setInstRows((p) => p.map((r) => (r.id === row.id ? { ...r, shafif: v } : r)))} />
-                    <AppText variant="bodySm">שוטף+</AppText>
-                  </View>
-                  {row.shafif && (
-                    <Input label="ימים +" value={row.shafifDays} onChangeText={(t) => setInstRows((p) => p.map((r) => (r.id === row.id ? { ...r, shafifDays: t } : r)))} keyboardType="number-pad" />
-                  )}
-                  <AppText variant="labelSm" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
-                    אמצעי תשלום
-                  </AppText>
+                  <AppText variant="labelSm" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>אמצעי תשלום</AppText>
                   <View style={styles.rowChips}>
                     {MEANS_OPTIONS.map((m) => (
                       <Pressable
@@ -542,6 +592,7 @@ export function PaymentCreateForm() {
             </View>
           )}
 
+          {/* ─── שוטף+ ─── */}
           {paymentMode === 'shafif_plus' && (
             <View style={styles.card}>
               <Input label="ימים (שוטף+)" value={shafifDays} onChangeText={setShafifDays} keyboardType="number-pad" />
@@ -551,11 +602,10 @@ export function PaymentCreateForm() {
             </View>
           )}
 
+          {/* ─── ערבויות ─── */}
           {paymentType === 'guarantees' && (
             <View style={styles.card}>
-              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>
-                ערבויות / בטחונות
-              </AppText>
+              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>ערבויות / בטחונות</AppText>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row-reverse', gap: Spacing.sm }}>
                 {GUARANTEE_TYPES.map((g) => (
                   <Pressable key={g} onPress={() => setGuaranteeType(g)} style={[styles.miniChip, guaranteeType === g && styles.miniChipActive]}>
@@ -565,18 +615,15 @@ export function PaymentCreateForm() {
                   </Pressable>
                 ))}
               </ScrollView>
-              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
-                תאריך סיום ביטחון
-              </AppText>
-              <Pressable onPress={() => openDatePick('guaranteeEnd')} style={[styles.dropdown, { marginTop: Spacing.xs }]}>
+              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>תאריך סיום ביטחון</AppText>
+              <Pressable onPress={() => openDatePicker('guaranteeEnd')} style={[styles.dropdown, { marginTop: Spacing.xs }]}>
                 <MaterialCommunityIcons name="calendar" size={20} color={Colors.primary} />
-                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                  {guaranteeEnd || 'בחר תאריך'}
-                </AppText>
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>{guaranteeEnd || 'בחר תאריך'}</AppText>
               </Pressable>
             </View>
           )}
 
+          {/* ─── הצמדה למדד ─── */}
           <View style={styles.card}>
             <View style={styles.switchRow}>
               <Switch
@@ -587,37 +634,24 @@ export function PaymentCreateForm() {
                   else setIndexAmount('');
                 }}
               />
-              <AppText variant="bodyMd" weight="semiBold">
-                הצמדה למדד
-              </AppText>
+              <AppText variant="bodyMd" weight="semiBold">הצמדה למדד</AppText>
             </View>
             {indexEnabled && (
               <>
                 <Input label="מדד בסיס (תאריך)" value={indexBase} onChangeText={setIndexBase} placeholder="DD/MM/YYYY" containerStyle={{ marginTop: Spacing.sm }} />
-                <View style={styles.rowChips}>
+                <View style={[styles.rowChips, { marginTop: Spacing.sm }]}>
                   <Pressable onPress={() => setIndexKind('cpi')} style={[styles.miniChip, indexKind === 'cpi' && styles.miniChipActive]}>
-                    <AppText variant="caption" style={{ color: indexKind === 'cpi' ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                      מדד המחירים לצרכן
-                    </AppText>
+                    <AppText variant="caption" style={{ color: indexKind === 'cpi' ? Colors.onPrimary : Colors.onSurfaceVariant }}>מדד המחירים לצרכן</AppText>
                   </Pressable>
                   <Pressable onPress={() => setIndexKind('construction')} style={[styles.miniChip, indexKind === 'construction' && styles.miniChipActive]}>
-                    <AppText variant="caption" style={{ color: indexKind === 'construction' ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                      תשומות בנייה
-                    </AppText>
+                    <AppText variant="caption" style={{ color: indexKind === 'construction' ? Colors.onPrimary : Colors.onSurfaceVariant }}>תשומות בנייה</AppText>
                   </Pressable>
                 </View>
-                <AmountField
-                  label="סכום להצמדה"
-                  value={indexAmount || amountIncVat || amountExVat}
-                  onChangeValue={setIndexAmount}
-                  containerStyle={{ marginTop: Spacing.sm }}
-                />
+                <AmountField label="סכום להצמדה" value={indexAmount || amountIncVat || amountExVat} onChangeValue={setIndexAmount} containerStyle={{ marginTop: Spacing.sm }} />
                 <Input label="תאריך הצמדה" value={indexAsOf} onChangeText={setIndexAsOf} placeholder={dueDate || 'DD/MM/YYYY'} containerStyle={{ marginTop: Spacing.sm }} />
                 {indexSummary && (
                   <View style={styles.indexBox}>
-                    <AppText variant="labelMd" weight="bold" style={{ marginBottom: Spacing.sm }}>
-                      סיכום דרישת תשלום מעודכנת (mock)
-                    </AppText>
+                    <AppText variant="labelMd" weight="bold" style={{ marginBottom: Spacing.sm }}>סיכום דרישת תשלום מעודכנת (mock)</AppText>
                     <AppText variant="bodySm">סכום מקור: ₪{formatIlsInteger(digitsToInt(indexAmount) || totalAmount)}</AppText>
                     <AppText variant="bodySm">מדד בסיס: {indexSummary.basePts} נק׳</AppText>
                     <AppText variant="bodySm">מדד להצמדה: {indexSummary.curPts} נק׳</AppText>
@@ -632,54 +666,146 @@ export function PaymentCreateForm() {
             )}
           </View>
 
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-            שולם על ידי
-          </AppText>
-          <View style={styles.rowChips}>
-            {(
-              [
-                ['owner', 'בעל הנכס'],
-                ['tenant', 'שוכר'],
-                ['employee', 'עובד'],
-                ['buyer', 'רוכש'],
-                ['other', 'אחר'],
-              ] as const
-            ).map(([k, lab]) => (
-              <Pressable key={k} onPress={() => setPayerKind(k)} style={[styles.miniChip, payerKind === k && styles.miniChipActive]}>
-                <AppText variant="caption" style={{ color: payerKind === k ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                  {lab}
+          {/* ─── שולם על ידי (contacts autocomplete) ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>שולם על ידי</AppText>
+          {!linkSelected ? (
+            <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+              בחר נכס / פרויקט כדי לראות אנשי קשר משויכים
+            </AppText>
+          ) : linkedContacts.length === 0 ? (
+            <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+              אין אנשי קשר משויכים לנכס זה
+            </AppText>
+          ) : payerContactId ? (
+            /* Selected contact chip */
+            <Pressable
+              onPress={() => { setPayerContactId(null); setPayerSearch(''); }}
+              style={styles.payerSelected}
+              accessibilityRole="button"
+            >
+              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="bodyMd" weight="semiBold" style={{ textAlign: 'right', color: Colors.primary }}>
+                  {linkedContacts.find((c) => c.id === payerContactId)?.displayName}
                 </AppText>
-              </Pressable>
-            ))}
-          </View>
-          {payerKind === 'employee' && (
-            <Input label="שם עובד" value={employeeName} onChangeText={setEmployeeName} containerStyle={{ marginTop: Spacing.sm }} />
+                {linkedContacts.find((c) => c.id === payerContactId)?.email ? (
+                  <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+                    {linkedContacts.find((c) => c.id === payerContactId)?.email}
+                  </AppText>
+                ) : null}
+              </View>
+              <MaterialCommunityIcons name="account-check" size={20} color={Colors.primary} />
+            </Pressable>
+          ) : (
+            /* Autocomplete search */
+            <>
+              <View style={styles.payerInputWrap}>
+                <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceMuted} />
+                <TextInput
+                  value={payerSearch}
+                  onChangeText={setPayerSearch}
+                  placeholder="חיפוש לפי שם..."
+                  placeholderTextColor={Colors.onSurfaceMuted}
+                  style={styles.payerInput}
+                  textAlign="right"
+                />
+                {payerSearch.length > 0 && (
+                  <Pressable onPress={() => setPayerSearch('')} hitSlop={8}>
+                    <MaterialCommunityIcons name="close" size={16} color={Colors.onSurfaceMuted} />
+                  </Pressable>
+                )}
+              </View>
+              {payerSuggestions.length > 0 && (
+                <View style={styles.payerDropdown}>
+                  {payerSuggestions.map((c, idx) => (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => { setPayerContactId(c.id); setPayerSearch(''); }}
+                      style={[
+                        styles.payerOption,
+                        idx < payerSuggestions.length - 1 && styles.payerOptionBorder,
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <View style={styles.payerAvatar}>
+                        <AppText variant="labelSm" weight="bold" color="onPrimary">
+                          {c.displayName[0]}
+                        </AppText>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <AppText variant="bodyMd" style={{ textAlign: 'right' }}>
+                          {c.displayName}
+                        </AppText>
+                        {c.email ? (
+                          <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+                            {c.email}
+                          </AppText>
+                        ) : null}
+                      </View>
+                      <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {payerSearch.trim().length > 0 && payerSuggestions.length === 0 && (
+                <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: 4 }}>
+                  לא נמצאו תוצאות
+                </AppText>
+              )}
+            </>
           )}
 
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-            תזכורת
-          </AppText>
-          <View style={{ flexDirection: 'row-reverse', gap: Spacing.md }}>
-            <Input label="יום (1–31)" value={reminderDay} onChangeText={(t) => setReminderDay(t.replace(/[^\d]/g, '').slice(0, 2))} keyboardType="number-pad" containerStyle={{ flex: 1 }} />
-            <View style={{ flex: 1, justifyContent: 'center' }}>
-              <View style={styles.rowChips}>
-                <Pressable onPress={() => setReminderUnit('days')} style={[styles.miniChip, reminderUnit === 'days' && styles.miniChipActive]}>
-                  <AppText variant="caption" style={{ color: reminderUnit === 'days' ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                    ימים
-                  </AppText>
-                </Pressable>
-                <Pressable onPress={() => setReminderUnit('months')} style={[styles.miniChip, reminderUnit === 'months' && styles.miniChipActive]}>
-                  <AppText variant="caption" style={{ color: reminderUnit === 'months' ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                    חודשים
-                  </AppText>
-                </Pressable>
-              </View>
+          {/* ─── תזכורות ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>תזכורות לפני מועד התשלום</AppText>
+          {paymentMode === 'recurring' && (
+            <View style={styles.hintRow}>
+              <MaterialCommunityIcons name="information-outline" size={14} color={Colors.primary} />
+              <AppText variant="caption" color="primary">
+                בתשלום מחזורי — תזכורות יישלחו לפני כל תשלום עתידי מתוכנן
+              </AppText>
             </View>
+          )}
+
+          {/* Active reminders list */}
+          <View style={styles.reminderList}>
+            {reminders.map((r) => (
+              <View key={r.id} style={styles.reminderChip}>
+                <Pressable
+                  onPress={() => removeReminder(r.id)}
+                  style={styles.reminderClose}
+                  accessibilityLabel="הסר תזכורת"
+                >
+                  <MaterialCommunityIcons name="close" size={13} color={Colors.onSurfaceMuted} />
+                </Pressable>
+                <MaterialCommunityIcons name="bell-outline" size={15} color={Colors.primary} />
+                <AppText variant="caption" weight="semiBold" style={{ color: Colors.primary }}>
+                  {reminderOffsetLabel(r.offsetDays)}
+                </AppText>
+              </View>
+            ))}
           </View>
 
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-            קובץ משויך
-          </AppText>
+          {/* Preset add buttons */}
+          <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginBottom: 6 }}>הוסף תזכורת:</AppText>
+          <View style={styles.rowChips}>
+            {REMINDER_PRESETS.map((p) => {
+              const exists = reminders.some((r) => r.offsetDays === p.days);
+              return (
+                <Pressable
+                  key={p.days}
+                  onPress={() => addReminder(p.days)}
+                  disabled={exists}
+                  style={[styles.miniChip, exists && { opacity: 0.4 }]}
+                >
+                  <MaterialCommunityIcons name="plus" size={12} color={Colors.primary} />
+                  <AppText variant="caption" style={{ color: Colors.primary }}>{p.label}</AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* ─── קובץ משויך ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>קובץ משויך</AppText>
           <Input label="שם מסמך" value={docName} onChangeText={setDocName} containerStyle={{ marginBottom: Spacing.sm }} />
           <View style={styles.fileBtns}>
             <Pressable style={styles.fileBtn} onPress={mockAttach}>
@@ -695,6 +821,18 @@ export function PaymentCreateForm() {
               <AppText variant="caption">מצלמה</AppText>
             </Pressable>
           </View>
+
+          {/* ─── הערות ─── */}
+          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>הערות</AppText>
+          <Input
+            label=""
+            placeholder="הוסף הערה חופשית..."
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={4}
+            style={{ minHeight: 90, textAlignVertical: 'top' }}
+          />
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
@@ -702,30 +840,18 @@ export function PaymentCreateForm() {
         </View>
       </View>
 
+      {/* ─── Modals ─── */}
+
+      {/* Contract picker */}
       <Modal visible={contractModal} transparent animationType="slide" onRequestClose={() => setContractModal(false)}>
         <Pressable style={styles.modalBg} onPress={() => setContractModal(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>
-              בחירת חוזה
-            </AppText>
-            <Pressable
-              onPress={() => {
-                setContractId(null);
-                setContractModal(false);
-              }}
-              style={styles.sheetRow}
-            >
+            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>בחירת חוזה</AppText>
+            <Pressable onPress={() => { setContractId(null); setContractModal(false); }} style={styles.sheetRow}>
               <AppText variant="bodyMd">ללא</AppText>
             </Pressable>
             {contracts.map((c) => (
-              <Pressable
-                key={c.id}
-                onPress={() => {
-                  setContractId(c.id);
-                  setContractModal(false);
-                }}
-                style={styles.sheetRow}
-              >
+              <Pressable key={c.id} onPress={() => { setContractId(c.id); setContractModal(false); }} style={styles.sheetRow}>
                 <AppText variant="bodyMd">{c.label}</AppText>
               </Pressable>
             ))}
@@ -733,61 +859,73 @@ export function PaymentCreateForm() {
         </Pressable>
       </Modal>
 
+      {/* Rec count picker */}
       <Modal visible={recCountModal} transparent animationType="slide" onRequestClose={() => setRecCountModal(false)}>
         <Pressable style={styles.modalBg} onPress={() => setRecCountModal(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>
-              בחירת מספר חזרות
-            </AppText>
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-              <Pressable
-                key={n}
-                onPress={() => {
-                  setRecCount(String(n));
-                  setRecCountModal(false);
-                }}
-                style={styles.sheetRow}
-              >
-                <AppText variant="bodyMd">{n}</AppText>
-              </Pressable>
-            ))}
+            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>מספר חזרות</AppText>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                <Pressable key={n} onPress={() => { setRecCount(String(n)); setRecCountModal(false); }} style={styles.sheetRow}>
+                  <AppText variant="bodyMd">{n}</AppText>
+                </Pressable>
+              ))}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
 
-      <Modal visible={dateModal.visible} transparent animationType="fade" onRequestClose={() => setDateModal({ visible: false, target: null, rowId: null })}>
-        <Pressable style={styles.modalBg} onPress={() => setDateModal({ visible: false, target: null, rowId: null })}>
-          <View style={styles.dateSheet}>
-            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
-              בחירת תאריך
-            </AppText>
-            {['01/05/2026', '15/05/2026', '01/06/2026', '15/06/2026', '01/07/2026'].map((d) => (
-              <Pressable key={d} onPress={() => applyPresetDate(d)} style={styles.sheetRow}>
-                <AppText variant="bodyMd">{d}</AppText>
-              </Pressable>
-            ))}
-          </View>
+      {/* Payment type dropdown */}
+      <Modal visible={paymentTypeModal} transparent animationType="slide" onRequestClose={() => setPaymentTypeModal(false)}>
+        <Pressable style={styles.modalBg} onPress={() => setPaymentTypeModal(false)}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>סוג תשלום</AppText>
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              {ALL_PAYMENT_TYPES.map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => onPaymentTypeSelect(t)}
+                  style={[styles.sheetRow, paymentType === t && styles.sheetRowActive]}
+                >
+                  {paymentType === t && (
+                    <MaterialCommunityIcons name="check" size={18} color={Colors.primary} style={{ marginLeft: Spacing.sm }} />
+                  )}
+                  <AppText variant="bodyMd" weight={paymentType === t ? 'semiBold' : 'regular'} style={{ flex: 1, textAlign: 'right', color: paymentType === t ? Colors.primary : Colors.onBackground }}>
+                    {PAYMENT_TYPE_LABELS[t]}
+                  </AppText>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Date picker */}
+      <DatePickerModal
+        visible={datePickerTarget !== null}
+        value={currentDatePickerValue}
+        onSelect={applyDate}
+        onClose={() => { setDatePickerTarget(null); setDatePickerRowId(null); }}
+        title={datePickerTitle}
+      />
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base },
   sectionLabel: { textAlign: 'right', marginBottom: Spacing.sm, color: Colors.onBackground },
+  hintRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    backgroundColor: Colors.primaryContainer,
+    borderRadius: Radius.md,
+  },
   directionRow: { flexDirection: 'row-reverse', gap: Spacing.md },
   dirBtn: {
     flex: 1,
@@ -828,28 +966,67 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     backgroundColor: Colors.surfaceVariant,
   },
-  typeGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
-  typeChip: {
-    width: '31%',
-    minHeight: 44,
-    padding: Spacing.xs,
+  payerSelected: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: Colors.primary,
   },
-  typeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  card: {
-    marginTop: Spacing.lg,
-    padding: Spacing.base,
-    borderRadius: Radius.lg,
+  payerInputWrap: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
+    borderRadius: Radius.md,
     backgroundColor: Colors.surface,
+  },
+  payerInput: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.base,
+    color: Colors.onSurface,
+    textAlign: 'right',
+  },
+  payerDropdown: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    overflow: 'hidden',
+  },
+  payerOption: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  payerOptionBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  payerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowChips: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
   miniChip: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: Radius.full,
@@ -858,6 +1035,14 @@ const styles = StyleSheet.create({
     maxWidth: 200,
   },
   miniChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  card: {
+    marginTop: Spacing.lg,
+    padding: Spacing.base,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surface,
+  },
   instBlock: {
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
@@ -871,6 +1056,32 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.md,
     gap: 4,
+  },
+  // Reminders
+  reminderList: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  reminderChip: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryContainer,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  reminderClose: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.outlineVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   fileBtns: { flexDirection: 'row-reverse', gap: Spacing.md },
   fileBtn: {
@@ -898,11 +1109,12 @@ const styles = StyleSheet.create({
     padding: CONTENT_HORIZONTAL_PADDING,
     paddingBottom: Spacing['2xl'],
   },
-  sheetRow: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
-  dateSheet: {
-    margin: Spacing.xl,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
+  sheetRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
   },
+  sheetRowActive: { backgroundColor: Colors.primaryContainer },
 });

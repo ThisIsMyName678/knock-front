@@ -1,6 +1,9 @@
-import React from 'react';
-import { ContactTenantCreateForm } from '@/components/modules/contacts/ContactTenantCreateForm';
+import { useEffect } from 'react';
+import { router } from 'expo-router';
 
 export default function NewContactTenantScreen() {
-  return <ContactTenantCreateForm />;
+  useEffect(() => {
+    router.replace('/(app)/contacts/new');
+  }, []);
+  return null;
 }

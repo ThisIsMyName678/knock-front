@@ -12,7 +12,8 @@ import {
   Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { MOCK_ASSETS, MOCK_PROJECTS } from '@/lib/mocks/assets';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
@@ -26,6 +27,7 @@ import {
   CONTENT_HORIZONTAL_PADDING,
   MIN_TOUCH,
 } from '@/constants/tokens';
+import { AppHeader } from '@/components/ui/AppHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -821,12 +823,19 @@ const STEP_TITLES = ['פרטי הנכס', 'פרטי חוזה', 'מסמכים'];
 
 export default function NewAssetScreen() {
   const insets = useSafeAreaInsets();
+  const { editId } = useLocalSearchParams<{ editId?: string }>();
+
+  const editEntity = editId
+    ? (MOCK_ASSETS.find((a) => a.id === editId) ?? MOCK_PROJECTS.find((p) => p.id === editId) ?? null)
+    : null;
+  const isEditMode = !!editEntity;
+
   const [step, setStep] = useState(1);
 
-  const [step1, setStep1] = useState<Step1Data>({
+  const [step1, setStep1] = useState<Step1Data>(() => ({
     kind: null,
-    address: '',
-    addressSuggestion: null,
+    address: editEntity?.address ?? '',
+    addressSuggestion: editEntity ? { label: editEntity.address, street: editEntity.address, city: '' } : null,
     apartmentNumber: '',
     airDirections: [],
     amenities: {
@@ -840,7 +849,7 @@ export default function NewAssetScreen() {
     electricityCompany: '',
     waterProvider: '',
     municipality: '',
-  });
+  }));
 
   const [step2, setStep2] = useState<Step2Data>({
     tenantName: '', tenantPhone: '', startDate: '', endDate: '', monthlyRent: '',
@@ -863,17 +872,10 @@ export default function NewAssetScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: Colors.background }}
+      style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Header */}
-      <View style={[wizardStyles.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <Pressable onPress={handleBack} style={wizardStyles.backBtn} accessibilityRole="button" accessibilityLabel="חזרה">
-          <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-        </Pressable>
-        <AppText variant="headingSm" weight="bold" color="onPrimary">נכס חדש</AppText>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title={isEditMode ? `עריכת ${editEntity?.name ?? 'נכס'}` : 'נכס חדש'} showBack onBack={handleBack} />
 
       {/* Step indicator */}
       <View style={wizardStyles.indicatorWrap}>
@@ -914,17 +916,6 @@ export default function NewAssetScreen() {
 }
 
 const wizardStyles = StyleSheet.create({
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.md,
-    ...Shadow.md,
-  },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-
   indicatorWrap: { backgroundColor: Colors.surface, paddingHorizontal: CONTENT_HORIZONTAL_PADDING, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
 
   content: { paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.xl },

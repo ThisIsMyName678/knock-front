@@ -6,7 +6,6 @@ import {
   Pressable,
   TextInput,
   Modal,
-  Switch,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption } from '@/lib/mocks/contracts';
 import { PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
@@ -73,13 +73,11 @@ export function TaskCreateForm() {
   const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
   const [assigneeName, setAssigneeName] = useState('');
-  const [assigneeHasUser, setAssigneeHasUser] = useState(false);
   const [paymentModal, setPaymentModal] = useState(false);
   const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState(formatTodayDdMmYyyy);
   const [endDate, setEndDate] = useState('');
-  const [costNotes, setCostNotes] = useState('');
-  const [timeNotes, setTimeNotes] = useState('');
+  const [attachmentName, setAttachmentName] = useState('');
 
   const entities = useMemo(() => filterEntitiesForTaskQuery(linkQuery), [linkQuery]);
   const paymentOptions = useMemo(() => paymentsForTaskLink(linkSelected?.id ?? ''), [linkSelected]);
@@ -99,24 +97,20 @@ export function TaskCreateForm() {
   };
 
   const onCopyInvite = () => {
-    const suffix = assigneeHasUser ? 'העובד רשום במערכת.' : 'שלחו לינק להזמנת משתמש חיצוני.';
-    Alert.alert('לינק הזמנה (דמה)', `${MOCK_TASK_INVITE_URL}\n\n${suffix}`);
+    Alert.alert('לינק הזמנה (דמה)', `${MOCK_TASK_INVITE_URL}\n\nשלחו לינק לשיוך בעל תפקיד למשימה.`);
+  };
+
+  const mockAttach = () => {
+    Alert.alert('צירוף קובץ', 'במימוש אמיתי: בחירת קובץ / מצלמה.', [
+      { text: 'אישור', onPress: () => setAttachmentName((a) => a || 'קובץ_משויך.pdf') },
+      { text: 'ביטול', style: 'cancel' },
+    ]);
   };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary">
-            משימה חדשה
-          </AppText>
-          <Pressable onPress={onCopyInvite} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="העתק לינק הזמנה">
-            <MaterialCommunityIcons name="link-variant" size={22} color={Colors.onPrimary} />
-          </Pressable>
-        </View>
+        <AppHeader title="משימה חדשה" showBack />
 
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
@@ -233,17 +227,9 @@ export function TaskCreateForm() {
               אחראי / עובד
             </AppText>
             <Input label="שם" placeholder="שם אחראי..." value={assigneeName} onChangeText={setAssigneeName} />
-            <View style={styles.switchRow}>
-              <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                יש משתמש במערכת
-              </AppText>
-              <Switch value={assigneeHasUser} onValueChange={setAssigneeHasUser} />
-            </View>
-            {!assigneeHasUser ? (
-              <AppText variant="caption" color="primary" style={{ textAlign: 'right', marginTop: Spacing.xs }}>
-                ללא משתמש — ניתן להזמין את אותו אדם כשוכר או עובד בלינק מותאם (אייקון הקישור בשורת הכותרת).
-              </AppText>
-            ) : null}
+            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.xs }}>
+              לשיוך בעל תפקיד — לחצו על אייקון הקישור בכותרת לשליחת לינק.
+            </AppText>
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
               קישור לתשלום (אופציונלי)
@@ -262,8 +248,35 @@ export function TaskCreateForm() {
             <Input label="תאריך התחלה" placeholder="DD/MM/YYYY" value={startDate} onChangeText={setStartDate} containerStyle={{ marginTop: Spacing.md }} />
             <Input label="תאריך סיום (אופציונלי)" placeholder="DD/MM/YYYY" value={endDate} onChangeText={setEndDate} containerStyle={{ marginTop: Spacing.sm }} />
 
-            <Input label="תיעוד עלות (טקסט)" placeholder="למשל הערכת עלות..." value={costNotes} onChangeText={setCostNotes} containerStyle={{ marginTop: Spacing.md }} />
-            <Input label="תיעוד זמן טיפול" placeholder="שעות / ימים..." value={timeNotes} onChangeText={setTimeNotes} containerStyle={{ marginTop: Spacing.sm }} />
+            {/* ─── צרף קובץ ─── */}
+            <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
+              קבצים מצורפים
+            </AppText>
+            {attachmentName ? (
+              <View style={styles.attachPill}>
+                <Pressable onPress={() => setAttachmentName('')} accessibilityRole="button">
+                  <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+                </Pressable>
+                <MaterialCommunityIcons name="file-outline" size={18} color={Colors.primary} />
+                <AppText variant="bodySm" style={{ flex: 1, textAlign: 'right' }} numberOfLines={1}>
+                  {attachmentName}
+                </AppText>
+              </View>
+            ) : null}
+            <View style={styles.fileBtns}>
+              <Pressable style={styles.fileBtn} onPress={mockAttach} accessibilityRole="button">
+                <MaterialCommunityIcons name="folder-outline" size={22} color={Colors.primary} />
+                <AppText variant="caption">קובץ</AppText>
+              </Pressable>
+              <Pressable style={styles.fileBtn} onPress={mockAttach} accessibilityRole="button">
+                <MaterialCommunityIcons name="image-outline" size={22} color={Colors.primary} />
+                <AppText variant="caption">תמונה</AppText>
+              </Pressable>
+              <Pressable style={styles.fileBtn} onPress={mockAttach} accessibilityRole="button">
+                <MaterialCommunityIcons name="camera-outline" size={22} color={Colors.primary} />
+                <AppText variant="caption">מצלמה</AppText>
+              </Pressable>
+            </View>
 
             <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.md }}>
               סטטוס שמור: {workflowFromPreset()} · עדיפות: {effectivePriority()} (תצוגה בלבד, ללא שמירה לשרת)
@@ -317,17 +330,6 @@ export function TaskCreateForm() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base },
   card: {
     backgroundColor: Colors.surface,
@@ -379,7 +381,26 @@ const styles = StyleSheet.create({
   },
   suggestBox: { borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md, marginTop: 4, overflow: 'hidden' },
   suggestRow: { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight, backgroundColor: Colors.surface },
-  switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm },
+  attachPill: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.primaryContainer,
+    borderRadius: Radius.md,
+  },
+  fileBtns: { flexDirection: 'row-reverse', gap: Spacing.md },
+  fileBtn: {
+    flex: 1,
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceVariant,
+    gap: 4,
+  },
   dropdown: {
     flexDirection: 'row-reverse',
     alignItems: 'center',

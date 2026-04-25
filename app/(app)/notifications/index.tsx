@@ -5,7 +5,8 @@ import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { AppHeader } from '@/components/ui/AppHeader';
 
 type Notif = {
   id: string;
@@ -60,17 +61,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-          <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-        </Pressable>
-        <AppText variant="headingMd" weight="bold" color="onPrimary" style={{ flex: 1, textAlign: 'right' }}>
-          התראות
-        </AppText>
-        <Pressable style={styles.iconBtn} accessibilityRole="button">
-          <AppText variant="bodySm" color="onPrimary" weight="semiBold">נקה הכל</AppText>
-        </Pressable>
-      </View>
+      <AppHeader title="התראות" showBack />
 
       <FlatList
         data={MOCK}
@@ -117,17 +108,6 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   list: { flexGrow: 1 },
   notifRow: {
     flexDirection: 'row-reverse',

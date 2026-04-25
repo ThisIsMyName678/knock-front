@@ -14,6 +14,7 @@ import {
 } from '@/lib/mocks/payments';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
+import { AppHeader } from '@/components/ui/AppHeader';
 
 export default function PaymentDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -41,8 +42,8 @@ export default function PaymentDetailScreen() {
   }, []);
 
   const onEdit = useCallback(() => {
-    Alert.alert('עריכה', 'מסך עריכה יתחבר ל-API בהמשך.', [{ text: 'אישור' }]);
-  }, []);
+    if (detail) router.push(`/(app)/payments/edit/${detail.id}`);
+  }, [detail]);
 
   const onDelete = useCallback(() => {
     Alert.alert('מחיקה', 'למחוק את התשלום?', [
@@ -54,15 +55,7 @@ export default function PaymentDetailScreen() {
   if (!detail) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-          </Pressable>
-          <AppText variant="headingMd" weight="bold" color="onPrimary">
-            תשלום
-          </AppText>
-          <View style={{ width: 40 }} />
-        </View>
+        <AppHeader title="תשלום" showBack />
         <View style={styles.empty}>
           <AppText variant="bodyMd" color="variant">
             לא נמצא תשלום
@@ -90,15 +83,7 @@ export default function PaymentDetailScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-          <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-        </Pressable>
-        <AppText variant="headingMd" weight="bold" color="onPrimary" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
-          פרטי תשלום
-        </AppText>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader title="פרטי תשלום" showBack />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
         <View style={styles.amountCard}>
@@ -166,17 +151,6 @@ export default function PaymentDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
   amountCard: {

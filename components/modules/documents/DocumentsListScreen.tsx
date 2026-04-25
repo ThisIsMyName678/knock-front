@@ -4,7 +4,6 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  TextInput,
   Share,
   FlatList,
   Alert,
@@ -15,10 +14,14 @@ import { useFocusEffect } from 'expo-router';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FilterBar } from '@/components/ui/FilterBar';
+import { FilterSheet } from '@/components/ui/FilterSheet';
+import type { FilterSection } from '@/components/ui/FilterSheet';
 import type { LinkKind } from '@/lib/mocks/contracts';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
@@ -103,6 +106,7 @@ export function DocumentsListScreen() {
   const [categoryFilter, setCategoryFilter] = useState<DocumentCategoryFilter>('all');
   const [sortKey, setSortKey] = useState<DocumentSortKey>('uploadedAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [editRow, setEditRow] = useState<DocumentListRow | null>(null);
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState<DocumentType>('other');
@@ -219,77 +223,43 @@ export function DocumentsListScreen() {
     Share.share({ message: row.displayName, title: 'שיתוף מסמך' }).catch(() => {});
   }, []);
 
+  const activeSecondaryCount = useMemo(() => {
+    let count = 0;
+    if (scope !== 'all') count++;
+    return count;
+  }, [scope]);
+
+  const filterSections: FilterSection[] = useMemo(
+    () => [
+      {
+        kind: 'chips',
+        label: 'שיוך לפי',
+        options: SCOPE_OPTIONS.map((o) => ({ key: o.key, label: o.label })),
+        value: scope,
+        onChange: (k) => {
+          setScope(k as ScopeFilter);
+          setEntityId(null);
+        },
+      },
+      {
+        kind: 'conditionalChips',
+        label: scope === 'by_asset' ? 'בחר נכס' : 'בחר פרויקט',
+        options: entitiesForScope.map((e) => ({ key: e.id, label: e.name })),
+        value: entityId,
+        onChange: setEntityId,
+        visible: scope !== 'all',
+      },
+    ],
+    [scope, entityId, entitiesForScope],
+  );
+
+  const resetSecondaryFilters = useCallback(() => {
+    setScope('all');
+    setEntityId(null);
+  }, []);
+
   const listHeader = (
     <>
-      <View style={styles.toolbar}>
-        <View style={styles.searchRow}>
-          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="חיפוש חופשי..."
-            placeholderTextColor={Colors.onSurfaceMuted}
-            value={search}
-            onChangeText={setSearch}
-            textAlign="right"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
-            </Pressable>
-          )}
-        </View>
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          שיוך נכס / פרויקט
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {SCOPE_OPTIONS.map((o) => (
-            <Pressable
-              key={o.key}
-              onPress={() => {
-                setScope(o.key);
-                setEntityId(null);
-              }}
-              style={[styles.chip, scope === o.key && styles.chipActive]}
-            >
-              <AppText variant="labelMd" weight={scope === o.key ? 'bold' : 'regular'} style={{ color: scope === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {o.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {(scope === 'by_asset' || scope === 'by_project') && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-            <Pressable onPress={() => setEntityId(null)} style={[styles.chip, entityId === null && styles.chipActive]}>
-              <AppText variant="labelMd" weight={entityId === null ? 'bold' : 'regular'} style={{ color: entityId === null ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                כל הישויות
-              </AppText>
-            </Pressable>
-            {entitiesForScope.map((e) => (
-              <Pressable key={e.id} onPress={() => setEntityId(e.id)} style={[styles.chip, entityId === e.id && styles.chipActive]}>
-                <AppText variant="labelMd" weight={entityId === e.id ? 'bold' : 'regular'} numberOfLines={1} style={{ color: entityId === e.id ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                  {e.name}
-                </AppText>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          סוג מסמך (קטגוריה)
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {CATEGORY_OPTIONS.map((o) => (
-            <Pressable key={o.key} onPress={() => setCategoryFilter(o.key)} style={[styles.chip, categoryFilter === o.key && styles.chipActive]}>
-              <AppText variant="labelMd" weight={categoryFilter === o.key ? 'bold' : 'regular'} style={{ color: categoryFilter === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {o.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
       <View style={styles.tableHeader}>
         {SORT_COLUMNS.map((col) => {
           const active = sortKey === col.key;
@@ -318,19 +288,24 @@ export function DocumentsListScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">
-          מסמכים וקבצים
-        </AppText>
-        <View style={styles.headerActions}>
-          <Pressable onPress={exportData} style={styles.headerIconBtn} accessibilityRole="button" accessibilityLabel="יצוא">
-            <MaterialCommunityIcons name="tray-arrow-up" size={22} color={Colors.onPrimary} />
-          </Pressable>
-          <Pressable onPress={() => router.push('/(app)/documents/new')} style={styles.addBtn} accessibilityRole="button">
-            <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
-          </Pressable>
-        </View>
-      </View>
+      <AppHeader title="מסמכים וקבצים" showMenu />
+
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        tabs={CATEGORY_OPTIONS.map((o) => ({ key: o.key, label: o.label }))}
+        activeTab={categoryFilter}
+        onTabChange={(k) => setCategoryFilter(k as DocumentCategoryFilter)}
+        activeSecondaryCount={activeSecondaryCount}
+        onFiltersPress={() => setFilterSheetOpen(true)}
+      />
+
+      <FilterSheet
+        visible={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        onReset={resetSecondaryFilters}
+        sections={filterSections}
+      />
 
       <FlatList
         data={sorted}
@@ -438,82 +413,22 @@ export function DocumentsListScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* FAB */}
+      <Pressable
+        onPress={() => router.push('/(app)/documents/new')}
+        style={[styles.fab, { bottom: insets.bottom + Spacing.lg }]}
+        accessibilityRole="button"
+        accessibilityLabel="העלה מסמך"
+      >
+        <MaterialCommunityIcons name="plus" size={26} color={Colors.onPrimary} />
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  headerActions: { flexDirection: 'row-reverse', gap: Spacing.sm },
-  headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolbar: {
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineVariant,
-    paddingBottom: Spacing.sm,
-  },
-  filterLabel: { textAlign: 'right', marginRight: CONTENT_HORIZONTAL_PADDING, marginTop: Spacing.xs },
-  chipsRow: {
-    flexDirection: 'row-reverse',
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingVertical: Spacing.xs,
-    gap: Spacing.sm,
-  },
-  chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-    minHeight: 34,
-    justifyContent: 'center',
-  },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  searchRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-    backgroundColor: Colors.surfaceVariant,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.onBackground,
-    paddingVertical: 0,
-  },
   tableHeader: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
@@ -572,4 +487,15 @@ const styles = StyleSheet.create({
   },
   typeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   typeGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.md },
+  fab: {
+    position: 'absolute',
+    left: CONTENT_HORIZONTAL_PADDING,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.md,
+  },
 });

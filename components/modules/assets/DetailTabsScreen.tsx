@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -153,9 +154,9 @@ const MOCK_TASKS: TaskItem[] = [
 ];
 
 const MOCK_DOCS: DocItem[] = [
-  { id: 'd1', name: 'חוזה שכירות 2024.pdf', category: 'חוזה', uploadDate: '01/01/2024', kind: 'pdf' },
-  { id: 'd2', name: 'תמונת נזק.jpg', category: 'נזקים', uploadDate: '10/03/2026', kind: 'image' },
-  { id: 'd3', name: 'אישור עירייה.pdf', category: 'רשויות', uploadDate: '15/12/2023', kind: 'pdf' },
+  { id: 'doc1', name: 'חוזה שכירות 2024.pdf', category: 'חוזה', uploadDate: '01/01/2024', kind: 'pdf' },
+  { id: 'doc2', name: 'תמונת נזק.jpg', category: 'נזקים', uploadDate: '10/03/2026', kind: 'image' },
+  { id: 'doc3', name: 'אישור עירייה.pdf', category: 'רשויות', uploadDate: '15/12/2023', kind: 'pdf' },
 ];
 
 const MOCK_PAYMENTS: PaymentItem[] = [
@@ -165,9 +166,9 @@ const MOCK_PAYMENTS: PaymentItem[] = [
 ];
 
 const MOCK_CONTACTS: ContactItem[] = [
-  { id: 'c1', name: 'יוסי כהן', role: 'דייר', phone: '050-1234567' },
-  { id: 'c2', name: 'מיכל לוי', role: 'מנהל נכס', phone: '052-9876543' },
-  { id: 'c3', name: 'שירות חרום', role: 'בעל תפקיד', phone: '054-1111222' },
+  { id: 'ct1', name: 'יוסי כהן', role: 'דייר', phone: '050-1234567' },
+  { id: 'ct2', name: 'מיכל לוי', role: 'מנהל נכס', phone: '052-9876543' },
+  { id: 'ct3', name: 'שירות חרום', role: 'בעל תפקיד', phone: '054-1111222' },
 ];
 
 // Recommended document checklist
@@ -774,7 +775,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
                 <MaterialCommunityIcons name="eye-outline" size={20} color={Colors.primary} />
               </Pressable>
               <Pressable
-                onPress={() => Alert.alert('בקרוב', 'עריכת מסמך')}
+                onPress={() => router.push(`/(app)/documents/edit/${doc.id}`)}
                 style={listStyles.iconBtn}
                 accessibilityRole="button"
                 accessibilityLabel="ערוך"
@@ -909,7 +910,7 @@ function ContactsTab({ entityId }: { entityId: string }) {
                 <Badge label={item.role} preset="primary" style={{ alignSelf: 'flex-end', marginTop: 4 }} />
               </View>
               <Pressable
-                onPress={() => Alert.alert('בקרוב', 'עריכת איש קשר')}
+                onPress={() => router.push(`/(app)/contacts/edit/${item.id}`)}
                 style={listStyles.iconBtn}
                 accessibilityRole="button"
                 accessibilityLabel="ערוך"
@@ -1071,33 +1072,31 @@ export function DetailTabsScreen({
 
   return (
     <View style={[screenStyles.screen, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={screenStyles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          style={screenStyles.iconBtn}
-          accessibilityRole="button"
-          accessibilityLabel="חזרה"
-        >
-          <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
-        </Pressable>
-
-        <View style={screenStyles.headerCenter}>
-          <AppText variant="headingMd" weight="bold" color="onPrimary" numberOfLines={1} style={{ textAlign: 'right', width: '100%' }}>
-            {name}
-          </AppText>
-          <View style={[screenStyles.headerAddress, { alignSelf: 'flex-start' }]}>
+      <AppHeader
+        title={name}
+        subtitleNode={
+          <View style={screenStyles.headerAddress}>
             <MaterialCommunityIcons name="map-marker-outline" size={13} color="rgba(255,255,255,0.75)" />
             <AppText variant="caption" color="onPrimary" numberOfLines={1} style={{ opacity: 0.85, textAlign: 'right' }}>
               {address}
             </AppText>
           </View>
-        </View>
+        }
+        showBack
+      />
 
-        <Pressable style={screenStyles.iconBtn} accessibilityRole="button" accessibilityLabel="אפשרויות">
-          <MaterialCommunityIcons name="dots-vertical" size={24} color={Colors.onPrimary} />
-        </Pressable>
-      </View>
+      {/* Edit entity action row */}
+      <Pressable
+        onPress={() => router.push({ pathname: '/(app)/assets-screens/new', params: { editId: id } })}
+        style={screenStyles.editEntityRow}
+        accessibilityRole="button"
+        accessibilityLabel={`עריכת פרטי ${mode === 'project' ? 'פרויקט' : 'נכס'}`}
+      >
+        <MaterialCommunityIcons name="pencil-outline" size={16} color={Colors.primary} />
+        <AppText variant="labelMd" color="primary" weight="semiBold">
+          עריכת פרטי {mode === 'project' ? 'פרויקט' : 'נכס'}
+        </AppText>
+      </Pressable>
 
       {/* Tabs */}
       <TabBar tabs={tabsWithLabels} active={activeTab} onSelect={setActiveTab} />
@@ -1117,17 +1116,15 @@ export function DetailTabsScreen({
 
 const screenStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
+  headerAddress: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4 },
+  editEntityRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
+    gap: Spacing.xs,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.md,
-    paddingTop: Spacing.sm,
-    gap: Spacing.sm,
-    ...Shadow.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primaryContainer,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
   },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerCenter: { flex: 1, alignItems: 'flex-start', gap: 2 },
-  headerAddress: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4 },
 });

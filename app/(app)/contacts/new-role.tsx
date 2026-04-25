@@ -1,6 +1,9 @@
-import React from 'react';
-import { ContactRoleCreateForm } from '@/components/modules/contacts/ContactRoleCreateForm';
+import { useEffect } from 'react';
+import { router } from 'expo-router';
 
 export default function NewContactRoleScreen() {
-  return <ContactRoleCreateForm />;
+  useEffect(() => {
+    router.replace('/(app)/contacts/new');
+  }, []);
+  return null;
 }

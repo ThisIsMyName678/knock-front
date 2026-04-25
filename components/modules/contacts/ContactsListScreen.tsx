@@ -4,7 +4,6 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  TextInput,
   FlatList,
   Linking,
   Alert,
@@ -14,7 +13,11 @@ import { useFocusEffect } from 'expo-router';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FilterBar } from '@/components/ui/FilterBar';
+import { FilterSheet } from '@/components/ui/FilterSheet';
+import type { FilterSection } from '@/components/ui/FilterSheet';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
   MOCK_CONTACTS_LIST,
@@ -84,6 +87,7 @@ export function ContactsListScreen() {
   const [entityId, setEntityId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<ContactSortKey>('displayName');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const linkScope = linkScopeFromScope(scope);
 
@@ -130,95 +134,91 @@ export function ContactsListScreen() {
     return [];
   }, [scope]);
 
+  const activeSecondaryCount = scope !== 'all' ? 1 : 0;
+
+  const filterSections: FilterSection[] = useMemo(
+    () => [
+      {
+        kind: 'chips',
+        label: 'שיוך לפי',
+        options: SCOPE_OPTIONS.map((o) => ({ key: o.key, label: o.label })),
+        value: scope,
+        onChange: (k) => {
+          setScope(k as ScopeFilter);
+          setEntityId(null);
+        },
+      },
+      {
+        kind: 'entitySearch',
+        label: scope === 'by_asset' ? 'חיפוש נכס' : 'חיפוש פרויקט',
+        placeholder: scope === 'by_asset' ? 'הקלד שם נכס או כתובת...' : 'הקלד שם פרויקט...',
+        options: entitiesForScope.map((e) => ({ key: e.id, label: `${e.name} — ${e.address}` })),
+        value: entityId,
+        onChange: setEntityId,
+        visible: scope !== 'all',
+      },
+    ],
+    [scope, entityId, entitiesForScope],
+  );
+
+  const resetSecondaryFilters = useCallback(() => {
+    setScope('all');
+    setEntityId(null);
+  }, []);
+
   const listHeader = (
-    <>
-      <View style={styles.toolbar}>
-        <View style={styles.searchRow}>
-          <MaterialCommunityIcons name="magnify" size={20} color={Colors.onSurfaceMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="חיפוש (שם, תפקיד, טלפון, שיוך)..."
-            placeholderTextColor={Colors.onSurfaceMuted}
-            value={search}
-            onChangeText={setSearch}
-            textAlign="right"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
-            </Pressable>
-          )}
-        </View>
-
-        <AppText variant="labelSm" weight="semiBold" color="variant" style={styles.filterLabel}>
-          סינון שיוך
-        </AppText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {SCOPE_OPTIONS.map((o) => (
-            <Pressable
-              key={o.key}
-              onPress={() => {
-                setScope(o.key);
-                setEntityId(null);
-              }}
-              style={[styles.chip, scope === o.key && styles.chipActive]}
-            >
-              <AppText variant="labelMd" weight={scope === o.key ? 'bold' : 'regular'} style={{ color: scope === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                {o.label}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {(scope === 'by_asset' || scope === 'by_project') && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-            <Pressable onPress={() => setEntityId(null)} style={[styles.chip, entityId === null && styles.chipActive]}>
-              <AppText variant="labelMd" weight={entityId === null ? 'bold' : 'regular'} style={{ color: entityId === null ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                כל הישויות
-              </AppText>
-            </Pressable>
-            {entitiesForScope.map((e) => (
-              <Pressable key={e.id} onPress={() => setEntityId(e.id)} style={[styles.chip, entityId === e.id && styles.chipActive]}>
-                <AppText variant="labelMd" weight={entityId === e.id ? 'bold' : 'regular'} numberOfLines={1} style={{ color: entityId === e.id ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                  {e.name}
-                </AppText>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-      </View>
-
-      <View style={styles.tableHeader}>
+    <View style={styles.tableHeader}>
+      {/* Sortable columns — flex:1 wrapper mirrors the data rowTap */}
+      <View style={styles.thRow}>
         {COLUMNS.map((col) => {
           const active = sortKey === col.key;
           return (
-            <Pressable key={col.key} onPress={() => onHeaderPress(col.key)} style={[styles.thCell, { flex: col.flex }]} accessibilityRole="button">
-              <AppText variant="labelSm" weight="bold" color="primary" numberOfLines={2} align="right">
+            <Pressable
+              key={col.key}
+              onPress={() => onHeaderPress(col.key)}
+              style={[styles.thCell, { flex: col.flex }]}
+              accessibilityRole="button"
+            >
+              {active && (
+                <MaterialCommunityIcons
+                  name={sortDir === 'asc' ? 'arrow-up' : 'arrow-down'}
+                  size={13}
+                  color={Colors.primary}
+                />
+              )}
+              <AppText variant="labelSm" weight="bold" color="primary" numberOfLines={1} style={{ textAlign: 'right' }}>
                 {col.label}
               </AppText>
-              {active && <MaterialCommunityIcons name={sortDir === 'asc' ? 'arrow-up' : 'arrow-down'} size={14} color={Colors.primary} />}
             </Pressable>
           );
         })}
-        <View style={[styles.thCell, { width: 44, flex: undefined }]}>
-          <AppText variant="labelSm" weight="bold" color="primary" align="center">
-            WA
-          </AppText>
-        </View>
       </View>
-    </>
+      {/* WA placeholder — matches waBtn width exactly */}
+      <View style={styles.thWa}>
+        <AppText variant="labelSm" weight="bold" color="primary" align="center">
+          WA
+        </AppText>
+      </View>
+    </View>
   );
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <AppText variant="headingMd" weight="bold" color="onPrimary">
-          אנשי קשר
-        </AppText>
-        <Pressable onPress={() => router.push('/(app)/contacts/new')} style={styles.addBtn} accessibilityRole="button">
-          <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
-        </Pressable>
-      </View>
+      <AppHeader title="אנשי קשר" showMenu />
+
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        activeSecondaryCount={activeSecondaryCount}
+        onFiltersPress={() => setFilterSheetOpen(true)}
+      />
+
+      <FilterSheet
+        visible={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        onReset={resetSecondaryFilters}
+        sections={filterSections}
+      />
 
       <FlatList
         data={sorted}
@@ -266,88 +266,51 @@ export function ContactsListScreen() {
           </View>
         )}
       />
+
+      {/* FAB */}
+      <Pressable
+        onPress={() => router.push('/(app)/contacts/new')}
+        style={[styles.fab, { bottom: insets.bottom + Spacing.lg }]}
+        accessibilityRole="button"
+        accessibilityLabel="הוסף איש קשר"
+      >
+        <MaterialCommunityIcons name="plus" size={26} color={Colors.onPrimary} />
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
-    paddingTop: Spacing.sm,
-    ...Shadow.md,
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolbar: {
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineVariant,
-    paddingBottom: Spacing.sm,
-  },
-  filterLabel: { textAlign: 'right', marginRight: CONTENT_HORIZONTAL_PADDING, marginTop: Spacing.xs },
-  chipsRow: {
-    flexDirection: 'row-reverse',
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingVertical: Spacing.xs,
-    gap: Spacing.sm,
-  },
-  chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-    minHeight: 34,
-    justifyContent: 'center',
-  },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  searchRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-    backgroundColor: Colors.surfaceVariant,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: FontFamily.regular,
-    fontSize: FontSize.base,
-    color: Colors.onBackground,
-    paddingVertical: 0,
-  },
   tableHeader: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
     backgroundColor: Colors.surfaceVariant,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
+    borderBottomColor: Colors.outlineVariant,
+  },
+  thRow: {
+    flex: 1,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
   },
   thCell: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: 4,
-    justifyContent: 'flex-end',
-    paddingHorizontal: 2,
+    justifyContent: 'flex-start',
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: Spacing.sm,
+    minHeight: MIN_TOUCH,
+  },
+  thWa: {
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRightWidth: 1,
+    borderRightColor: Colors.outlineVariant,
     minHeight: MIN_TOUCH,
   },
   tableRow: {
@@ -360,4 +323,15 @@ const styles = StyleSheet.create({
   rowTap: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, paddingVertical: Spacing.sm },
   td: { paddingHorizontal: 4, justifyContent: 'center' },
   waBtn: { width: 48, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: Colors.outlineLight },
+  fab: {
+    position: 'absolute',
+    left: CONTENT_HORIZONTAL_PADDING,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.md,
+  },
 });
