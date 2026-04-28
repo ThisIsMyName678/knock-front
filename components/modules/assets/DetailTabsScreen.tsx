@@ -28,6 +28,7 @@ import {
   CONTENT_HORIZONTAL_PADDING,
   MIN_TOUCH,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import { EntityListScreen } from './EntityListScreen';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -293,7 +294,7 @@ const tabSearchStyles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
   row: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     backgroundColor: Colors.surfaceVariant,
@@ -359,7 +360,7 @@ const tabStyles = StyleSheet.create({
     borderBottomColor: Colors.outlineVariant,
   },
   row: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 0,
   },
@@ -423,7 +424,7 @@ const filterStyles = StyleSheet.create({
     flexGrow: 0,
   },
   row: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
@@ -957,12 +958,12 @@ function ContactsTab({ entityId }: { entityId: string }) {
 
 const listStyles = StyleSheet.create({
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: 0, paddingTop: Spacing.base },
-  row: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md },
-  rowGap: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.xs },
+  row: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md },
+  rowGap: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.xs },
   divider: { height: 1, backgroundColor: Colors.outlineLight, marginVertical: Spacing.sm },
 
   // Feed
-  feedRow: { flexDirection: 'row-reverse', gap: Spacing.md, minHeight: 64 },
+  feedRow: { flexDirection: RTL_ROW, gap: Spacing.md, minHeight: 64 },
   feedLeft: { width: 16, alignItems: 'center' },
   feedDot: { width: 10, height: 10, borderRadius: 5, marginTop: 6 },
   feedLine: { flex: 1, width: 2, borderRadius: 1, marginTop: 4, opacity: 0.4 },
@@ -975,24 +976,24 @@ const listStyles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.sm,
   },
-  feedCardInner: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md },
+  feedCardInner: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md },
   feedIconWrap: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 
   // Contract
-  contractHeader: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.sm },
+  contractHeader: { flexDirection: RTL_ROW, alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.sm },
   contractIcon: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.primaryContainer, alignItems: 'center', justifyContent: 'center' },
-  contractRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
-  contractLink: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.outlineLight },
+  contractRow: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
+  contractLink: { flexDirection: RTL_ROW, alignItems: 'center', gap: 4, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.outlineLight },
 
   // Doc
-  docRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineVariant, padding: Spacing.md },
+  docRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineVariant, padding: Spacing.md },
   docIcon: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  iconActions: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4 },
+  iconActions: { flexDirection: RTL_ROW, alignItems: 'center', gap: 4 },
   iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.md },
 
   // Checklist
   checklistHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.primaryContainer,
@@ -1009,10 +1010,10 @@ const listStyles = StyleSheet.create({
     gap: Spacing.sm,
     marginBottom: Spacing.base,
   },
-  checklistRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.xs },
+  checklistRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.xs },
 
   // Payments table
-  tableRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.sm },
+  tableRow: { flexDirection: RTL_ROW, alignItems: 'center', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.sm },
   tableHeader: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, marginBottom: 2 },
   tableRowBody: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
   colDir: { width: 32, alignItems: 'center' },
@@ -1021,10 +1022,10 @@ const listStyles = StyleSheet.create({
   colAmt: { width: 96, textAlign: 'left' as const },
 
   // Contacts
-  contactTop: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.md },
+  contactTop: { flexDirection: RTL_ROW, alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.md },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  contactActions: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm },
-  contactBtn: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.outlineVariant, backgroundColor: Colors.surfaceVariant },
+  contactActions: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
+  contactBtn: { flex: 1, flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.outlineVariant, backgroundColor: Colors.surfaceVariant },
 });
 
 // ─── Main DetailTabsScreen ─────────────────────────────────────────────────────
@@ -1116,9 +1117,9 @@ export function DetailTabsScreen({
 
 const screenStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  headerAddress: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4 },
+  headerAddress: { flexDirection: RTL_ROW, alignItems: 'center', gap: 4 },
   editEntityRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.xs,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,

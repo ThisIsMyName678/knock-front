@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
-  FlatList,
+  Modal,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -14,9 +14,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MOCK_ASSETS, MOCK_PROJECTS } from '@/lib/mocks/assets';
+import { MOCK_CONTRACTS_LIST, CONTRACT_TYPE_LABELS } from '@/lib/mocks/contracts';
+import { DocumentType, DOCUMENT_TYPE_LABELS } from '@/lib/mocks/documents';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import {
   Colors,
   Spacing,
@@ -27,6 +30,7 @@ import {
   CONTENT_HORIZONTAL_PADDING,
   MIN_TOUCH,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -46,35 +50,63 @@ type AirDirection = 'north' | 'south' | 'east' | 'west';
 
 type PropertyCondition = 'new' | 'renovated' | 'good' | 'requires_renovation';
 
+type MeterType = 'electricity' | 'water' | 'gas' | 'other';
+
+type MeterEntry = {
+  id: string;
+  name: string;
+  meterType: MeterType | null;
+  reading: string;
+  photoUri: string | null;
+};
+
 type Step1Data = {
   kind: AssetKind | null;
   address: string;
   addressSuggestion: AddressSuggestion | null;
   apartmentNumber: string;
-  // Extended details
+  linkedProjectId: string | null;
+  linkedProjectName: string | null;
+  projectSearch: string;
   airDirections: AirDirection[];
   amenities: Record<AmenityKey, boolean>;
+  gardenSize: string;
+  balconySize: string;
+  parkingNumber: string;
   propertyCondition: PropertyCondition | null;
-  // Financial
   buildingCommittee: string;
   propertyTax: string;
   assetValue: string;
-  // Utilities
-  electricityCompany: string;
-  waterProvider: string;
-  municipality: string;
+  meters: MeterEntry[];
+};
+
+// ─── Step 2: Files ────────────────────────────────────────────────────────────
+
+type FileSource = 'files' | 'photos' | 'camera';
+
+type FileEntry = {
+  id: string;
+  displayName: string;
+  category: DocumentType;
+  source: FileSource;
 };
 
 type Step2Data = {
-  tenantName: string;
-  tenantPhone: string;
-  startDate: string;
-  endDate: string;
-  monthlyRent: string;
+  files: FileEntry[];
+  pendingName: string;
+  pendingCategory: DocumentType;
+  pendingSource: FileSource | null;
 };
 
+// ─── Step 3: Contract ─────────────────────────────────────────────────────────
+
+type ContractChoice = 'link' | null;
+
 type Step3Data = {
-  uploadedFiles: string[];
+  choice: ContractChoice;
+  linkedContractId: string | null;
+  linkedContractName: string | null;
+  contractSearch: string;
 };
 
 type AddressSuggestion = {
@@ -115,6 +147,19 @@ const PROPERTY_CONDITIONS: { key: PropertyCondition; label: string }[] = [
   { key: 'requires_renovation', label: 'דורש שיפוץ' },
 ];
 
+const METER_TYPES: { key: MeterType; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
+  { key: 'electricity', label: 'חשמל', icon: 'lightning-bolt' },
+  { key: 'water', label: 'מים', icon: 'water-outline' },
+  { key: 'gas', label: 'גז', icon: 'fire' },
+  { key: 'other', label: 'אחר', icon: 'gauge' },
+];
+
+const DOCUMENT_TYPE_ORDER: DocumentType[] = [
+  'contract', 'plan', 'report', 'payment', 'work_agreement',
+  'asset_docs', 'meter_readings', 'formats', 'guarantees',
+  'accounts', 'invoice_receipt', 'other',
+];
+
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepIndicator({ step, total }: { step: number; total: number }) {
@@ -152,7 +197,7 @@ function StepIndicator({ step, total }: { step: number; total: number }) {
 
 const indicatorStyles = StyleSheet.create({
   row: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 0,
@@ -219,7 +264,7 @@ const fieldStyles = StyleSheet.create({
   wrap: { gap: Spacing.xs },
   label: { textAlign: 'right', color: Colors.onBackground },
   row: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
@@ -236,21 +281,6 @@ const fieldStyles = StyleSheet.create({
     color: Colors.onBackground,
   },
   suffix: { paddingHorizontal: Spacing.md, color: Colors.onSurfaceVariant },
-});
-
-// ─── Section title ────────────────────────────────────────────────────────────
-
-function SectionTitle({ title, icon }: { title: string; icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }) {
-  return (
-    <View style={sectionStyles.row}>
-      {icon && <MaterialCommunityIcons name={icon} size={18} color={Colors.primary} />}
-      <AppText variant="labelLg" weight="bold" color="primary">{title}</AppText>
-    </View>
-  );
-}
-
-const sectionStyles = StyleSheet.create({
-  row: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.xl, marginBottom: Spacing.sm },
 });
 
 // ─── Expandable section ───────────────────────────────────────────────────────
@@ -280,17 +310,18 @@ const expandStyles = StyleSheet.create({
     marginTop: Spacing.base,
   },
   header: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: Spacing.md,
     backgroundColor: Colors.primaryContainer,
   },
-  titleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm },
+  titleRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
   body: { padding: Spacing.md, gap: Spacing.base, backgroundColor: Colors.surface },
 });
 
-/** רשימת כתובות — data.gov.il CKAN datastore (resource_id מהמוצר). */
+// ─── Address Autocomplete ─────────────────────────────────────────────────────
+
 const ADDRESS_DATASTORE_URL =
   'https://data.gov.il/api/3/action/datastore_search?resource_id=9ad3862c-8391-4b2f-84a4-2d4c68625f4b';
 
@@ -304,43 +335,20 @@ function strField(r: Record<string, unknown>, keys: string[]): string {
   return '';
 }
 
-/** ממיר רשומת מאגר לשורת השלמה — תומך בשמות שדות נפוצים בעברית/אנגלית. */
 function parseGovIlAddressRecord(r: Record<string, unknown>): AddressSuggestion | null {
-  const street = strField(r, [
-    'שם_רחוב',
-    'שם רחוב',
-    'תיאור_רחוב',
-    'STREET_NAME',
-    'street_name',
-    'שם_רחוב_רשמי',
-  ]);
-  const city = strField(r, [
-    'שם_ישוב',
-    'שם ישוב',
-    'YISHUV_NAME',
-    'yishuv_name',
-    'שם_ישוב_רשמי',
-    'ישוב',
-  ]);
+  const street = strField(r, ['שם_רחוב', 'שם רחוב', 'תיאור_רחוב', 'STREET_NAME', 'street_name', 'שם_רחוב_רשמי']);
+  const city = strField(r, ['שם_ישוב', 'שם ישוב', 'YISHUV_NAME', 'yishuv_name', 'שם_ישוב_רשמי', 'ישוב']);
   const house = strField(r, ['מספר_בית', 'מספר בית', 'HOUSE_NUMBER', 'house_number', 'מבנה']);
-
   const single = strField(r, ['כתובת', 'address', 'Address', 'FULL_ADDRESS', 'full_address']);
 
   if (street && city) {
     const streetPart = house ? `${street} ${house}` : street;
-    const label = `${streetPart}, ${city}`;
-    return { label, street: streetPart, city };
+    return { label: `${streetPart}, ${city}`, street: streetPart, city };
   }
-  if (single) {
-    return { label: single, street: single, city: city || '' };
-  }
-  if (street) {
-    return { label: city ? `${street}, ${city}` : street, street, city: city || '' };
-  }
+  if (single) return { label: single, street: single, city: city || '' };
+  if (street) return { label: city ? `${street}, ${city}` : street, street, city: city || '' };
   return null;
 }
-
-// ─── Address Autocomplete ─────────────────────────────────────────────────────
 
 function AddressAutocomplete({
   value,
@@ -369,11 +377,7 @@ function AddressAutocomplete({
           success?: boolean;
           result?: { records?: Record<string, unknown>[] };
         };
-        if (!res.ok || json?.success === false) {
-          setSuggestions([]);
-          setShowSuggestions(false);
-          return;
-        }
+        if (!res.ok || json?.success === false) { setSuggestions([]); setShowSuggestions(false); return; }
         const records = json?.result?.records ?? [];
         const seen = new Set<string>();
         const mapped: AddressSuggestion[] = [];
@@ -422,7 +426,6 @@ function AddressAutocomplete({
           </Pressable>
         )}
       </View>
-
       {showSuggestions && suggestions.length > 0 && (
         <View style={autoStyles.dropdown}>
           {suggestions.map((s, i) => (
@@ -436,7 +439,6 @@ function AddressAutocomplete({
               <AppText variant="bodyMd" style={{ flex: 1 }}>{s.label}</AppText>
             </Pressable>
           ))}
-          {/* Manual fallback */}
           <Pressable
             onPress={() => { setShowSuggestions(false); setSuggestions([]); }}
             style={autoStyles.manualFallback}
@@ -453,7 +455,7 @@ function AddressAutocomplete({
 
 const autoStyles = StyleSheet.create({
   inputWrap: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
@@ -480,7 +482,7 @@ const autoStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   suggestion: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     padding: Spacing.md,
@@ -488,11 +490,278 @@ const autoStyles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
   manualFallback: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     padding: Spacing.md,
     backgroundColor: Colors.primaryContainer,
+  },
+});
+
+// ─── Meter Entry Card ─────────────────────────────────────────────────────────
+
+function MeterEntryCard({
+  meter,
+  onChange,
+  onRemove,
+}: {
+  meter: MeterEntry;
+  onChange: (updated: MeterEntry) => void;
+  onRemove: () => void;
+}) {
+  const update = <K extends keyof MeterEntry>(key: K, val: MeterEntry[K]) =>
+    onChange({ ...meter, [key]: val });
+
+  return (
+    <View style={meterStyles.card}>
+      <View style={meterStyles.cardHeader}>
+        <AppText variant="labelMd" weight="bold" color="primary">מונה</AppText>
+        <Pressable onPress={onRemove} style={meterStyles.removeBtn} accessibilityRole="button" accessibilityLabel="הסר מונה" hitSlop={8}>
+          <MaterialCommunityIcons name="close" size={16} color={Colors.onSurfaceVariant} />
+        </Pressable>
+      </View>
+
+      <FieldInput
+        label="שם המונה"
+        value={meter.name}
+        onChangeText={(t) => update('name', t)}
+        placeholder="לדוגמה: חשמל ראשי"
+      />
+
+      <View style={{ gap: Spacing.xs }}>
+        <AppText variant="labelMd" weight="semiBold" style={meterStyles.fieldLabel}>סוג מונה</AppText>
+        <View style={meterStyles.chipRow}>
+          {METER_TYPES.map((mt) => {
+            const active = meter.meterType === mt.key;
+            return (
+              <Pressable
+                key={mt.key}
+                onPress={() => update('meterType', mt.key)}
+                style={[meterStyles.chip, active && meterStyles.chipActive]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
+              >
+                <MaterialCommunityIcons name={mt.icon} size={14} color={active ? Colors.onPrimary : Colors.onSurfaceVariant} />
+                <AppText variant="labelSm" style={{ color: active ? Colors.onPrimary : Colors.onSurfaceVariant }}>{mt.label}</AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <FieldInput
+        label="קריאת מונה"
+        value={meter.reading}
+        onChangeText={(t) => update('reading', t)}
+        placeholder="לדוגמה: 12345"
+        keyboardType="numeric"
+      />
+
+      <View style={{ gap: Spacing.xs }}>
+        <AppText variant="labelMd" weight="semiBold" style={meterStyles.fieldLabel}>תמונת מונה</AppText>
+        {meter.photoUri ? (
+          <View style={meterStyles.photoSelected}>
+            <MaterialCommunityIcons name="image-check-outline" size={18} color={Colors.success} />
+            <AppText variant="bodySm" style={{ flex: 1, color: Colors.success }}>תמונה נבחרה</AppText>
+            <Pressable onPress={() => update('photoUri', null)} accessibilityRole="button" accessibilityLabel="הסר תמונה" hitSlop={8}>
+              <MaterialCommunityIcons name="close-circle-outline" size={18} color={Colors.onSurfaceVariant} />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={meterStyles.photoRow}>
+            <Pressable onPress={() => update('photoUri', `camera-${meter.id}`)} style={({ pressed }) => [meterStyles.photoBtn, pressed && { opacity: 0.8 }]} accessibilityRole="button">
+              <MaterialCommunityIcons name="camera-outline" size={20} color={Colors.primary} />
+              <AppText variant="labelMd" color="primary" weight="semiBold">מצלמה</AppText>
+            </Pressable>
+            <Pressable onPress={() => update('photoUri', `gallery-${meter.id}`)} style={({ pressed }) => [meterStyles.photoBtn, pressed && { opacity: 0.8 }]} accessibilityRole="button">
+              <MaterialCommunityIcons name="image-outline" size={20} color={Colors.primary} />
+              <AppText variant="labelMd" color="primary" weight="semiBold">גלריה</AppText>
+            </Pressable>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const meterStyles = StyleSheet.create({
+  card: {
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    gap: Spacing.base,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  cardHeader: { flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'space-between' },
+  removeBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm, backgroundColor: Colors.outlineLight },
+  fieldLabel: { textAlign: 'right', color: Colors.onBackground },
+  chipRow: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
+  chip: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: 4,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2,
+    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.outlineVariant, backgroundColor: Colors.surface,
+  },
+  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  photoRow: { flexDirection: RTL_ROW, gap: Spacing.sm },
+  photoBtn: {
+    flex: 1, flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'center', gap: Spacing.xs,
+    paddingVertical: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.primary, backgroundColor: Colors.primaryContainer,
+  },
+  photoSelected: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm,
+    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.success, backgroundColor: Colors.successContainer,
+  },
+});
+
+// ─── Project search inline autocomplete ───────────────────────────────────────
+
+function ProjectSearchField({
+  query,
+  selectedId,
+  selectedName,
+  onQueryChange,
+  onSelect,
+  onClear,
+}: {
+  query: string;
+  selectedId: string | null;
+  selectedName: string | null;
+  onQueryChange: (t: string) => void;
+  onSelect: (id: string, name: string) => void;
+  onClear: () => void;
+}) {
+  const filtered = query.trim().length > 0
+    ? MOCK_PROJECTS.filter(
+        (p) =>
+          p.name.includes(query) ||
+          p.address.includes(query),
+      ).slice(0, 6)
+    : [];
+
+  if (selectedId && selectedName) {
+    return (
+      <View style={projSearchStyles.selectedRow}>
+        <MaterialCommunityIcons name="briefcase-check-outline" size={20} color={Colors.primary} />
+        <View style={{ flex: 1 }}>
+          <AppText variant="bodySm" weight="semiBold" numberOfLines={1}>{selectedName}</AppText>
+          <AppText variant="caption" color="variant">
+            {MOCK_PROJECTS.find((p) => p.id === selectedId)?.address ?? ''}
+          </AppText>
+        </View>
+        <Pressable onPress={onClear} accessibilityRole="button" accessibilityLabel="הסר שיוך" hitSlop={8}>
+          <MaterialCommunityIcons name="close-circle-outline" size={20} color={Colors.onSurfaceVariant} />
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <View style={projSearchStyles.inputRow}>
+        <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
+        <TextInput
+          style={projSearchStyles.input}
+          value={query}
+          onChangeText={onQueryChange}
+          placeholder="חפש שם פרויקט..."
+          placeholderTextColor={Colors.onSurfaceMuted}
+          textAlign="right"
+          returnKeyType="search"
+        />
+        {query.length > 0 && (
+          <Pressable onPress={() => onQueryChange('')} accessibilityRole="button" accessibilityLabel="נקה" hitSlop={8}>
+            <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+          </Pressable>
+        )}
+      </View>
+      {filtered.length > 0 && (
+        <View style={projSearchStyles.dropdown}>
+          {filtered.map((p, idx) => (
+            <Pressable
+              key={p.id}
+              onPress={() => onSelect(p.id, p.name)}
+              style={({ pressed }) => [
+                projSearchStyles.dropdownRow,
+                idx < filtered.length - 1 && { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
+                pressed && { backgroundColor: Colors.primaryContainer },
+              ]}
+              accessibilityRole="button"
+            >
+              <MaterialCommunityIcons name="briefcase-outline" size={16} color={Colors.primary} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="bodySm" weight="semiBold" numberOfLines={1}>{p.name}</AppText>
+                <AppText variant="caption" color="variant" numberOfLines={1}>{p.address}</AppText>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {query.trim().length > 1 && filtered.length === 0 && (
+        <View style={projSearchStyles.noResults}>
+          <AppText variant="caption" color="variant">לא נמצאו פרויקטים תואמים</AppText>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const projSearchStyles = StyleSheet.create({
+  inputRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  input: {
+    flex: 1,
+    fontFamily: FontFamily.regular,
+    fontSize: FontSize.base,
+    color: Colors.onBackground,
+    paddingVertical: 4,
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    marginTop: 4,
+    ...Shadow.md,
+    overflow: 'hidden',
+  },
+  dropdownRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  selectedRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryContainer,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  noResults: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    borderRadius: Radius.md,
+    marginTop: 4,
+    backgroundColor: Colors.surfaceVariant,
+    alignItems: 'flex-end',
   },
 });
 
@@ -514,6 +783,21 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
     update('airDirections', dirs);
   };
 
+  const addMeter = () => {
+    update('meters', [
+      ...data.meters,
+      { id: String(Date.now()), name: '', meterType: null, reading: '', photoUri: null },
+    ]);
+  };
+
+  const updateMeter = (id: string, updated: MeterEntry) => {
+    update('meters', data.meters.map((m) => (m.id === id ? updated : m)));
+  };
+
+  const removeMeter = (id: string) => {
+    update('meters', data.meters.filter((m) => m.id !== id));
+  };
+
   return (
     <View style={{ gap: Spacing.base }}>
       {/* Asset kind */}
@@ -524,20 +808,12 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
             <Pressable
               key={k.key}
               onPress={() => update('kind', k.key)}
-              style={({ pressed }) => [
-                s1.kindCard,
-                data.kind === k.key && s1.kindCardActive,
-                pressed && { opacity: 0.85 },
-              ]}
+              style={({ pressed }) => [s1.kindCard, data.kind === k.key && s1.kindCardActive, pressed && { opacity: 0.85 }]}
               accessibilityRole="radio"
               accessibilityState={{ checked: data.kind === k.key }}
             >
               <MaterialCommunityIcons name={k.icon} size={28} color={data.kind === k.key ? Colors.onPrimary : Colors.primary} />
-              <AppText
-                variant="labelMd"
-                weight="semiBold"
-                style={{ color: data.kind === k.key ? Colors.onPrimary : Colors.onBackground }}
-              >
+              <AppText variant="labelMd" weight="semiBold" style={{ color: data.kind === k.key ? Colors.onPrimary : Colors.onBackground }}>
                 {k.label}
               </AppText>
             </Pressable>
@@ -561,12 +837,38 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
         value={data.apartmentNumber}
         onChangeText={(t) => update('apartmentNumber', t)}
         placeholder="לדוגמה: 4B"
-        keyboardType="default"
       />
 
-      {/* Extended details — expandable */}
+      {/* Project link */}
+      <View style={{ gap: Spacing.xs }}>
+        <View style={[s1.labelRow]}>
+          <AppText variant="caption" color="variant">אופציונלי</AppText>
+          <AppText variant="labelMd" weight="semiBold" style={s1.label}>שיוך לפרויקט</AppText>
+        </View>
+        <ProjectSearchField
+          query={data.projectSearch}
+          selectedId={data.linkedProjectId}
+          selectedName={data.linkedProjectName}
+          onQueryChange={(t) => {
+            update('projectSearch', t);
+            update('linkedProjectId', null);
+            update('linkedProjectName', null);
+          }}
+          onSelect={(id, name) => {
+            update('linkedProjectId', id);
+            update('linkedProjectName', name);
+            update('projectSearch', '');
+          }}
+          onClear={() => {
+            update('linkedProjectId', null);
+            update('linkedProjectName', null);
+            update('projectSearch', '');
+          }}
+        />
+      </View>
+
+      {/* Extended details */}
       <Expandable title="פרטים מורחבים" icon="tune-variant">
-        {/* Air directions */}
         <View style={{ gap: Spacing.sm }}>
           <AppText variant="labelMd" weight="semiBold" style={s1.label}>כיווני אוויר</AppText>
           <View style={s1.chipRow}>
@@ -578,10 +880,7 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: data.airDirections.includes(d.key) }}
               >
-                <AppText
-                  variant="labelMd"
-                  style={{ color: data.airDirections.includes(d.key) ? Colors.onPrimary : Colors.onSurfaceVariant }}
-                >
+                <AppText variant="labelMd" style={{ color: data.airDirections.includes(d.key) ? Colors.onPrimary : Colors.onSurfaceVariant }}>
                   {d.label}
                 </AppText>
               </Pressable>
@@ -589,32 +888,46 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
           </View>
         </View>
 
-        {/* Amenities toggles */}
         <View style={{ gap: Spacing.sm }}>
           <AppText variant="labelMd" weight="semiBold" style={s1.label}>פרטים נוספים</AppText>
           {AMENITIES.map((a) => (
-            <Pressable
-              key={a.key}
-              onPress={() => toggleAmenity(a.key)}
-              style={s1.switchRow}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: !!data.amenities[a.key] }}
-            >
-              <View style={s1.switchLeft}>
-                <MaterialCommunityIcons name={a.icon} size={20} color={data.amenities[a.key] ? Colors.primary : Colors.onSurfaceVariant} />
-                <AppText variant="bodyMd">{a.label}</AppText>
-              </View>
-              <Switch
-                value={!!data.amenities[a.key]}
-                onValueChange={() => toggleAmenity(a.key)}
-                trackColor={{ false: Colors.outlineVariant, true: Colors.primaryLight }}
-                thumbColor={data.amenities[a.key] ? Colors.primary : Colors.onSurfaceMuted}
-              />
-            </Pressable>
+            <View key={a.key}>
+              <Pressable
+                onPress={() => toggleAmenity(a.key)}
+                style={s1.switchRow}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: !!data.amenities[a.key] }}
+              >
+                <View style={s1.switchLeft}>
+                  <MaterialCommunityIcons name={a.icon} size={20} color={data.amenities[a.key] ? Colors.primary : Colors.onSurfaceVariant} />
+                  <AppText variant="bodyMd">{a.label}</AppText>
+                </View>
+                <Switch
+                  value={!!data.amenities[a.key]}
+                  onValueChange={() => toggleAmenity(a.key)}
+                  trackColor={{ false: Colors.outlineVariant, true: Colors.primaryLight }}
+                  thumbColor={data.amenities[a.key] ? Colors.primary : Colors.onSurfaceMuted}
+                />
+              </Pressable>
+              {a.key === 'garden' && data.amenities.garden && (
+                <View style={s1.subField}>
+                  <FieldInput label="גודל גינה" value={data.gardenSize} onChangeText={(t) => update('gardenSize', t)} placeholder="לדוגמה: 30" keyboardType="numeric" suffix="מ״ר" />
+                </View>
+              )}
+              {a.key === 'balcony' && data.amenities.balcony && (
+                <View style={s1.subField}>
+                  <FieldInput label="גודל מרפסת" value={data.balconySize} onChangeText={(t) => update('balconySize', t)} placeholder="לדוגמה: 12" keyboardType="numeric" suffix="מ״ר" />
+                </View>
+              )}
+              {a.key === 'parking' && data.amenities.parking && (
+                <View style={s1.subField}>
+                  <FieldInput label="מספר חניה" value={data.parkingNumber} onChangeText={(t) => update('parkingNumber', t)} placeholder="לדוגמה: 15" />
+                </View>
+              )}
+            </View>
           ))}
         </View>
 
-        {/* Property condition */}
         <View style={{ gap: Spacing.sm }}>
           <AppText variant="labelMd" weight="semiBold" style={s1.label}>מצב הנכס</AppText>
           <View style={s1.chipRow}>
@@ -626,10 +939,7 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
                 accessibilityRole="radio"
                 accessibilityState={{ checked: data.propertyCondition === c.key }}
               >
-                <AppText
-                  variant="labelMd"
-                  style={{ color: data.propertyCondition === c.key ? Colors.onPrimary : Colors.onSurfaceVariant }}
-                >
+                <AppText variant="labelMd" style={{ color: data.propertyCondition === c.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
                   {c.label}
                 </AppText>
               </Pressable>
@@ -638,54 +948,34 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
         </View>
       </Expandable>
 
-      {/* Financial details — expandable */}
+      {/* Financial */}
       <Expandable title="פרטים פיננסים" icon="currency-ils">
-        <FieldInput
-          label="ועד בית (₪/חודש)"
-          value={data.buildingCommittee}
-          onChangeText={(t) => update('buildingCommittee', t)}
-          placeholder="200"
-          keyboardType="numeric"
-          suffix="₪"
-        />
-        <FieldInput
-          label="ארנונה (₪/שנה)"
-          value={data.propertyTax}
-          onChangeText={(t) => update('propertyTax', t)}
-          placeholder="6000"
-          keyboardType="numeric"
-          suffix="₪"
-        />
-        <FieldInput
-          label="שווי הנכס"
-          value={data.assetValue}
-          onChangeText={(t) => update('assetValue', t)}
-          placeholder="1,500,000"
-          keyboardType="numeric"
-          suffix="₪"
-        />
+        <FieldInput label="ועד בית (₪/חודש)" value={data.buildingCommittee} onChangeText={(t) => update('buildingCommittee', t)} placeholder="200" keyboardType="numeric" suffix="₪" />
+        <FieldInput label="ארנונה (₪/שנה)" value={data.propertyTax} onChangeText={(t) => update('propertyTax', t)} placeholder="6000" keyboardType="numeric" suffix="₪" />
+        <FieldInput label="שווי הנכס" value={data.assetValue} onChangeText={(t) => update('assetValue', t)} placeholder="1,500,000" keyboardType="numeric" suffix="₪" />
       </Expandable>
 
-      {/* Utilities — expandable */}
-      <Expandable title="מונים / חוזים מול רשויות" icon="gauge">
-        <FieldInput
-          label="חברת חשמל"
-          value={data.electricityCompany}
-          onChangeText={(t) => update('electricityCompany', t)}
-          placeholder="חברת חשמל / ספק פרטי"
-        />
-        <FieldInput
-          label="ספק מים"
-          value={data.waterProvider}
-          onChangeText={(t) => update('waterProvider', t)}
-          placeholder="תאגיד מים"
-        />
-        <FieldInput
-          label="עירייה"
-          value={data.municipality}
-          onChangeText={(t) => update('municipality', t)}
-          placeholder="שם העירייה"
-        />
+      {/* Meters */}
+      <Expandable title="מונים" icon="gauge">
+        <View style={{ gap: Spacing.md }}>
+          {data.meters.length === 0 && (
+            <AppText variant="bodySm" color="variant" style={{ textAlign: 'right' }}>
+              לא נוספו מונים עדיין. לחץ על "הוסף מונה" כדי להתחיל.
+            </AppText>
+          )}
+          {data.meters.map((meter) => (
+            <MeterEntryCard
+              key={meter.id}
+              meter={meter}
+              onChange={(updated) => updateMeter(meter.id, updated)}
+              onRemove={() => removeMeter(meter.id)}
+            />
+          ))}
+          <Pressable onPress={addMeter} style={({ pressed }) => [s1.addMeterBtn, pressed && { opacity: 0.8 }]} accessibilityRole="button">
+            <MaterialCommunityIcons name="plus-circle-outline" size={20} color={Colors.primary} />
+            <AppText variant="labelMd" color="primary" weight="semiBold">הוסף מונה</AppText>
+          </Pressable>
+        </View>
       </Expandable>
     </View>
   );
@@ -693,133 +983,481 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
 
 const s1 = StyleSheet.create({
   label: { textAlign: 'right', color: Colors.onBackground },
-  kindRow: {
-    flexDirection: 'row-reverse',
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
+  labelRow: { flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'space-between' },
+  kindRow: { flexDirection: RTL_ROW, gap: Spacing.md, marginTop: Spacing.sm },
   kindCard: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-    minHeight: 80,
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+    padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1.5,
+    borderColor: Colors.outlineVariant, backgroundColor: Colors.surface, minHeight: 80,
   },
-  kindCardActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
-  chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-  },
+  kindCardActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipRow: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
+  chip: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.outlineVariant, backgroundColor: Colors.surface },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  switchRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.xs,
+  switchRow: { flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.xs },
+  switchLeft: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
+  subField: { marginTop: Spacing.sm, marginRight: 32, marginBottom: Spacing.xs },
+  addMeterBtn: {
+    flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+    paddingVertical: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5,
+    borderColor: Colors.primary, borderStyle: 'dashed', backgroundColor: Colors.primaryContainer,
   },
-  switchLeft: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm },
 });
 
-// ─── Step 2 ───────────────────────────────────────────────────────────────────
+// ─── Step 2: File Upload ───────────────────────────────────────────────────────
+
+const SOURCE_OPTIONS: { key: FileSource; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
+  { key: 'files', label: 'קבצים', icon: 'folder-outline' },
+  { key: 'photos', label: 'תמונות', icon: 'image-outline' },
+  { key: 'camera', label: 'מצלמה', icon: 'camera-outline' },
+];
 
 function Step2({ data, setData }: { data: Step2Data; setData: React.Dispatch<React.SetStateAction<Step2Data>> }) {
+  const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+
   const update = <K extends keyof Step2Data>(key: K, val: Step2Data[K]) =>
     setData((prev) => ({ ...prev, [key]: val }));
 
+  const canAdd = data.pendingSource !== null;
+
+  const commitFile = () => {
+    if (!data.pendingSource) return;
+    const name = data.pendingName.trim() || `קובץ ${data.files.length + 1}`;
+    setData((prev) => ({
+      ...prev,
+      files: [
+        ...prev.files,
+        { id: String(Date.now()), displayName: name, category: prev.pendingCategory, source: prev.pendingSource! },
+      ],
+      pendingName: '',
+      pendingSource: null,
+    }));
+  };
+
+  const removeFile = (id: string) => {
+    update('files', data.files.filter((f) => f.id !== id));
+  };
+
   return (
-    <View style={{ gap: Spacing.base }}>
+    <View style={{ gap: Spacing.lg }}>
       <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right' }}>
-        מלא את פרטי החוזה הראשון (ניתן לדלג ולהוסיף מאוחר יותר).
+        הוסף קבצים ומסמכים לנכס. ניתן להוסיף מספר קבצים ולהמשיך לשלב הבא בסיום.
       </AppText>
-      <FieldInput label="שם הדייר" value={data.tenantName} onChangeText={(t) => update('tenantName', t)} placeholder="שם מלא" />
-      <FieldInput label="טלפון" value={data.tenantPhone} onChangeText={(t) => update('tenantPhone', t)} placeholder="050-0000000" keyboardType="phone-pad" />
-      <FieldInput label="תאריך תחילת חוזה" value={data.startDate} onChangeText={(t) => update('startDate', t)} placeholder="01/01/2025" />
-      <FieldInput label="תאריך סיום חוזה" value={data.endDate} onChangeText={(t) => update('endDate', t)} placeholder="31/12/2026" />
-      <FieldInput label="שכירות חודשית" value={data.monthlyRent} onChangeText={(t) => update('monthlyRent', t)} placeholder="6500" keyboardType="numeric" suffix="₪" />
+
+      {/* ── Add-file form card ── */}
+      <View style={s2.formCard}>
+        <View style={s2.formCardHeader}>
+          <MaterialCommunityIcons name="file-plus-outline" size={18} color={Colors.primary} />
+          <AppText variant="labelLg" weight="bold" color="primary">הוספת קובץ</AppText>
+        </View>
+
+        {/* File name */}
+        <FieldInput
+          label="שם קובץ"
+          value={data.pendingName}
+          onChangeText={(t) => update('pendingName', t)}
+          placeholder="לדוגמה: חוזה שכירות 2025"
+        />
+
+        {/* Category */}
+        <View style={{ gap: Spacing.xs }}>
+          <AppText variant="labelMd" weight="semiBold" style={s2.label}>קטגוריה</AppText>
+          <Pressable onPress={() => setCategorySheetOpen(true)} style={s2.dropdownRow} accessibilityRole="button">
+            <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.onSurfaceVariant} />
+            <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
+              {DOCUMENT_TYPE_LABELS[data.pendingCategory]}
+            </AppText>
+          </Pressable>
+        </View>
+
+        {/* Source selection */}
+        <View style={{ gap: Spacing.xs }}>
+          <AppText variant="labelMd" weight="semiBold" style={s2.label}>מקור הקובץ</AppText>
+          <View style={s2.sourceRow}>
+            {SOURCE_OPTIONS.map((src) => {
+              const active = data.pendingSource === src.key;
+              return (
+                <Pressable
+                  key={src.key}
+                  onPress={() => update('pendingSource', active ? null : src.key)}
+                  style={({ pressed }) => [s2.sourceBtn, active && s2.sourceBtnActive, pressed && { opacity: 0.8 }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
+                >
+                  <MaterialCommunityIcons name={src.icon} size={24} color={active ? Colors.onPrimary : Colors.primary} />
+                  <AppText variant="caption" align="center" weight="semiBold" style={{ color: active ? Colors.onPrimary : Colors.primary }}>
+                    {src.label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Add button */}
+        <Pressable
+          onPress={commitFile}
+          disabled={!canAdd}
+          style={({ pressed }) => [s2.addBtn, !canAdd && s2.addBtnDisabled, pressed && canAdd && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <MaterialCommunityIcons name="plus-circle-outline" size={20} color={canAdd ? Colors.onPrimary : Colors.onSurfaceMuted} />
+          <AppText variant="labelMd" weight="bold" style={{ color: canAdd ? Colors.onPrimary : Colors.onSurfaceMuted }}>
+            הוסף קובץ לרשימה
+          </AppText>
+        </Pressable>
+      </View>
+
+      {/* ── Added files list ── */}
+      {data.files.length > 0 ? (
+        <View style={{ gap: Spacing.sm }}>
+          <View style={s2.listHeader}>
+            <Badge label={String(data.files.length)} preset="primary" />
+            <AppText variant="labelMd" weight="bold" style={{ textAlign: 'right' }}>
+              קבצים שנוספו
+            </AppText>
+          </View>
+          {data.files.map((f) => (
+            <View key={f.id} style={s2.fileRow}>
+              <View style={s2.fileIconWrap}>
+                <MaterialCommunityIcons
+                  name={f.source === 'camera' ? 'camera-outline' : f.source === 'photos' ? 'image-outline' : 'folder-outline'}
+                  size={18}
+                  color={Colors.primary}
+                />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <AppText variant="bodySm" weight="semiBold" numberOfLines={1}>{f.displayName}</AppText>
+                <AppText variant="caption" color="variant">{DOCUMENT_TYPE_LABELS[f.category]}</AppText>
+              </View>
+              <Pressable onPress={() => removeFile(f.id)} style={s2.removeBtn} accessibilityRole="button" accessibilityLabel="הסר קובץ" hitSlop={8}>
+                <MaterialCommunityIcons name="close" size={14} color={Colors.onSurfaceVariant} />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={s2.emptyHint}>
+          <MaterialCommunityIcons name="folder-open-outline" size={32} color={Colors.outlineVariant} />
+          <AppText variant="bodySm" color="variant" align="center">
+            עדיין לא נוספו קבצים.{'\n'}מלא את הפרטים למעלה והוסף קובץ ראשון.
+          </AppText>
+        </View>
+      )}
+
+      {/* Category bottom sheet */}
+      <Modal visible={categorySheetOpen} transparent animationType="slide" onRequestClose={() => setCategorySheetOpen(false)}>
+        <Pressable style={s2.sheetOverlay} onPress={() => setCategorySheetOpen(false)}>
+          <Pressable style={s2.sheet} onPress={(e) => e.stopPropagation()}>
+            <View style={s2.sheetHandle} />
+            <AppText variant="headingSm" weight="bold" style={{ textAlign: 'right', marginBottom: Spacing.md }}>
+              בחר קטגוריה
+            </AppText>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {DOCUMENT_TYPE_ORDER.map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => { update('pendingCategory', t); setCategorySheetOpen(false); }}
+                  style={({ pressed }) => [s2.sheetRow, data.pendingCategory === t && s2.sheetRowActive, pressed && { opacity: 0.85 }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: data.pendingCategory === t }}
+                >
+                  {data.pendingCategory === t && (
+                    <MaterialCommunityIcons name="check" size={16} color={Colors.primary} />
+                  )}
+                  <AppText
+                    variant="bodyMd"
+                    weight={data.pendingCategory === t ? 'bold' : 'regular'}
+                    style={{ flex: 1, textAlign: 'right', color: data.pendingCategory === t ? Colors.primary : Colors.onBackground }}
+                  >
+                    {DOCUMENT_TYPE_LABELS[t]}
+                  </AppText>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
-// ─── Step 3 ───────────────────────────────────────────────────────────────────
+const s2 = StyleSheet.create({
+  label: { textAlign: 'right', color: Colors.onBackground },
 
-function Step3({ data, setData }: { data: Step3Data; setData: React.Dispatch<React.SetStateAction<Step3Data>> }) {
-  const DOC_TYPES = ['חוזה שכירות', 'תמונות הנכס', 'אישור עירייה', 'ביטוח דירה'];
+  // Form card
+  formCard: {
+    borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.xl,
+    overflow: 'hidden', backgroundColor: Colors.surface,
+    gap: Spacing.base, padding: Spacing.md,
+  },
+  formCardHeader: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm,
+    paddingBottom: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight,
+  },
+
+  // Category dropdown
+  dropdownRow: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm,
+    borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md,
+    padding: Spacing.md, backgroundColor: Colors.surfaceVariant,
+  },
+
+  // Source selector
+  sourceRow: { flexDirection: RTL_ROW, gap: Spacing.sm },
+  sourceBtn: {
+    flex: 1, alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.md,
+    borderRadius: Radius.lg, borderWidth: 1.5, borderColor: Colors.primary,
+    backgroundColor: Colors.primaryContainer,
+  },
+  sourceBtnActive: { backgroundColor: Colors.primary },
+
+  // Add button
+  addBtn: {
+    flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+    paddingVertical: Spacing.md, borderRadius: Radius.lg,
+    backgroundColor: Colors.primary,
+  },
+  addBtnDisabled: { backgroundColor: Colors.surfaceVariant },
+
+  // File list
+  listHeader: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm, justifyContent: 'flex-end' },
+  fileRow: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md,
+    padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1,
+    borderColor: Colors.outlineVariant, backgroundColor: Colors.surface,
+  },
+  fileIconWrap: {
+    width: 36, height: 36, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primaryContainer,
+  },
+  removeBtn: {
+    width: 28, height: 28, alignItems: 'center', justifyContent: 'center',
+    borderRadius: Radius.sm, backgroundColor: Colors.outlineLight,
+  },
+
+  // Empty state
+  emptyHint: {
+    alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.xl,
+    borderWidth: 1, borderColor: Colors.outlineLight, borderRadius: Radius.xl,
+    borderStyle: 'dashed', backgroundColor: Colors.surfaceVariant,
+  },
+
+  // Category sheet
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingBottom: Spacing['2xl'], paddingTop: Spacing.md,
+    maxHeight: '70%',
+  },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.outlineVariant, alignSelf: 'center', marginBottom: Spacing.md },
+  sheetRow: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm,
+    paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight,
+  },
+  sheetRowActive: { backgroundColor: Colors.primaryContainer },
+});
+
+// ─── Step 3: Contract ─────────────────────────────────────────────────────────
+
+function Step3({
+  data,
+  setData,
+  step1Address,
+}: {
+  data: Step3Data;
+  setData: React.Dispatch<React.SetStateAction<Step3Data>>;
+  step1Address: string;
+}) {
+  const update = <K extends keyof Step3Data>(key: K, val: Step3Data[K]) =>
+    setData((prev) => ({ ...prev, [key]: val }));
+
+  const filteredContracts = MOCK_CONTRACTS_LIST.filter((c) => {
+    const q = data.contractSearch.trim().toLowerCase();
+    if (!q) return true;
+    return `${c.contractName} ${c.linkLabel} ${c.counterpartyName}`.toLowerCase().includes(q);
+  });
+
+  const handleCreateNew = () => {
+    router.push({
+      pathname: '/(app)/contracts/new',
+      params: {
+        preloadId: 'new-asset-draft',
+        preloadName: step1Address,
+        preloadAddress: step1Address,
+        preloadKind: 'asset',
+      },
+    });
+  };
+
   return (
     <View style={{ gap: Spacing.base }}>
-      <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right' }}>
-        העלה מסמכים רלוונטיים לנכס (אפשרי גם מאוחר יותר).
-      </AppText>
-      {DOC_TYPES.map((type) => (
+      {/* Info banner */}
+      <View style={s3.infoBanner}>
+        <MaterialCommunityIcons name="information-outline" size={18} color={Colors.primary} />
+        <AppText variant="bodySm" color="primary" style={{ flex: 1, textAlign: 'right' }}>
+          שלב זה הוא אופציונלי. ניתן לדלג ולקשר חוזה לנכס בכל עת.
+        </AppText>
+      </View>
+
+      {/* Choice cards */}
+      <View style={s3.choiceRow}>
+        {/* Link existing */}
         <Pressable
-          key={type}
-          onPress={() => {
-            setData((prev) => ({
-              ...prev,
-              uploadedFiles: prev.uploadedFiles.includes(type)
-                ? prev.uploadedFiles.filter((f) => f !== type)
-                : [...prev.uploadedFiles, type],
-            }));
-          }}
-          style={({ pressed }) => [
-            s3.docCard,
-            data.uploadedFiles.includes(type) && s3.docCardActive,
-            pressed && { opacity: 0.85 },
-          ]}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: data.uploadedFiles.includes(type) }}
+          onPress={() => update('choice', data.choice === 'link' ? null : 'link')}
+          style={({ pressed }) => [s3.choiceCard, data.choice === 'link' && s3.choiceCardActive, pressed && { opacity: 0.85 }]}
+          accessibilityRole="radio"
+          accessibilityState={{ checked: data.choice === 'link' }}
         >
           <MaterialCommunityIcons
-            name={data.uploadedFiles.includes(type) ? 'file-check-outline' : 'file-upload-outline'}
-            size={24}
-            color={data.uploadedFiles.includes(type) ? Colors.success : Colors.primary}
+            name="link-variant"
+            size={30}
+            color={data.choice === 'link' ? Colors.onPrimary : Colors.primary}
           />
           <AppText
-            variant="bodyMd"
-            weight={data.uploadedFiles.includes(type) ? 'bold' : 'regular'}
-            style={{ flex: 1, textAlign: 'right', color: data.uploadedFiles.includes(type) ? Colors.success : Colors.onBackground }}
+            variant="labelMd"
+            weight="bold"
+            align="center"
+            style={{ color: data.choice === 'link' ? Colors.onPrimary : Colors.onBackground }}
           >
-            {type}
+            קישור לחוזה קיים
           </AppText>
-          {data.uploadedFiles.includes(type) && (
-            <MaterialCommunityIcons name="check-circle" size={20} color={Colors.success} />
-          )}
         </Pressable>
-      ))}
+
+        {/* Create new */}
+        <Pressable
+          onPress={handleCreateNew}
+          style={({ pressed }) => [s3.choiceCard, s3.choiceCardCreate, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <MaterialCommunityIcons name="file-document-plus-outline" size={30} color={Colors.primary} />
+          <AppText variant="labelMd" weight="bold" align="center" color="primary">
+            יצירת חוזה חדש
+          </AppText>
+          <AppText variant="caption" color="variant" align="center">
+            הנכס יוטען אוטומטית
+          </AppText>
+        </Pressable>
+      </View>
+
+      {/* Link existing — search expansion */}
+      {data.choice === 'link' && (
+        <View style={{ gap: Spacing.md }}>
+          {/* Selected contract summary */}
+          {data.linkedContractId ? (
+            <View style={s3.selectedCard}>
+              <MaterialCommunityIcons name="check-circle" size={20} color={Colors.success} />
+              <AppText variant="bodyMd" weight="bold" style={{ flex: 1, textAlign: 'right', color: Colors.success }}>
+                {data.linkedContractName}
+              </AppText>
+              <Pressable
+                onPress={() => setData((prev) => ({ ...prev, linkedContractId: null, linkedContractName: null, contractSearch: '' }))}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="בטל בחירה"
+              >
+                <MaterialCommunityIcons name="close-circle-outline" size={20} color={Colors.onSurfaceVariant} />
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              {/* Search input */}
+              <View style={s3.searchWrap}>
+                <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
+                <TextInput
+                  style={s3.searchInput}
+                  value={data.contractSearch}
+                  onChangeText={(t) => update('contractSearch', t)}
+                  placeholder="חפש שם חוזה, נכס, שוכר..."
+                  placeholderTextColor={Colors.onSurfaceMuted}
+                  textAlign="right"
+                />
+                {data.contractSearch.length > 0 && (
+                  <Pressable onPress={() => update('contractSearch', '')} hitSlop={8} accessibilityRole="button">
+                    <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Results */}
+              {filteredContracts.length === 0 ? (
+                <AppText variant="bodySm" color="variant" style={{ textAlign: 'right' }}>לא נמצאו חוזים תואמים.</AppText>
+              ) : (
+                filteredContracts.map((c) => (
+                  <Pressable
+                    key={c.id}
+                    onPress={() => setData((prev) => ({ ...prev, linkedContractId: c.id, linkedContractName: c.contractName, contractSearch: '' }))}
+                    style={({ pressed }) => [s3.contractRow, pressed && { backgroundColor: Colors.primaryContainer }]}
+                    accessibilityRole="button"
+                  >
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <AppText variant="bodyMd" weight="semiBold" numberOfLines={1}>{c.contractName}</AppText>
+                      <AppText variant="caption" color="variant" numberOfLines={1}>
+                        {c.counterpartyName} · {c.linkLabel}
+                      </AppText>
+                    </View>
+                    <Badge label={CONTRACT_TYPE_LABELS[c.contractType]} preset="neutral" />
+                  </Pressable>
+                ))
+              )}
+            </>
+          )}
+        </View>
+      )}
+
+      {/* Create new hint */}
+      <View style={s3.createHint}>
+        <MaterialCommunityIcons name="arrow-left" size={14} color={Colors.onSurfaceVariant} />
+        <AppText variant="caption" color="variant" style={{ flex: 1, textAlign: 'right' }}>
+          לאחר שמירת החוזה החדש תחזור לכאן לסיום הוספת הנכס
+        </AppText>
+      </View>
     </View>
   );
 }
 
 const s3 = StyleSheet.create({
-  docCard: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-    borderStyle: 'dashed',
+  infoBanner: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm,
+    padding: Spacing.md, borderRadius: Radius.lg, backgroundColor: Colors.primaryContainer,
+    borderWidth: 1, borderColor: Colors.outlineLight,
   },
-  docCardActive: { borderColor: Colors.success, backgroundColor: Colors.successContainer, borderStyle: 'solid' },
+  choiceRow: { flexDirection: RTL_ROW, gap: Spacing.md },
+  choiceCard: {
+    flex: 1, alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.xl, borderWidth: 2, borderColor: Colors.outlineVariant, backgroundColor: Colors.surface,
+    minHeight: 110,
+  },
+  choiceCardActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  choiceCardCreate: { borderColor: Colors.primary, borderStyle: 'dashed', backgroundColor: Colors.primaryContainer },
+  selectedCard: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm,
+    padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1,
+    borderColor: Colors.success, backgroundColor: Colors.successContainer,
+  },
+  searchWrap: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm,
+    borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md,
+    backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.base,
+    color: Colors.onBackground, paddingVertical: 4,
+  },
+  contractRow: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md,
+    padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1,
+    borderColor: Colors.outlineVariant, backgroundColor: Colors.surface,
+  },
+  createHint: {
+    flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+  },
 });
 
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 
-const STEP_TITLES = ['פרטי הנכס', 'פרטי חוזה', 'מסמכים'];
+const STEP_TITLES = ['פרטי הנכס', 'הוספת קבצים', 'חוזה'];
 
 export default function NewAssetScreen() {
   const insets = useSafeAreaInsets();
@@ -837,32 +1475,40 @@ export default function NewAssetScreen() {
     address: editEntity?.address ?? '',
     addressSuggestion: editEntity ? { label: editEntity.address, street: editEntity.address, city: '' } : null,
     apartmentNumber: '',
+    linkedProjectId: null,
+    linkedProjectName: null,
+    projectSearch: '',
     airDirections: [],
-    amenities: {
-      garden: false, balcony: false, furnished: false,
-      elevator: false, shelter: false, solarWater: false, parking: false,
-    },
+    amenities: { garden: false, balcony: false, furnished: false, elevator: false, shelter: false, solarWater: false, parking: false },
+    gardenSize: '',
+    balconySize: '',
+    parkingNumber: '',
     propertyCondition: null,
     buildingCommittee: '',
     propertyTax: '',
     assetValue: '',
-    electricityCompany: '',
-    waterProvider: '',
-    municipality: '',
+    meters: [],
   }));
 
   const [step2, setStep2] = useState<Step2Data>({
-    tenantName: '', tenantPhone: '', startDate: '', endDate: '', monthlyRent: '',
+    files: [],
+    pendingName: '',
+    pendingCategory: 'other',
+    pendingSource: null,
   });
 
-  const [step3, setStep3] = useState<Step3Data>({ uploadedFiles: [] });
+  const [step3, setStep3] = useState<Step3Data>({
+    choice: null,
+    linkedContractId: null,
+    linkedContractName: null,
+    contractSearch: '',
+  });
 
   const canAdvance = step === 1 ? !!step1.kind && step1.address.trim().length > 0 : true;
 
   const handleNext = () => {
     if (step < 3) { setStep((s) => s + 1); return; }
-    // Final step — go back to assets list
-    router.back();
+    router.replace('/(app)/assets-screens');
   };
 
   const handleBack = () => {
@@ -893,7 +1539,7 @@ export default function NewAssetScreen() {
       >
         {step === 1 && <Step1 data={step1} setData={setStep1} />}
         {step === 2 && <Step2 data={step2} setData={setStep2} />}
-        {step === 3 && <Step3 data={step3} setData={setStep3} />}
+        {step === 3 && <Step3 data={step3} setData={setStep3} step1Address={step1.address} />}
       </ScrollView>
 
       {/* Bottom nav */}
@@ -917,27 +1563,16 @@ export default function NewAssetScreen() {
 
 const wizardStyles = StyleSheet.create({
   indicatorWrap: { backgroundColor: Colors.surface, paddingHorizontal: CONTENT_HORIZONTAL_PADDING, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
-
   content: { paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.xl },
-
   footer: {
-    flexDirection: 'row-reverse',
-    gap: Spacing.md,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingTop: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.outlineLight,
+    flexDirection: RTL_ROW, gap: Spacing.md,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.md,
+    backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.outlineLight,
     ...Shadow.sm,
   },
   footerPrimary: { flex: 1 },
   footerSecondary: {
-    flex: 1,
-    minHeight: MIN_TOUCH,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
+    flex: 1, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center',
+    borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.primary,
   },
 });

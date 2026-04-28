@@ -41,6 +41,7 @@ import {
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 // ─── Types & constants ────────────────────────────────────────────────────────
 
@@ -422,7 +423,7 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
           {paymentType === 'maintenance' && linkSelected && (
             <View style={{ marginTop: Spacing.md }}>
               <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>שיוך לקריאת תחזוקה (לא חובה)</AppText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row-reverse', gap: Spacing.sm }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: RTL_ROW, gap: Spacing.sm }}>
                 <Pressable onPress={() => setMaintenanceCallId(null)} style={[styles.miniChip, !maintenanceCallId && styles.miniChipActive]}>
                   <AppText variant="caption" style={{ color: !maintenanceCallId ? Colors.onPrimary : Colors.onSurfaceVariant }}>ללא</AppText>
                 </Pressable>
@@ -606,7 +607,7 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
           {paymentType === 'guarantees' && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>ערבויות / בטחונות</AppText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row-reverse', gap: Spacing.sm }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: RTL_ROW, gap: Spacing.sm }}>
                 {GUARANTEE_TYPES.map((g) => (
                   <Pressable key={g} onPress={() => setGuaranteeType(g)} style={[styles.miniChip, guaranteeType === g && styles.miniChipActive]}>
                     <AppText variant="caption" numberOfLines={2} style={{ color: guaranteeType === g ? Colors.onPrimary : Colors.onSurfaceVariant }}>
@@ -917,7 +918,7 @@ const styles = StyleSheet.create({
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base },
   sectionLabel: { textAlign: 'right', marginBottom: Spacing.sm, color: Colors.onBackground },
   hintRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 6,
     marginTop: Spacing.xs,
@@ -926,7 +927,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.md,
   },
-  directionRow: { flexDirection: 'row-reverse', gap: Spacing.md },
+  directionRow: { flexDirection: RTL_ROW, gap: Spacing.md },
   dirBtn: {
     flex: 1,
     alignItems: 'center',
@@ -946,7 +947,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   selectedPill: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     marginTop: Spacing.sm,
@@ -957,7 +958,7 @@ const styles = StyleSheet.create({
   suggestBox: { borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md, marginTop: 4, overflow: 'hidden' },
   suggestRow: { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight, backgroundColor: Colors.surface },
   dropdown: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
@@ -967,7 +968,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   payerSelected: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
@@ -978,7 +979,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   payerInputWrap: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.xs,
     paddingHorizontal: Spacing.md,
@@ -1004,7 +1005,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   payerOption: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     paddingHorizontal: Spacing.md,
@@ -1022,9 +1023,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowChips: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  rowChips: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   miniChip: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: Spacing.sm,
@@ -1049,7 +1050,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.outlineLight,
   },
-  switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm },
+  switchRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm },
   indexBox: {
     marginTop: Spacing.md,
     padding: Spacing.md,
@@ -1059,13 +1060,13 @@ const styles = StyleSheet.create({
   },
   // Reminders
   reminderList: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
   reminderChip: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: Spacing.sm,
@@ -1083,7 +1084,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fileBtns: { flexDirection: 'row-reverse', gap: Spacing.md },
+  fileBtns: { flexDirection: RTL_ROW, gap: Spacing.md },
   fileBtn: {
     flex: 1,
     alignItems: 'center',
@@ -1110,7 +1111,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['2xl'],
   },
   sheetRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,

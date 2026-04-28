@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { RTL_ROW } from '@/constants/rtl';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -242,8 +243,9 @@ export function DocumentsListScreen() {
         },
       },
       {
-        kind: 'conditionalChips',
-        label: scope === 'by_asset' ? 'בחר נכס' : 'בחר פרויקט',
+        kind: 'entitySearch',
+        label: scope === 'by_asset' ? 'חיפוש נכס' : 'חיפוש פרויקט',
+        placeholder: scope === 'by_asset' ? 'הקלד שם נכס או כתובת...' : 'הקלד שם פרויקט...',
         options: entitiesForScope.map((e) => ({ key: e.id, label: e.name })),
         value: entityId,
         onChange: setEntityId,
@@ -397,7 +399,7 @@ export function DocumentsListScreen() {
             <AppText variant="labelMd" weight="semiBold" style={{ marginBottom: Spacing.sm, textAlign: 'right' }}>
               הרשאות
             </AppText>
-            <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.lg }}>
+            <View style={{ flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.lg }}>
               {(['owner_only', 'tenant', 'employee', 'public'] as DocumentAccessLevel[]).map((a) => (
                 <Pressable key={a} onPress={() => setEditAccess(a)} style={[styles.typeChip, editAccess === a && styles.typeChipActive]}>
                   <AppText variant="caption" weight={editAccess === a ? 'bold' : 'regular'} style={{ color: editAccess === a ? Colors.onPrimary : Colors.onSurfaceVariant }}>
@@ -406,7 +408,7 @@ export function DocumentsListScreen() {
                 </Pressable>
               ))}
             </View>
-            <View style={{ flexDirection: 'row-reverse', gap: Spacing.sm }}>
+            <View style={{ flexDirection: RTL_ROW, gap: Spacing.sm }}>
               <Button label="ביטול" variant="secondary" onPress={() => setEditRow(null)} style={{ flex: 1 }} />
               <Button label="שמור" onPress={saveEdit} style={{ flex: 1 }} disabled={!editName.trim()} />
             </View>
@@ -430,7 +432,7 @@ export function DocumentsListScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   tableHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     paddingVertical: Spacing.sm,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
@@ -439,7 +441,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
   thCell: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
     justifyContent: 'flex-end',
@@ -447,17 +449,17 @@ const styles = StyleSheet.create({
     minHeight: MIN_TOUCH,
   },
   tableRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'stretch',
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
     backgroundColor: Colors.surface,
   },
-  rowMain: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, paddingVertical: Spacing.sm, paddingLeft: Spacing.xs },
+  rowMain: { flexDirection: RTL_ROW, alignItems: 'center', flex: 1, paddingVertical: Spacing.sm, paddingLeft: Spacing.xs },
   td: { paddingHorizontal: 4, justifyContent: 'center' },
   actionsCol: {
     width: 128,
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
@@ -486,7 +488,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   typeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  typeGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.md },
+  typeGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.md },
   fab: {
     position: 'absolute',
     left: CONTENT_HORIZONTAL_PADDING,

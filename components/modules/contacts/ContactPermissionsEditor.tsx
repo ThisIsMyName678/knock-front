@@ -11,6 +11,7 @@ import {
   type PermissionModuleKey,
 } from '@/lib/mocks/contacts';
 import { Colors, Spacing, Radius } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -208,16 +209,16 @@ const styles = StyleSheet.create({
 
   // Bulk row
   bulkRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     marginBottom: Spacing.xs,
     flexWrap: 'wrap',
   },
   bulkLabel: { textAlign: 'right' },
-  bulkBtns: { flexDirection: 'row-reverse', gap: Spacing.xs, flexWrap: 'wrap' },
+  bulkBtns: { flexDirection: RTL_ROW, gap: Spacing.xs, flexWrap: 'wrap' },
   bulkBtn: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: Spacing.sm,
@@ -231,7 +232,7 @@ const styles = StyleSheet.create({
   // Module blocks
   moduleBlock: { borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md, overflow: 'hidden' },
   moduleHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     padding: Spacing.md,
     backgroundColor: Colors.surfaceVariant,
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
   },
   expandedBody: { padding: Spacing.sm, backgroundColor: Colors.surface, gap: Spacing.sm },
   moduleBulkRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
   },
@@ -253,7 +254,7 @@ const styles = StyleSheet.create({
   },
 
   // Quick inline buttons (in collapsed row)
-  quickBtns: { flexDirection: 'row-reverse', gap: 3 },
+  quickBtns: { flexDirection: RTL_ROW, gap: 3 },
   quickBtn: {
     paddingHorizontal: 5,
     paddingVertical: 3,
@@ -267,7 +268,7 @@ const styles = StyleSheet.create({
   quickBtnOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
 
   // Actions grid (expanded)
-  actionsGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.xs },
+  actionsGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs },
   toggleCell: {
     minWidth: '22%',
     paddingVertical: Spacing.sm,

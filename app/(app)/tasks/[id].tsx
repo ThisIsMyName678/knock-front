@@ -33,6 +33,7 @@ import {
   type TaskKind,
 } from '@/lib/mocks/tasks';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, FontFamily, FontSize } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import { Input } from '@/components/ui/Input';
 import { AppHeader } from '@/components/ui/AppHeader';
 
@@ -390,7 +391,7 @@ export default function TaskDetailRoute() {
                   </AppText>
                 </Pressable>
               </View>
-              <View style={{ flexDirection: 'row-reverse', gap: Spacing.sm, marginTop: Spacing.md }}>
+              <View style={{ flexDirection: RTL_ROW, gap: Spacing.sm, marginTop: Spacing.md }}>
                 <Button label="ביטול" variant="secondary" onPress={() => setComposeOpen(false)} style={{ flex: 1 }} />
                 <Button label="שלח" onPress={sendMessage} style={{ flex: 1 }} />
               </View>
@@ -431,7 +432,7 @@ export default function TaskDetailRoute() {
                   <Input label="תאריך התחלה (DD/MM/YYYY)" value={editStartDate} onChangeText={setEditStartDate} keyboardType="numeric" />
 
                   <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right' }}>עדיפות</AppText>
-                  <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm }}>
+                  <View style={{ flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm }}>
                     {(['urgent', 'high', 'medium', 'low'] as const).map((p) => (
                       <Pressable
                         key={p}
@@ -460,17 +461,17 @@ const styles = StyleSheet.create({
   iconBtnDark: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   maintenanceBanner: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     backgroundColor: Colors.primaryDark,
     padding: Spacing.md,
     borderRadius: Radius.md,
   },
-  titleRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: Spacing.md },
-  badgeRow: { flexDirection: 'row-reverse', gap: Spacing.sm, flexWrap: 'wrap' },
+  titleRow: { flexDirection: RTL_ROW, alignItems: 'flex-start', gap: Spacing.md },
+  badgeRow: { flexDirection: RTL_ROW, gap: Spacing.sm, flexWrap: 'wrap' },
   detailRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: Spacing.md,
@@ -479,7 +480,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
   inviteRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingVertical: Spacing.md,
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
   },
-  msgHeader: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },
+  msgHeader: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },
   msgThumb: { width: '100%', height: 140, borderRadius: Radius.sm },
   seeAll: { paddingVertical: Spacing.sm, alignItems: 'flex-end' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: Spacing.lg },
@@ -515,7 +516,7 @@ const styles = StyleSheet.create({
   modalOptionActive: { backgroundColor: Colors.primaryContainer },
   fullModal: { flex: 1, backgroundColor: Colors.background },
   fullModalHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
     paddingVertical: Spacing.sm,
@@ -540,8 +541,8 @@ const styles = StyleSheet.create({
     fontSize: FontSize.base,
     textAlignVertical: 'top',
   },
-  composeActions: { flexDirection: 'row-reverse', gap: Spacing.lg, marginTop: Spacing.md, justifyContent: 'flex-end' },
-  attachBtn: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
+  composeActions: { flexDirection: RTL_ROW, gap: Spacing.lg, marginTop: Spacing.md, justifyContent: 'flex-end' },
+  attachBtn: { flexDirection: RTL_ROW, alignItems: 'center', gap: 6 },
   imageModal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImage: { width: '100%', height: '80%' },
   closeFab: {
@@ -555,7 +556,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editModalHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,

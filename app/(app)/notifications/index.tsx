@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 
 type Notif = {
@@ -110,7 +111,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   list: { flexGrow: 1 },
   notifRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     padding: Spacing.base,
@@ -128,5 +129,5 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   iconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  timeRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4 },
+  timeRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: 4 },
 });

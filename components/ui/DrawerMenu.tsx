@@ -1,10 +1,11 @@
 import React, { useCallback } from 'react';
-import { View, StyleSheet, Pressable, Modal, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, Pressable, Modal, ScrollView, Alert, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Colors, Spacing, Radius, Shadow, FontFamily, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 type NavItem = {
   label: string;
@@ -16,7 +17,6 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'דשבורד', icon: 'view-dashboard-outline', route: '/(app)/' },
-  { label: 'פרויקטים', icon: 'briefcase-outline', route: '/(app)/projects' },
   { label: 'נכסים', icon: 'home-outline', route: '/(app)/assets-screens' },
   { label: 'משימות', icon: 'checkbox-marked-outline', route: '/(app)/tasks' },
   { label: 'חוזים', icon: 'file-sign', route: '/(app)/contracts' },
@@ -59,10 +59,23 @@ export function DrawerMenu({ visible, onClose }: Props) {
     [onClose],
   );
 
+  const panelWidth = Math.min(340, Dimensions.get('window').width * 0.82);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.panel, { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing.lg }]} onPress={(e) => e.stopPropagation()}>
+      <View style={styles.modalRoot}>
+        {/* Full-screen dim tap — does not participate in RTL flex mirroring */}
+        <Pressable style={styles.backdropFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="סגור תפריט" />
+        <View
+          style={[
+            styles.panel,
+            {
+              width: panelWidth,
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom + Spacing.lg,
+            },
+          ]}
+        >
           {/* Header */}
           <View style={styles.panelHeader}>
             <View style={styles.avatar}>
@@ -145,28 +158,34 @@ export function DrawerMenu({ visible, onClose }: Props) {
               גרסה 1.0.0 · Knock
             </AppText>
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  modalRoot: {
     flex: 1,
+    position: 'relative',
+  },
+  /** Physical edges are not flipped by RTL — drawer stays on the right like web */
+  backdropFill: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
   },
   panel: {
-    width: '82%',
-    maxWidth: 340,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
     backgroundColor: Colors.background,
     ...Shadow.lg,
-    flex: 1,
+    maxWidth: '100%',
+    flexDirection: 'column',
   },
   panelHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     backgroundColor: Colors.primary,
@@ -205,7 +224,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   menuRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     paddingHorizontal: Spacing.base,

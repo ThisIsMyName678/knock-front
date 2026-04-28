@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Colors, Spacing, Radius, FontFamily } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 type Tab = {
   key: string;
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   searchRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     backgroundColor: Colors.surfaceVariant,
@@ -148,12 +149,12 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   tabsRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
   },
   tabsScroll: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.xs,
     paddingHorizontal: 2,
   },
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   filtersBtn: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: Spacing.md,

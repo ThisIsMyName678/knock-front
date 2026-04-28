@@ -40,6 +40,7 @@ import {
   CONTENT_HORIZONTAL_PADDING,
   MIN_TOUCH,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 const STEPS = ['פרטי חוזה', 'תשלומים', 'תיעוד מונים', 'העלאת קבצים'] as const;
 
@@ -110,17 +111,27 @@ function randomId() {
   return `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function ContractCreateWizard({ initialData }: { initialData?: ContractListRow | ContractDetailMock } = {}) {
+export function ContractCreateWizard({
+  initialData,
+  preloadedLink,
+}: {
+  initialData?: ContractListRow | ContractDetailMock;
+  preloadedLink?: EntityLinkOption;
+} = {}) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
 
   // Step 1
   const [contractName, setContractName] = useState(() => initialData?.contractName ?? '');
   const [contractType, setContractType] = useState<ContractTypeKey | ''>(() => initialData?.contractType ?? '');
-  const [linkQuery, setLinkQuery] = useState(() => initialData?.linkLabel ?? '');
-  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() =>
-    initialData ? (MOCK_ENTITY_LINKS.find((e) => e.id === initialData.linkId) ?? null) : null,
-  );
+  const [linkQuery, setLinkQuery] = useState(() => {
+    if (preloadedLink) return `${preloadedLink.name}, ${preloadedLink.address}`;
+    return initialData?.linkLabel ?? '';
+  });
+  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() => {
+    if (preloadedLink) return preloadedLink;
+    return initialData ? (MOCK_ENTITY_LINKS.find((e) => e.id === initialData.linkId) ?? null) : null;
+  });
   const [showEntitySuggest, setShowEntitySuggest] = useState(false);
   const [counterpartyName, setCounterpartyName] = useState(() => initialData?.counterpartyName ?? '');
   const [serviceType, setServiceType] = useState('');
@@ -689,7 +700,7 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   stepRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     justifyContent: 'center',
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xs,
@@ -718,7 +729,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   blockLabel: { textAlign: 'right', marginBottom: Spacing.sm, color: Colors.onBackground },
-  typeGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  typeGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   typeCard: {
     width: '47%',
     padding: Spacing.md,
@@ -742,7 +753,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   selectedEntity: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     marginTop: Spacing.sm,
@@ -759,7 +770,7 @@ const styles = StyleSheet.create({
     ...Shadow.sm,
   },
   suggestRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     padding: Spacing.md,
@@ -768,13 +779,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   reminderRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     marginTop: Spacing.lg,
   },
   reminderFields: { marginTop: Spacing.md },
-  unitRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  unitRow: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   unitChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -783,7 +794,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   unitChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  directionRow: { flexDirection: 'row-reverse', gap: Spacing.md },
+  directionRow: { flexDirection: RTL_ROW, gap: Spacing.md },
   dirBtn: {
     flex: 1,
     alignItems: 'center',
@@ -806,8 +817,8 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  meterHeader: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
-  kindRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.xs },
+  meterHeader: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
+  kindRow: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs },
   kindChip: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -817,7 +828,7 @@ const styles = StyleSheet.create({
   },
   kindChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   addMeterBtn: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
@@ -827,7 +838,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: Radius.lg,
   },
-  visGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  visGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   visChip: {
     width: '48%',
     padding: Spacing.sm,
@@ -839,7 +850,7 @@ const styles = StyleSheet.create({
   },
   visChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   dropdownFake: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
@@ -848,7 +859,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     backgroundColor: Colors.surfaceVariant,
   },
-  fileSourceRow: { flexDirection: 'row-reverse', gap: Spacing.md, marginTop: Spacing.sm },
+  fileSourceRow: { flexDirection: RTL_ROW, gap: Spacing.md, marginTop: Spacing.sm },
   fileSourceBtn: {
     flex: 1,
     alignItems: 'center',
@@ -860,7 +871,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   fileRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     paddingVertical: Spacing.sm,

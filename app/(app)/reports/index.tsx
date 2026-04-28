@@ -6,6 +6,7 @@ import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 const REPORTS = [
   { id: 'r1', title: 'דו״ח הכנסות חודשי', desc: 'סיכום הכנסות לפי פרויקט', icon: 'chart-bar', color: Colors.success },
@@ -43,6 +44,6 @@ export default function ReportsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base, gap: Spacing.md },
-  row: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md },
+  row: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md },
   icon: { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
 });

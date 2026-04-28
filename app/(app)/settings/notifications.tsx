@@ -17,6 +17,7 @@ import {
   Radius,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -528,7 +529,7 @@ const styles = StyleSheet.create({
 
   // Global channel
   globalChannelBtns: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.sm,
   },
   globalChannelBtn: {
@@ -560,7 +561,7 @@ const styles = StyleSheet.create({
 
   // Select all row
   selectAllRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.xs,
     paddingHorizontal: 4,
@@ -570,7 +571,7 @@ const styles = StyleSheet.create({
 
   // Per-type row
   typeRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'flex-start',
     gap: Spacing.sm,
     padding: Spacing.md,
@@ -581,12 +582,12 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   typeTopRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
   },
   typeChannelRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     marginTop: Spacing.xs,
@@ -595,11 +596,11 @@ const styles = StyleSheet.create({
 
   // Channel chips
   channelRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: 6,
   },
   channelChip: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: Spacing.sm,
@@ -616,7 +617,7 @@ const styles = StyleSheet.create({
 
   // Entity section
   entitySectionHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingTop: Spacing.md,
@@ -624,7 +625,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   entityGroupHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
@@ -634,7 +635,7 @@ const styles = StyleSheet.create({
 
   // Per-entity row
   entityRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'flex-start',
     gap: Spacing.sm,
     padding: Spacing.md,
@@ -645,7 +646,7 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   entityTopRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
   },

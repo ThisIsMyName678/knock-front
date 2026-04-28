@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 const PLANS = [
   {
@@ -113,14 +114,14 @@ export default function SubscriptionScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
-  billingToggle: { flexDirection: 'row-reverse', backgroundColor: Colors.surfaceVariant, borderRadius: Radius.full, padding: 4, gap: 4 },
+  billingToggle: { flexDirection: RTL_ROW, backgroundColor: Colors.surfaceVariant, borderRadius: Radius.full, padding: 4, gap: 4 },
   billingBtn: { flex: 1, alignItems: 'center', paddingVertical: Spacing.sm, borderRadius: Radius.full },
   billingBtnActive: { backgroundColor: Colors.primary },
   planCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, borderWidth: 1.5, borderColor: Colors.outlineVariant, padding: Spacing.base, gap: Spacing.md, position: 'relative' },
   planCardActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   currentBadge: { position: 'absolute', top: -12, right: Spacing.base },
   planHeader: { gap: Spacing.xs },
-  priceRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: 4 },
+  priceRow: { flexDirection: RTL_ROW, alignItems: 'baseline', gap: 4 },
   features: { gap: Spacing.sm },
-  featureRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm },
+  featureRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
 });

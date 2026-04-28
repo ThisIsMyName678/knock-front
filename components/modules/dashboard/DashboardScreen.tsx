@@ -26,6 +26,7 @@ import {
   CONTENT_HORIZONTAL_PADDING,
   MIN_TOUCH,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import {
   assetsDashboardOccupancy,
   contactsDashboardCount,
@@ -160,9 +161,9 @@ function MonthCalendar({
 
 const calStyles = StyleSheet.create({
   wrap: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineVariant, overflow: 'hidden' },
-  nav: { flexDirection: 'row-reverse', alignItems: 'center', paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
+  nav: { flexDirection: RTL_ROW, alignItems: 'center', paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
   navBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row-reverse' },
+  row: { flexDirection: RTL_ROW },
   dayHeaderCell: { flex: 1, alignItems: 'center', paddingVertical: Spacing.xs },
   cell: { flex: 1, alignItems: 'center', paddingVertical: 5, minHeight: 38 },
   cellSelected: { backgroundColor: Colors.primary, borderRadius: 6, margin: 1 },
@@ -818,7 +819,7 @@ const styles = StyleSheet.create({
   section: { gap: Spacing.md },
   sectionTitle: { textAlign: 'right' },
   cubeGrid: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     gap: Spacing.md,
   },
@@ -834,27 +835,27 @@ const styles = StyleSheet.create({
     ...Shadow.sm,
   },
   taskMiniRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     justifyContent: 'space-between',
     marginTop: Spacing.xs,
   },
   taskMiniCell: { alignItems: 'center', minWidth: 44 },
   rowBetween: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.md,
   },
-  syncRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.sm },
+  syncRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
   googleCard: { padding: Spacing.md },
   linkBtn: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     alignSelf: 'flex-end',
   },
   weekRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
   },
@@ -891,7 +892,7 @@ const styles = StyleSheet.create({
   emptyAgenda: { padding: Spacing.xl },
   agendaCard: { gap: Spacing.sm, marginBottom: Spacing.sm },
   agendaRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'flex-start',
     gap: Spacing.md,
   },
@@ -903,7 +904,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   agendaActions: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.outlineLight,
@@ -939,7 +940,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   reminderChips: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     gap: Spacing.sm,
     marginTop: Spacing.sm,
@@ -958,7 +959,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
   },
   modalActions: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.md,
@@ -975,7 +976,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   modalHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.md,
@@ -985,13 +986,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   kindGrid: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
   kindChip: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: Spacing.md,
@@ -1006,7 +1007,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
   },
   dateTimeRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
@@ -1018,12 +1019,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   reminderCustomRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
   contactRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     paddingHorizontal: Spacing.sm,

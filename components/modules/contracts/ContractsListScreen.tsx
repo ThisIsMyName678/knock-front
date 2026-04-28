@@ -14,6 +14,7 @@ import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { RTL_ROW } from '@/constants/rtl';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
@@ -28,7 +29,6 @@ import {
   type SortDir,
   type LinkScopeFilter,
   type ContractTypeFilter,
-  type ContractTypeKey,
   type ContractListRow,
 } from '@/lib/mocks/contracts';
 import {
@@ -42,6 +42,8 @@ import {
   MIN_TOUCH,
 } from '@/constants/tokens';
 
+// ─── Filter options ────────────────────────────────────────────────────────────
+
 const LINK_SCOPE_OPTIONS: { key: LinkScopeFilter; label: string }[] = [
   { key: 'all', label: 'הכל' },
   { key: 'asset', label: 'נכס' },
@@ -52,24 +54,101 @@ const TYPE_FILTER_OPTIONS: { key: ContractTypeFilter; label: string }[] = [
   { key: 'all', label: 'כל הסוגים' },
   { key: 'rent', label: 'שכירות' },
   { key: 'purchase', label: 'רכישה' },
-  { key: 'supplier_work', label: 'הסכם עבודה עם ספק' },
+  { key: 'supplier_work', label: 'הסכם ספק' },
   { key: 'other', label: 'אחר' },
 ];
 
-const COLUMNS: { key: ContractSortKey; label: string; flex?: number }[] = [
-  { key: 'contractName', label: 'שם החוזה', flex: 1.2 },
-  { key: 'contractType', label: 'סוג', flex: 0.9 },
-  { key: 'linkLabel', label: 'שיוך', flex: 0.85 },
-  { key: 'counterpartyName', label: 'צד שני', flex: 0.9 },
-  { key: 'agreementDate', label: 'תאריך הסכם', flex: 0.75 },
-  { key: 'status', label: 'סטטוס', flex: 0.65 },
+const SORT_OPTIONS: { key: ContractSortKey; label: string }[] = [
+  { key: 'agreementDate', label: 'תאריך' },
+  { key: 'contractName', label: 'שם חוזה' },
+  { key: 'counterpartyName', label: 'צד שני' },
+  { key: 'contractType', label: 'סוג' },
+  { key: 'status', label: 'סטטוס' },
 ];
+
+// ─── Status helpers ────────────────────────────────────────────────────────────
 
 function statusPreset(s: ContractListRow['status']): React.ComponentProps<typeof Badge>['preset'] {
   if (s === 'active') return 'success';
   if (s === 'expired') return 'neutral';
   return 'warning';
 }
+
+// ─── Contract card ─────────────────────────────────────────────────────────────
+
+function ContractCard({ item, onPress }: { item: ContractListRow; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
+      accessibilityRole="button"
+    >
+      {/* Row 1: name + status */}
+      <View style={styles.cardRow1}>
+        <Badge label={CONTRACT_STATUS_LABELS[item.status]} preset={statusPreset(item.status)} />
+        <AppText variant="bodyMd" weight="semiBold" numberOfLines={1} style={{ flex: 1, textAlign: 'right' }}>
+          {item.contractName}
+        </AppText>
+      </View>
+
+      {/* Row 2: type chip + link badge + date */}
+      <View style={styles.cardRow2}>
+        <AppText variant="caption" color="variant" numberOfLines={1}>
+          {item.agreementDate}
+        </AppText>
+
+        <View style={styles.cardMeta}>
+          <View style={styles.linkBadge}>
+            <MaterialCommunityIcons
+              name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
+              size={11}
+              color={Colors.primary}
+            />
+            <AppText variant="caption" numberOfLines={1} style={{ color: Colors.primary, maxWidth: 90 }}>
+              {item.linkLabel}
+            </AppText>
+          </View>
+
+          <View style={styles.typeChip}>
+            <AppText variant="caption" numberOfLines={1} style={{ color: Colors.onSurfaceVariant }}>
+              {CONTRACT_TYPE_LABELS[item.contractType]}
+            </AppText>
+          </View>
+        </View>
+      </View>
+
+      {/* Row 3: counterparty */}
+      <View style={styles.cardRow3}>
+        <MaterialCommunityIcons name="account-outline" size={14} color={Colors.onSurfaceVariant} />
+        <AppText variant="caption" color="variant" numberOfLines={1} style={{ flex: 1, textAlign: 'right' }}>
+          {item.counterpartyName}
+        </AppText>
+      </View>
+    </Pressable>
+  );
+}
+
+// ─── Disclaimer banner ─────────────────────────────────────────────────────────
+
+function DisclaimerBanner() {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <View style={styles.disclaimer}>
+      <View style={styles.disclaimerContent}>
+        <MaterialCommunityIcons name="information-outline" size={16} color={Colors.warning} style={{ marginTop: 1 }} />
+        <AppText variant="caption" style={styles.disclaimerText}>
+          ההסכם המחייב מבוסס אך ורק על החוזה החתום בין הצדדים. כל המידע והכלים המוצגים בפלטפורמה זו מהווים כלי עזר ניהוליים בלבד, ואינם מהווים הסכם משפטי מחייב.
+        </AppText>
+      </View>
+      <Pressable onPress={() => setDismissed(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel="סגור">
+        <MaterialCommunityIcons name="close" size={16} color={Colors.onSurfaceVariant} />
+      </Pressable>
+    </View>
+  );
+}
+
+// ─── Main screen ───────────────────────────────────────────────────────────────
 
 export function ContractsListScreen() {
   const insets = useSafeAreaInsets();
@@ -81,15 +160,13 @@ export function ContractsListScreen() {
   const [sortKey, setSortKey] = useState<ContractSortKey>('agreementDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  const onHeaderPress = useCallback((key: ContractSortKey) => {
-    setSortKey((prev) => {
-      if (prev === key) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-        return prev;
-      }
-      setSortDir('asc');
-      return key;
-    });
+  // ── Fixed sort handler: no nested setState ──
+  const handleSortKeyChange = useCallback((key: string) => {
+    setSortKey(key as ContractSortKey);
+  }, []);
+
+  const handleSortDirToggle = useCallback(() => {
+    setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
   }, []);
 
   const filtered = useMemo(
@@ -107,21 +184,26 @@ export function ContractsListScreen() {
 
   const entityOptionsForScope = useMemo(
     () =>
-      MOCK_ENTITY_LINKS.filter((e) => e.kind === linkScope).map((e) => ({ key: e.id, label: e.name })),
+      MOCK_ENTITY_LINKS.filter((e) => linkScope === 'all' || e.kind === linkScope).map((e) => ({
+        key: e.id,
+        label: e.name,
+      })),
     [linkScope],
   );
 
+  // ── Count: scope + entity (typeFilter is visible in tabs, not counted here) ──
   const activeSecondaryCount = useMemo(() => {
     let count = 0;
     if (linkScope !== 'all') count++;
+    if (entityId !== null) count++;
     return count;
-  }, [linkScope]);
+  }, [linkScope, entityId]);
 
   const filterSections: FilterSection[] = useMemo(
     () => [
       {
         kind: 'chips',
-        label: 'שיוך לפי',
+        label: 'סוג שיוך',
         options: LINK_SCOPE_OPTIONS.map((o) => ({ key: o.key, label: o.label })),
         value: linkScope,
         onChange: (k) => {
@@ -130,20 +212,32 @@ export function ContractsListScreen() {
         },
       },
       {
-        kind: 'conditionalChips',
-        label: linkScope === 'asset' ? 'בחר נכס' : 'בחר פרויקט',
+        kind: 'entitySearch',
+        label: linkScope === 'asset' ? 'חיפוש נכס' : 'חיפוש פרויקט',
+        placeholder: linkScope === 'asset' ? 'הקלד שם נכס או כתובת...' : 'הקלד שם פרויקט...',
         options: entityOptionsForScope,
         value: entityId,
         onChange: setEntityId,
         visible: linkScope !== 'all',
       },
+      {
+        kind: 'sort',
+        label: 'מיון לפי',
+        options: SORT_OPTIONS,
+        sortKey,
+        sortDir,
+        onSortKeyChange: handleSortKeyChange,
+        onSortDirToggle: handleSortDirToggle,
+      },
     ],
-    [linkScope, entityId, entityOptionsForScope],
+    [linkScope, entityId, entityOptionsForScope, sortKey, sortDir, handleSortKeyChange, handleSortDirToggle],
   );
 
   const resetSecondaryFilters = useCallback(() => {
     setLinkScope('all');
     setEntityId(null);
+    setSortKey('agreementDate');
+    setSortDir('desc');
   }, []);
 
   const exportCsv = useCallback(async () => {
@@ -164,6 +258,9 @@ export function ContractsListScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <AppHeader title="חוזים" showMenu />
 
+      {/* Legal disclaimer */}
+      <DisclaimerBanner />
+
       <FilterBar
         search={search}
         onSearchChange={setSearch}
@@ -181,32 +278,28 @@ export function ContractsListScreen() {
         sections={filterSections}
       />
 
-      {/* Table header */}
-      <View style={styles.tableHeader}>
-        {COLUMNS.map((col) => {
-          const active = sortKey === col.key;
-          return (
-            <Pressable
-              key={col.key}
-              onPress={() => onHeaderPress(col.key)}
-              style={[styles.thCell, col.flex ? { flex: col.flex } : { flex: 1 }]}
-              accessibilityRole="button"
-              accessibilityLabel={`מיון לפי ${col.label}`}
-            >
-              <AppText variant="labelSm" weight="bold" color="primary" numberOfLines={2} align="right">
-                {col.label}
-              </AppText>
-              {active && (
-                <MaterialCommunityIcons
-                  name={sortDir === 'asc' ? 'arrow-up' : 'arrow-down'}
-                  size={14}
-                  color={Colors.primary}
-                />
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* Summary bar */}
+      {sorted.length > 0 && (
+        <View style={styles.summaryBar}>
+          <Pressable
+            onPress={() => setFilterSheetOpen(true)}
+            style={styles.sortBtn}
+            accessibilityRole="button"
+          >
+            <MaterialCommunityIcons
+              name={sortDir === 'asc' ? 'sort-ascending' : 'sort-descending'}
+              size={14}
+              color={Colors.primary}
+            />
+            <AppText variant="caption" color="primary">
+              {SORT_OPTIONS.find((o) => o.key === sortKey)?.label ?? 'מיון'}
+            </AppText>
+          </Pressable>
+          <AppText variant="caption" color="variant">
+            {sorted.length} חוזים
+          </AppText>
+        </View>
+      )}
 
       {sorted.length === 0 ? (
         <EmptyState
@@ -221,53 +314,18 @@ export function ContractsListScreen() {
         <FlatList
           data={sorted}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['2xl'] }}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
           showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
           renderItem={({ item }) => (
-            <Pressable
+            <ContractCard
+              item={item}
               onPress={() => router.push(`/(app)/contracts/${item.id}`)}
-              style={({ pressed }) => [styles.tableRow, pressed && { opacity: 0.92 }]}
-              accessibilityRole="button"
-            >
-              <View style={[styles.tdCell, { flex: 1.2 }]}>
-                <AppText variant="bodySm" weight="semiBold" numberOfLines={2}>
-                  {item.contractName}
-                </AppText>
-              </View>
-              <View style={[styles.tdCell, { flex: 0.9 }]}>
-                <AppText variant="bodySm" color="variant" numberOfLines={2}>
-                  {CONTRACT_TYPE_LABELS[item.contractType]}
-                </AppText>
-              </View>
-              <View style={[styles.tdCell, { flex: 0.85 }]}>
-                <View style={styles.linkBadge}>
-                  <MaterialCommunityIcons
-                    name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
-                    size={12}
-                    color={Colors.primary}
-                  />
-                  <AppText variant="caption" numberOfLines={1} style={{ flex: 1 }}>
-                    {item.linkLabel}
-                  </AppText>
-                </View>
-              </View>
-              <View style={[styles.tdCell, { flex: 0.9 }]}>
-                <AppText variant="bodySm" numberOfLines={2}>
-                  {item.counterpartyName}
-                </AppText>
-              </View>
-              <View style={[styles.tdCell, { flex: 0.75 }]}>
-                <AppText variant="bodySm" color="muted" numberOfLines={1}>
-                  {item.agreementDate}
-                </AppText>
-              </View>
-              <View style={[styles.tdCell, { flex: 0.65, alignItems: 'flex-end' }]}>
-                <Badge label={CONTRACT_STATUS_LABELS[item.status]} preset={statusPreset(item.status)} />
-              </View>
-            </Pressable>
+            />
           )}
         />
       )}
+
       {/* FAB */}
       <Pressable
         onPress={() => router.push('/(app)/contracts/new')}
@@ -283,45 +341,104 @@ export function ContractsListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  tableHeader: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
+
+  // ── Disclaimer ──
+  disclaimer: {
+    flexDirection: RTL_ROW,
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.warningContainer ?? '#FFF8E1',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.warning + '33',
+  },
+  disclaimerContent: {
+    flex: 1,
+    flexDirection: RTL_ROW,
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  disclaimerText: {
+    flex: 1,
+    textAlign: 'right',
+    color: Colors.onBackground,
+    lineHeight: 18,
+  },
+
+  // ── Summary bar ──
+  summaryBar: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.xs + 2,
     backgroundColor: Colors.surfaceVariant,
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
   },
-  thCell: {
-    flexDirection: 'row-reverse',
+  sortBtn: {
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
-    justifyContent: 'flex-end',
-    paddingHorizontal: 4,
-    minHeight: MIN_TOUCH,
   },
-  tableRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
+
+  // ── List ──
+  listContent: {
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
-    backgroundColor: Colors.surface,
+    paddingTop: Spacing.md,
   },
-  tdCell: {
-    paddingHorizontal: 4,
-    justifyContent: 'center',
+
+  // ── Card ──
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+    ...Shadow.sm,
+  },
+  cardRow1: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  cardRow2: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardMeta: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   linkBadge: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
     backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.sm,
     paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingVertical: 3,
   },
+  typeChip: {
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+  },
+  cardRow3: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+
+  // ── FAB ──
   fab: {
     position: 'absolute',
     left: CONTENT_HORIZONTAL_PADDING,

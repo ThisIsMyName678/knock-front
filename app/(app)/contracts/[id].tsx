@@ -14,6 +14,7 @@ import {
   getContractDetailMock,
 } from '@/lib/mocks/contracts';
 import { Colors, Spacing, Shadow, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 
 export default function ContractDetailScreen() {
@@ -154,7 +155,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   emptyWrap: { flex: 1, justifyContent: 'center', padding: Spacing.xl },
-  contractHeader: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md },
+  contractHeader: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md },
   iconBig: {
     width: 52,
     height: 52,
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quickRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     justifyContent: 'space-between',
     gap: Spacing.sm,
   },
@@ -179,6 +180,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
     backgroundColor: Colors.surface,
   },
-  row: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'flex-start', gap: Spacing.md, paddingVertical: Spacing.sm },
+  row: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'flex-start', gap: Spacing.md, paddingVertical: Spacing.sm },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
 });

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { AppText } from './Text';
 import { Colors, Radius, Spacing, FontFamily, FontSize, MIN_TOUCH } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 type Props = TextInputProps & {
   label?: string;
@@ -87,7 +88,7 @@ const styles = StyleSheet.create({
   wrapper: { gap: Spacing.xs },
   label: { textAlign: 'right' },
   inputRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     minHeight: MIN_TOUCH,
     borderWidth: 1.5,

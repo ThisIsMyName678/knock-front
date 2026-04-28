@@ -38,6 +38,7 @@ import {
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 function filterEntities(query: string): EntityLinkOption[] {
   const q = query.trim().toLowerCase();
@@ -290,7 +291,7 @@ export function DocumentUploadForm({ initialData }: { initialData?: DocumentList
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base },
-  pickRow: { flexDirection: 'row-reverse', gap: Spacing.md, marginBottom: Spacing.md },
+  pickRow: { flexDirection: RTL_ROW, gap: Spacing.md, marginBottom: Spacing.md },
   pickBtn: {
     flex: 1,
     alignItems: 'center',
@@ -309,7 +310,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   sectionLabel: { textAlign: 'right', marginBottom: Spacing.sm, color: Colors.onBackground },
-  typeGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.xs },
+  typeGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs },
   typeChip: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -331,7 +332,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   selectedPill: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     marginTop: Spacing.sm,
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
   suggestBox: { borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md, marginTop: 4, overflow: 'hidden' },
   suggestRow: { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight, backgroundColor: Colors.surface },
   dropdown: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
@@ -351,7 +352,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     backgroundColor: Colors.surfaceVariant,
   },
-  accessRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  accessRow: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   accessChip: {
     flexBasis: '48%',
     padding: Spacing.sm,

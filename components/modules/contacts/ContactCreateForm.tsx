@@ -34,6 +34,7 @@ import { ContactPermissionsEditor } from '@/components/modules/contacts/ContactP
 import {
   Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -449,7 +450,7 @@ const styles = StyleSheet.create({
 
   // Kind toggle
   kindToggle: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.sm,
   },
   kindBtn: {
@@ -470,7 +471,7 @@ const styles = StyleSheet.create({
 
   // Email badge
   emailBadge: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
@@ -485,7 +486,7 @@ const styles = StyleSheet.create({
   // Asset picker
   pickerWrap: { gap: Spacing.xs },
   pickRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
@@ -498,13 +499,13 @@ const styles = StyleSheet.create({
   pickRowIndent: { marginRight: Spacing.xl, borderStyle: 'dashed' },
   pickRowActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryContainer },
   pickProjectRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 0,
   },
   pickRowInner: {
     flex: 1,
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,

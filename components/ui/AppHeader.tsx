@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { AppText } from './Text';
 import { DrawerMenu } from './DrawerMenu';
 import { Colors, Spacing, CONTENT_HORIZONTAL_PADDING, Shadow } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 type Props = {
   title: string;
@@ -21,10 +22,8 @@ type Props = {
 /**
  * Unified app header — consistent across all screens.
  *
- * RTL layout (flexDirection: row-reverse):
- *   RIGHT : hamburger menu (when showMenu)
- *   CENTER: title + optional subtitle
- *   LEFT  : back arrow (when showBack or router.canGoBack())
+ * RTL layout: with I18nManager.forceRTL(true), use `row` (not `row-reverse`) so the
+ * engine does not mirror twice — hamburger stays visually RIGHT, back LEFT.
  */
 export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, showMenu }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -37,7 +36,7 @@ export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, sho
   return (
     <>
       <View style={styles.header}>
-        {/* RIGHT (first in row-reverse) — hamburger or placeholder */}
+        {/* RIGHT (first in row when RTL) — hamburger or placeholder */}
         <View style={styles.side}>
           {showMenu ? (
             <Pressable
@@ -71,7 +70,7 @@ export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, sho
           ) : null)}
         </View>
 
-        {/* LEFT (last in row-reverse) — back arrow or placeholder */}
+        {/* LEFT (last in row when RTL) — back arrow or placeholder */}
         <View style={styles.side}>
           {showBackBtn ? (
             <Pressable
@@ -97,7 +96,7 @@ export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, sho
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.primary,

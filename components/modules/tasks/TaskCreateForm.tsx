@@ -38,6 +38,7 @@ import {
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 const TASK_KINDS = (Object.keys(TASK_KIND_LABELS) as TaskKind[]).map((k) => ({ key: k, label: TASK_KIND_LABELS[k], icon: TASK_KIND_ICONS[k] }));
 
@@ -131,8 +132,8 @@ export function TaskCreateForm() {
                   style={[styles.kindCard, taskKind === k.key && styles.kindCardActive]}
                   accessibilityRole="button"
                 >
-                  <MaterialCommunityIcons name={iconName(k.icon)} size={28} color={taskKind === k.key ? Colors.onPrimary : Colors.primary} />
-                  <AppText variant="caption" weight={taskKind === k.key ? 'bold' : 'regular'} numberOfLines={2} align="center" style={{ color: taskKind === k.key ? Colors.onPrimary : Colors.onSurfaceVariant, marginTop: Spacing.xs }}>
+                  <MaterialCommunityIcons name={iconName(k.icon)} size={22} color={taskKind === k.key ? Colors.onPrimary : Colors.primary} />
+                  <AppText variant="labelSm" weight={taskKind === k.key ? 'bold' : 'regular'} numberOfLines={2} align="center" style={{ color: taskKind === k.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
                     {k.label}
                   </AppText>
                 </Pressable>
@@ -339,20 +340,21 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   sectionLabel: { textAlign: 'right', marginBottom: Spacing.sm, color: Colors.onBackground },
-  kindGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm, justifyContent: 'space-between' },
+  kindGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs },
   kindCard: {
-    width: '48%',
-    minHeight: 88,
-    padding: Spacing.sm,
+    width: '31%',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
     borderRadius: Radius.md,
     borderWidth: 1.5,
     borderColor: Colors.outlineVariant,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surfaceVariant,
+    gap: 4,
   },
   kindCardActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  rowChips: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  rowChips: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   miniChip: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -371,7 +373,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   selectedPill: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     marginTop: Spacing.sm,
@@ -382,7 +384,7 @@ const styles = StyleSheet.create({
   suggestBox: { borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md, marginTop: 4, overflow: 'hidden' },
   suggestRow: { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight, backgroundColor: Colors.surface },
   attachPill: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     padding: Spacing.sm,
@@ -390,7 +392,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.md,
   },
-  fileBtns: { flexDirection: 'row-reverse', gap: Spacing.md },
+  fileBtns: { flexDirection: RTL_ROW, gap: Spacing.md },
   fileBtn: {
     flex: 1,
     alignItems: 'center',
@@ -402,7 +404,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   dropdown: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: 1,

@@ -9,6 +9,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Colors, Radius, Spacing, FontFamily, FontSize, MIN_TOUCH } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import { formatDigitsAsIls, parseAmountDigits } from '@/lib/format/currency';
 
 type Props = Omit<TextInputProps, 'value' | 'onChangeText'> & {
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
   wrapper: { gap: Spacing.xs },
   label: { textAlign: 'right' },
   inputRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     minHeight: MIN_TOUCH,
     borderWidth: 1.5,

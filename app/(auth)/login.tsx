@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Shadow } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
   },
   dividerRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     marginVertical: Spacing.base,
   },

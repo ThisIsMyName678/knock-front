@@ -35,6 +35,7 @@ import {
 import { useSubscriptionPlan } from '@/hooks/useSubscriptionPlan';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { FilterBar } from '@/components/ui/FilterBar';
+import { RTL_ROW, RTL_ALIGN_START } from '@/constants/rtl';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -70,10 +71,22 @@ function rolePreset(r: UserRole): React.ComponentProps<typeof Badge>['preset'] {
   return 'neutral';
 }
 
+/** Split "רחוב 10, עיר" → [street, city]. Falls back gracefully if no comma. */
+function splitAddress(address: string): { street: string; city: string } {
+  const commaIdx = address.indexOf(',');
+  if (commaIdx === -1) return { street: address, city: '' };
+  return {
+    street: address.slice(0, commaIdx).trim(),
+    city: address.slice(commaIdx + 1).trim(),
+  };
+}
+
 // ─── Entity Card (grid item) ───────────────────────────────────────────────────
 
 function EntityCard({ entity, onPress }: { entity: Entity; onPress: () => void }) {
   const isProject = entity.kind === 'project';
+  const { street, city } = splitAddress(entity.address);
+
   return (
     <Pressable
       onPress={onPress}
@@ -91,6 +104,17 @@ function EntityCard({ entity, onPress }: { entity: Entity; onPress: () => void }
       </View>
 
       <View style={styles.cardBody}>
+        {/* Type indicator chip */}
+        <View style={[styles.typeChip, isProject ? styles.typeChipProject : styles.typeChipAsset]}>
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={[styles.typeChipText, { color: isProject ? Colors.primary : Colors.primaryLight }]}
+          >
+            {isProject ? 'פרויקט' : 'נכס'}
+          </AppText>
+        </View>
+
         {/* Role badge */}
         <Badge label={roleLabel(entity.role)} preset={rolePreset(entity.role)} style={styles.roleBadge} />
 
@@ -99,13 +123,23 @@ function EntityCard({ entity, onPress }: { entity: Entity; onPress: () => void }
           {entity.name}
         </AppText>
 
-        {/* Address */}
-        <View style={styles.cardAddressRow}>
-          <MaterialCommunityIcons name="map-marker-outline" size={11} color={Colors.onSurfaceVariant} />
-          <AppText variant="caption" color="variant" numberOfLines={2} style={{ flex: 1 }}>
-            {entity.address}
-          </AppText>
+        {/* Address: street + city on separate lines */}
+        <View style={styles.cardAddressBlock}>
+          <View style={styles.cardAddressRow}>
+            <MaterialCommunityIcons name="map-marker-outline" size={11} color={Colors.onSurfaceVariant} />
+            <AppText variant="caption" color="variant" numberOfLines={1} style={{ flex: 1 }}>
+              {street}
+            </AppText>
+          </View>
+          {city ? (
+            <AppText variant="caption" color="variant" numberOfLines={1} style={styles.cardCity}>
+              {city}
+            </AppText>
+          ) : null}
         </View>
+
+        {/* Spacer pushes bottom content down for uniform card height */}
+        <View style={{ flex: 1 }} />
 
         {/* Project-only: asset count + occupancy X/Y */}
         {isProject && (() => {
@@ -149,10 +183,12 @@ function CreateChoiceSheet({
   visible,
   onClose,
   mode,
+  plan,
 }: {
   visible: boolean;
   onClose: () => void;
   mode: EntityMode;
+  plan: ReturnType<typeof useSubscriptionPlan>;
 }) {
   return (
     <Modal
@@ -186,22 +222,24 @@ function CreateChoiceSheet({
               </AppText>
             </Pressable>
 
-            <Pressable
-              onPress={() => {
-                onClose();
-                router.push('/(app)/projects/new');
-              }}
-              style={({ pressed }) => [styles.sheetOption, pressed && { opacity: 0.85 }]}
-              accessibilityRole="button"
-            >
-              <View style={[styles.sheetOptionIcon, { backgroundColor: Colors.primaryContainer }]}>
-                <MaterialCommunityIcons name="briefcase-plus-outline" size={28} color={Colors.primary} />
-              </View>
-              <AppText variant="bodyMd" weight="bold" align="center">פרויקט חדש</AppText>
-              <AppText variant="bodySm" color="variant" align="center">
-                קבוצת נכסים
-              </AppText>
-            </Pressable>
+            {plan === 'enterprise' && (
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  router.push('/(app)/projects/new');
+                }}
+                style={({ pressed }) => [styles.sheetOption, pressed && { opacity: 0.85 }]}
+                accessibilityRole="button"
+              >
+                <View style={[styles.sheetOptionIcon, { backgroundColor: Colors.primaryContainer }]}>
+                  <MaterialCommunityIcons name="briefcase-plus-outline" size={28} color={Colors.primary} />
+                </View>
+                <AppText variant="bodyMd" weight="bold" align="center">פרויקט חדש</AppText>
+                <AppText variant="bodySm" color="variant" align="center">
+                  קבוצת נכסים
+                </AppText>
+              </Pressable>
+            )}
           </View>
 
           <Pressable onPress={onClose} style={styles.sheetCancel} accessibilityRole="button">
@@ -287,6 +325,18 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
   const showOrphansHint =
     plan === 'enterprise' && mode === 'projects' && !scopedProjectId && !embedded && assetsStandaloneForEnterpriseList().length > 0;
 
+  /** No items at all (user has nothing linked to account) */
+  const hasNoData = rawData.length === 0;
+
+  /** FAB handler: non-enterprise goes straight to new asset; enterprise opens choice sheet */
+  const handleFabPress = useCallback(() => {
+    if (plan !== 'enterprise') {
+      router.push('/(app)/assets-screens/new');
+    } else {
+      setSheetVisible(true);
+    }
+  }, [plan]);
+
   const body = (
     <>
       <FilterBar
@@ -306,8 +356,36 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
         </View>
       ) : null}
 
-      {/* Grid */}
-      {filtered.length === 0 ? (
+      {/* No data at all — onboarding empty state */}
+      {hasNoData ? (
+        <EmptyState
+          title={
+            mode === 'projects'
+              ? 'עדיין אין לך פרויקטים או נכסים'
+              : 'עדיין אין לך נכסים'
+          }
+          description={
+            mode === 'projects'
+              ? 'צור פרויקט ראשון או הוסף נכס כדי להתחיל לנהל את הנכסים שלך'
+              : 'הוסף נכס ראשון כדי להתחיל'
+          }
+          icon={
+            <MaterialCommunityIcons
+              name={mode === 'projects' ? 'city-variant-outline' : 'home-plus-outline'}
+              size={40}
+              color={Colors.primary}
+            />
+          }
+          actionLabel={mode === 'projects' && plan === 'enterprise' ? 'צור פרויקט חדש' : 'הוסף נכס'}
+          onAction={
+            embedded
+              ? () => router.push('/(app)/assets-screens/new')
+              : () => (plan === 'enterprise' ? setSheetVisible(true) : router.push('/(app)/assets-screens/new'))
+          }
+          style={{ flex: 1 }}
+        />
+      ) : filtered.length === 0 ? (
+        /* Filter returned no results */
         <EmptyState
           title={scopedProjectId ? 'אין נכסים בפרויקט זה' : `לא נמצאו ${title}`}
           description="נסה לשנות את הסינון או החיפוש"
@@ -327,6 +405,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
           style={{ flex: 1 }}
         />
       ) : (
+        /* Grid */
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
@@ -346,6 +425,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
           visible={sheetVisible}
           onClose={() => setSheetVisible(false)}
           mode={mode}
+          plan={plan}
         />
       ) : null}
     </>
@@ -372,7 +452,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
 
       {/* FAB */}
       <Pressable
-        onPress={() => setSheetVisible(true)}
+        onPress={handleFabPress}
         style={[styles.fab, { bottom: insets.bottom + Spacing.lg }]}
         accessibilityRole="button"
         accessibilityLabel="הוסף חדש"
@@ -391,7 +471,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   embeddedWrap: { flex: 1, backgroundColor: Colors.background },
   hintBanner: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
@@ -401,15 +481,13 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
 
-
-
   grid: {
     padding: CONTENT_HORIZONTAL_PADDING,
     paddingTop: Spacing.base,
     gap: CARD_GAP,
   },
   gridRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: CARD_GAP,
     marginBottom: CARD_GAP,
   },
@@ -432,26 +510,56 @@ const styles = StyleSheet.create({
   cardBody: {
     padding: Spacing.sm,
     gap: Spacing.xs,
+    minHeight: 148,
+    flexDirection: 'column',
   },
-  roleBadge: { alignSelf: 'flex-end' },
+
+  // Type indicator chip
+  typeChip: {
+    alignSelf: RTL_ALIGN_START,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+  },
+  typeChipProject: {
+    backgroundColor: Colors.primaryContainer,
+    borderColor: Colors.primary,
+  },
+  typeChipAsset: {
+    backgroundColor: Colors.surfaceVariant,
+    borderColor: Colors.primaryLight,
+  },
+  typeChipText: {
+    fontSize: 9,
+  },
+
+  roleBadge: { alignSelf: RTL_ALIGN_START },
   cardName: {
     textAlign: 'right',
     color: Colors.onBackground,
     marginTop: 2,
   },
+  cardAddressBlock: {
+    marginTop: 2,
+    gap: 1,
+  },
   cardAddressRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'flex-start',
     gap: 2,
-    marginTop: 2,
+  },
+  cardCity: {
+    textAlign: 'right',
+    paddingRight: 13,
   },
   cardMeta: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 3,
     marginTop: 2,
   },
-  occupancyBadge: { alignSelf: 'flex-end', marginTop: 4 },
+  occupancyBadge: { alignSelf: RTL_ALIGN_START, marginTop: 4 },
 
   // Bottom sheet
   sheetOverlay: {
@@ -482,7 +590,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   sheetOptions: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.md,
   },
   sheetOption: {
