@@ -93,7 +93,16 @@ export function TaskCreateForm() {
     return priority;
   };
 
+  const [submitted, setSubmitted] = useState(false);
+
+  const errors = useMemo(() => ({
+    title: title.trim().length === 0 ? 'שדה חובה' : '',
+    startDate: startDate.trim().length === 0 ? 'שדה חובה' : '',
+  }), [title, startDate]);
+
   const onSave = () => {
+    setSubmitted(true);
+    if (Object.values(errors).some(Boolean)) return;
     router.back();
   };
 
@@ -119,7 +128,7 @@ export function TaskCreateForm() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.card}>
-            <Input label="כותרת המשימה" placeholder="תאר את המשימה..." value={title} onChangeText={setTitle} containerStyle={{ marginBottom: Spacing.md }} />
+            <Input label="כותרת המשימה" required placeholder="תאר את המשימה..." value={title} onChangeText={setTitle} error={submitted ? errors.title : ''} containerStyle={{ marginBottom: Spacing.md }} />
 
             <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>
               סוג משימה
@@ -246,7 +255,7 @@ export function TaskCreateForm() {
               </AppText>
             </Pressable>
 
-            <Input label="תאריך התחלה" placeholder="DD/MM/YYYY" value={startDate} onChangeText={setStartDate} containerStyle={{ marginTop: Spacing.md }} />
+            <Input label="תאריך התחלה" required placeholder="DD/MM/YYYY" value={startDate} onChangeText={setStartDate} error={submitted ? errors.startDate : ''} containerStyle={{ marginTop: Spacing.md }} />
             <Input label="תאריך סיום (אופציונלי)" placeholder="DD/MM/YYYY" value={endDate} onChangeText={setEndDate} containerStyle={{ marginTop: Spacing.sm }} />
 
             {/* ─── צרף קובץ ─── */}

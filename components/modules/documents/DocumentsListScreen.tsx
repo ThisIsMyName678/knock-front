@@ -112,6 +112,7 @@ export function DocumentsListScreen() {
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState<DocumentType>('other');
   const [editAccess, setEditAccess] = useState<DocumentAccessLevel>('owner_only');
+  const [menuRow, setMenuRow] = useState<DocumentListRow | null>(null);
 
   const linkScope = linkScopeFromScope(scope);
 
@@ -356,26 +357,47 @@ export function DocumentsListScreen() {
                 <Badge label={accessShort(item.accessLevel)} preset={accessPreset(item.accessLevel)} />
               </View>
             </Pressable>
-            <View style={styles.actionsCol}>
-              <Pressable onPress={() => downloadMock(item)} style={styles.actionIcon} accessibilityLabel="הורדה">
-                <MaterialCommunityIcons name="download-outline" size={20} color={Colors.primary} />
-              </Pressable>
-              <Pressable onPress={() => shareRow(item)} style={styles.actionIcon} accessibilityLabel="שיתוף">
-                <MaterialCommunityIcons name="share-variant-outline" size={20} color={Colors.primary} />
-              </Pressable>
-              <Pressable onPress={() => duplicateRow(item)} style={styles.actionIcon} accessibilityLabel="שכפול">
-                <MaterialCommunityIcons name="content-copy" size={20} color={Colors.onSurfaceVariant} />
-              </Pressable>
-              <Pressable onPress={() => openEdit(item)} style={styles.actionIcon} accessibilityLabel="עריכה">
-                <MaterialCommunityIcons name="pencil-outline" size={20} color={Colors.onSurfaceVariant} />
-              </Pressable>
-              <Pressable onPress={() => deleteRow(item)} style={styles.actionIcon} accessibilityLabel="מחיקה">
-                <MaterialCommunityIcons name="delete-outline" size={20} color={Colors.error} />
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={() => setMenuRow(item)}
+              style={styles.menuBtn}
+              accessibilityLabel="פעולות"
+            >
+              <MaterialCommunityIcons name="dots-vertical" size={22} color={Colors.onSurfaceVariant} />
+            </Pressable>
           </View>
         )}
       />
+
+      {/* ─── Action menu sheet ─── */}
+      <Modal visible={!!menuRow} transparent animationType="slide" onRequestClose={() => setMenuRow(null)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setMenuRow(null)}>
+          <Pressable style={styles.actionSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.sheetHandle} />
+            {menuRow && (
+              <AppText variant="labelMd" weight="bold" numberOfLines={1} style={styles.sheetTitle}>
+                {menuRow.displayName}
+              </AppText>
+            )}
+            {[
+              { icon: 'download-outline' as const, label: 'הורדה', color: Colors.primary, onPress: () => { downloadMock(menuRow!); setMenuRow(null); } },
+              { icon: 'share-variant-outline' as const, label: 'שיתוף', color: Colors.primary, onPress: () => { shareRow(menuRow!); setMenuRow(null); } },
+              { icon: 'content-copy' as const, label: 'שכפול', color: Colors.onBackground, onPress: () => { duplicateRow(menuRow!); setMenuRow(null); } },
+              { icon: 'pencil-outline' as const, label: 'עריכה', color: Colors.onBackground, onPress: () => { openEdit(menuRow!); setMenuRow(null); } },
+              { icon: 'delete-outline' as const, label: 'מחיקה', color: Colors.error, onPress: () => { deleteRow(menuRow!); setMenuRow(null); } },
+            ].map((action) => (
+              <Pressable key={action.label} onPress={action.onPress} style={({ pressed }) => [styles.sheetAction, pressed && { opacity: 0.7 }]}>
+                <MaterialCommunityIcons name={action.icon} size={22} color={action.color} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: action.color }}>
+                  {action.label}
+                </AppText>
+              </Pressable>
+            ))}
+            <Pressable onPress={() => setMenuRow(null)} style={[styles.sheetAction, { marginTop: Spacing.sm, justifyContent: 'center' }]}>
+              <AppText variant="bodyMd" color="variant" align="center">ביטול</AppText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal visible={!!editRow} transparent animationType="fade" onRequestClose={() => setEditRow(null)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setEditRow(null)}>
@@ -457,19 +479,51 @@ const styles = StyleSheet.create({
   },
   rowMain: { flexDirection: RTL_ROW, alignItems: 'center', flex: 1, paddingVertical: Spacing.sm, paddingLeft: Spacing.xs },
   td: { paddingHorizontal: 4, justifyContent: 'center' },
-  actionsCol: {
-    width: 128,
-    flexDirection: RTL_ROW,
-    flexWrap: 'wrap',
+  menuBtn: {
+    width: MIN_TOUCH,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
     borderRightWidth: 1,
     borderRightColor: Colors.outlineLight,
   },
-  actionIcon: { padding: Spacing.xs, minWidth: MIN_TOUCH * 0.75, alignItems: 'center', justifyContent: 'center' },
+  actionSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xl,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    ...Shadow.lg,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  sheetTitle: {
+    textAlign: 'right',
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  sheetAction: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: Spacing.lg },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,

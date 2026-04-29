@@ -6,8 +6,10 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
+  Modal,
   Alert,
   Linking,
+  Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -30,6 +32,20 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { EntityListScreen } from './EntityListScreen';
+import { FilterSheet } from '@/components/ui/FilterSheet';
+import type { FilterSection } from '@/components/ui/FilterSheet';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import {
+  MOCK_TASKS_LIST,
+  TASK_KIND_LABELS,
+  TASK_KIND_ICONS,
+  WORKFLOW_STATUS_LABELS,
+  type TaskListRow,
+  type WorkflowStatus,
+  type TaskKind,
+  type TaskPriority,
+  TASK_PRIORITY_LABELS,
+} from '@/lib/mocks/tasks';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,13 +73,7 @@ type ContractInfo = {
   active: boolean;
 };
 
-type TaskItem = {
-  id: string;
-  date: string;
-  category: string;
-  description: string;
-  status: 'open' | 'in_progress' | 'closed';
-};
+// TaskItem is no longer used — TasksTab uses TaskListRow from lib/mocks/tasks
 
 type DocItem = {
   id: string;
@@ -148,11 +158,7 @@ const MOCK_CONTRACTS: ContractInfo[] = [
   },
 ];
 
-const MOCK_TASKS: TaskItem[] = [
-  { id: 't1', date: '10/04/2026', category: 'אינסטלציה', description: 'נזילה בחדר רחצה', status: 'open' },
-  { id: 't2', date: '05/04/2026', category: 'חשמל', description: 'בדיקת לוח חשמל', status: 'in_progress' },
-  { id: 't3', date: '01/03/2026', category: 'כללי', description: 'צביעת חדר שינה', status: 'closed' },
-];
+// MOCK_TASKS replaced by MOCK_TASKS_LIST imported from lib/mocks/tasks
 
 const MOCK_DOCS: DocItem[] = [
   { id: 'doc1', name: 'חוזה שכירות 2024.pdf', category: 'חוזה', uploadDate: '01/01/2024', kind: 'pdf' },
@@ -208,6 +214,32 @@ function fmtIls(n: number) {
   }
 }
 
+function parseDdMmYyyy(s: string): number {
+  const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return 0;
+  return new Date(parseInt(m[3]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[1]!, 10)).getTime();
+}
+
+function inDateRange(dateStr: string, from: string, to: string): boolean {
+  const t = parseDdMmYyyy(dateStr);
+  if (!t) return true;
+  if (from) { const f = parseDdMmYyyy(from); if (f && t < f) return false; }
+  if (to) { const toT = parseDdMmYyyy(to); if (toT && t > toT) return false; }
+  return true;
+}
+
+function InlineEmpty({ text }: { text: string }) {
+  return (
+    <AppText
+      variant="bodyMd"
+      color="muted"
+      style={{ paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.lg, textAlign: 'right' }}
+    >
+      {text}
+    </AppText>
+  );
+}
+
 function feedColor(kind: FeedKind): string {
   if (kind === 'task') return Colors.feedMaintenance;
   if (kind === 'payment') return Colors.feedPayments;
@@ -222,16 +254,11 @@ function feedIcon(kind: FeedKind): React.ComponentProps<typeof MaterialCommunity
   return 'file-sign';
 }
 
-function taskStatusPreset(s: TaskItem['status']): React.ComponentProps<typeof Badge>['preset'] {
-  if (s === 'open') return 'statusOpen';
+function taskStatusPreset(s: WorkflowStatus): React.ComponentProps<typeof Badge>['preset'] {
+  if (s === 'open' || s === 'not_started') return 'statusOpen';
   if (s === 'in_progress') return 'statusInProgress';
-  return 'statusClosed';
-}
-
-function taskStatusLabel(s: TaskItem['status']): string {
-  if (s === 'open') return 'פתוח';
-  if (s === 'in_progress') return 'בטיפול';
-  return 'סגור';
+  if (s === 'completed') return 'statusClosed';
+  return 'neutral';
 }
 
 async function openUrl(url: string) {
@@ -257,29 +284,57 @@ function TabSearchField({
   value,
   onChangeText,
   placeholder,
+  onFilterPress,
+  activeFilterCount = 0,
 }: {
   value: string;
   onChangeText: (t: string) => void;
   placeholder: string;
+  onFilterPress?: () => void;
+  activeFilterCount?: number;
 }) {
+  const filterActive = activeFilterCount > 0;
   return (
     <View style={tabSearchStyles.wrap}>
-      <View style={tabSearchStyles.row}>
-        <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceMuted} />
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={Colors.onSurfaceMuted}
-          style={tabSearchStyles.input}
-          textAlign="right"
-          returnKeyType="search"
-        />
-        {value.length > 0 ? (
-          <Pressable onPress={() => onChangeText('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="נקה">
-            <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+      <View style={tabSearchStyles.outerRow}>
+        <View style={[tabSearchStyles.row, { flex: 1 }]}>
+          <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceMuted} />
+          <TextInput
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={Colors.onSurfaceMuted}
+            style={tabSearchStyles.input}
+            textAlign="right"
+            returnKeyType="search"
+          />
+          {value.length > 0 ? (
+            <Pressable onPress={() => onChangeText('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="נקה">
+              <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+        {onFilterPress && (
+          <Pressable
+            onPress={onFilterPress}
+            style={[tabSearchStyles.filterBtn, filterActive && tabSearchStyles.filterBtnActive]}
+            accessibilityRole="button"
+            accessibilityLabel="סינון"
+          >
+            <MaterialCommunityIcons
+              name="tune-variant"
+              size={18}
+              color={filterActive ? Colors.onPrimary : Colors.onSurfaceVariant}
+            />
+            {filterActive && (
+              <View style={tabSearchStyles.filterBadge}>
+                <AppText variant="labelSm" weight="bold" style={{ color: Colors.onPrimary, fontSize: 10 }}>
+                  {activeFilterCount}
+                </AppText>
+              </View>
+            )}
           </Pressable>
-        ) : null}
+        )}
       </View>
     </View>
   );
@@ -289,9 +344,15 @@ const tabSearchStyles = StyleSheet.create({
   wrap: {
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
     paddingBottom: Spacing.sm,
+    paddingTop: Spacing.xs,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
+  },
+  outerRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   row: {
     flexDirection: RTL_ROW,
@@ -301,6 +362,31 @@ const tabSearchStyles = StyleSheet.create({
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  filterBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,
@@ -505,6 +591,7 @@ function FeedTab() {
         scrollEnabled={false}
         contentContainerStyle={listStyles.content}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
+        ListEmptyComponent={<InlineEmpty text="אין פעילות להצגה" />}
         renderItem={({ item }) => {
           const color = feedColor(item.kind);
           const route = feedRoute(item.kind, item.targetId);
@@ -617,31 +704,101 @@ function MainTab({ mode, entityId }: { mode: DetailMode; entityId: string }) {
 
 // ─── Tab: Tasks (Maintenance) ─────────────────────────────────────────────────
 
+type TaskStatusFilter = 'all' | 'open' | 'in_progress' | 'completed';
+
 function TasksTab({ entityId }: { entityId: string }) {
-  const filterOptions = [
-    { key: 'all' as const, label: 'הכל' },
-    { key: 'open' as const, label: 'פתוח' },
-    { key: 'in_progress' as const, label: 'בטיפול' },
-    { key: 'closed' as const, label: 'סגור' },
+  const statusOptions: { key: TaskStatusFilter; label: string }[] = [
+    { key: 'all', label: 'הכל' },
+    { key: 'open', label: 'פתוח' },
+    { key: 'in_progress', label: 'בטיפול' },
+    { key: 'completed', label: 'הושלם' },
   ];
-  const [filter, setFilter] = useState<'all' | TaskItem['status']>('all');
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
+  const [kindFilter, setKindFilter] = useState<TaskKind | 'all'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | 'all'>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (kindFilter !== 'all') n++;
+    if (priorityFilter !== 'all') n++;
+    if (dateFrom) n++;
+    if (dateTo) n++;
+    return n;
+  }, [kindFilter, priorityFilter, dateFrom, dateTo]);
+
+  const taskKindOptions = useMemo(() => [
+    { key: 'all', label: 'הכל' },
+    ...Object.entries(TASK_KIND_LABELS).map(([k, v]) => ({ key: k, label: v })),
+  ], []);
+
+  const priorityOptions = useMemo(() => [
+    { key: 'all', label: 'הכל' },
+    ...Object.entries(TASK_PRIORITY_LABELS).map(([k, v]) => ({ key: k, label: v })),
+  ], []);
+
+  const filterSections: FilterSection[] = useMemo(() => [
+    {
+      kind: 'chips',
+      label: 'סוג משימה',
+      options: taskKindOptions,
+      value: kindFilter,
+      onChange: (k) => setKindFilter(k as TaskKind | 'all'),
+    },
+    {
+      kind: 'chips',
+      label: 'דחיפות',
+      options: priorityOptions,
+      value: priorityFilter,
+      onChange: (k) => setPriorityFilter(k as TaskPriority | 'all'),
+    },
+    {
+      kind: 'dateRange',
+      label: 'טווח תאריך יעד',
+      from: dateFrom,
+      to: dateTo,
+      onFromChange: setDateFrom,
+      onToChange: setDateTo,
+    },
+  ], [kindFilter, priorityFilter, dateFrom, dateTo, taskKindOptions, priorityOptions]);
+
   const filtered = useMemo(() => {
-    const byStatus = MOCK_TASKS.filter((t) => filter === 'all' || t.status === filter);
-    const q = search.trim().toLowerCase();
-    if (!q) return byStatus;
-    return byStatus.filter(
-      (t) =>
-        t.description.toLowerCase().includes(q) ||
-        t.category.toLowerCase().includes(q) ||
-        t.date.includes(q),
-    );
-  }, [filter, search]);
+    return MOCK_TASKS_LIST.filter((t) => {
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'open' && !(t.workflowStatus === 'open' || t.workflowStatus === 'not_started')) return false;
+        if (statusFilter === 'in_progress' && t.workflowStatus !== 'in_progress') return false;
+        if (statusFilter === 'completed' && !(t.workflowStatus === 'completed' || t.workflowStatus === 'cancelled')) return false;
+      }
+      if (kindFilter !== 'all' && t.taskKind !== kindFilter) return false;
+      if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false;
+      if (!inDateRange(t.dueDate, dateFrom, dateTo)) return false;
+      const q = search.trim().toLowerCase();
+      if (q && !(t.title.toLowerCase().includes(q) || TASK_KIND_LABELS[t.taskKind].toLowerCase().includes(q) || t.dueDate.includes(q))) return false;
+      return true;
+    });
+  }, [statusFilter, kindFilter, priorityFilter, dateFrom, dateTo, search]);
+
+  const resetFilters = useCallback(() => {
+    setKindFilter('all');
+    setPriorityFilter('all');
+    setDateFrom('');
+    setDateTo('');
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>
-      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש לפי תיאור, קטגוריה או תאריך..." />
-      <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
+      <TabSearchField
+        value={search}
+        onChangeText={setSearch}
+        placeholder="חיפוש לפי כותרת, קטגוריה..."
+        onFilterPress={() => setSheetOpen(true)}
+        activeFilterCount={activeFilterCount}
+      />
+      <FilterRow options={statusOptions} active={statusFilter} onSelect={setStatusFilter} />
+      <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
@@ -649,23 +806,41 @@ function TasksTab({ entityId }: { entityId: string }) {
         contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
         ListEmptyComponent={
-          <EmptyState title="אין קריאות שירות" icon={<MaterialCommunityIcons name="hammer-wrench" size={28} color={Colors.primary} />} />
+          <EmptyState title="אין משימות" icon={<MaterialCommunityIcons name="hammer-wrench" size={28} color={Colors.primary} />} />
         }
         renderItem={({ item }) => (
-          <Card>
-            <View style={listStyles.row}>
-              <View style={{ flex: 1, gap: Spacing.xs }}>
-                <AppText variant="bodyMd" weight="bold">{item.description}</AppText>
-                <View style={listStyles.rowGap}>
-                  <MaterialCommunityIcons name="tag-outline" size={13} color={Colors.onSurfaceVariant} />
-                  <AppText variant="bodySm" color="variant">{item.category}</AppText>
-                  <AppText variant="bodySm" color="muted">·</AppText>
-                  <AppText variant="bodySm" color="muted">{item.date}</AppText>
+          <Pressable
+            onPress={() => router.push(`/(app)/tasks/${item.id}`)}
+            style={({ pressed }) => [{ opacity: pressed ? 0.88 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`פתח משימה: ${item.title}`}
+          >
+            <Card>
+              <View style={listStyles.row}>
+                <View style={listStyles.taskIconWrap}>
+                  <MaterialCommunityIcons
+                    name={TASK_KIND_ICONS[item.taskKind] as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
+                    size={18}
+                    color={Colors.primary}
+                  />
+                </View>
+                <View style={{ flex: 1, gap: Spacing.xs }}>
+                  <AppText variant="bodyMd" weight="bold" numberOfLines={2}>{item.title}</AppText>
+                  <View style={listStyles.rowGap}>
+                    <MaterialCommunityIcons name="tag-outline" size={13} color={Colors.onSurfaceVariant} />
+                    <AppText variant="bodySm" color="variant">{TASK_KIND_LABELS[item.taskKind]}</AppText>
+                    <AppText variant="bodySm" color="muted">·</AppText>
+                    <MaterialCommunityIcons name="calendar-outline" size={13} color={Colors.onSurfaceMuted} />
+                    <AppText variant="bodySm" color="muted">{item.dueDate}</AppText>
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: Spacing.xs }}>
+                  <Badge label={WORKFLOW_STATUS_LABELS[item.workflowStatus]} preset={taskStatusPreset(item.workflowStatus)} />
+                  <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} />
                 </View>
               </View>
-              <Badge label={taskStatusLabel(item.status)} preset={taskStatusPreset(item.status)} />
-            </View>
-          </Card>
+            </Card>
+          </Pressable>
         )}
       />
       <TabFab
@@ -675,7 +850,7 @@ function TasksTab({ entityId }: { entityId: string }) {
             params: { contextEntityId: entityId },
           })
         }
-        accessibilityLabel="קריאת שירות חדשה"
+        accessibilityLabel="משימה חדשה"
       />
     </View>
   );
@@ -684,31 +859,85 @@ function TasksTab({ entityId }: { entityId: string }) {
 // ─── Tab: Documents ───────────────────────────────────────────────────────────
 
 function DocumentsTab({ entityId }: { entityId: string }) {
-  const filterOptions = [
-    { key: 'all' as const, label: 'הכל' },
-    { key: 'חוזה' as const, label: 'חוזים' },
-    { key: 'נזקים' as const, label: 'נזקים' },
-    { key: 'רשויות' as const, label: 'רשויות' },
+  const catOptions = [
+    { key: 'all', label: 'הכל' },
+    { key: 'חוזה', label: 'חוזים' },
+    { key: 'נזקים', label: 'נזקים' },
+    { key: 'רשויות', label: 'רשויות' },
   ];
-  const [filter, setFilter] = useState<string>('all');
+  const typeOptions = [
+    { key: 'all', label: 'הכל' },
+    { key: 'pdf', label: 'PDF' },
+    { key: 'image', label: 'תמונה' },
+  ];
+
+  const [catFilter, setCatFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [checkedDocs, setCheckedDocs] = useState<Record<string, boolean>>({});
   const [showChecklist, setShowChecklist] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [menuDoc, setMenuDoc] = useState<(typeof MOCK_DOCS)[0] | null>(null);
+
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (typeFilter !== 'all') n++;
+    if (dateFrom) n++;
+    if (dateTo) n++;
+    return n;
+  }, [typeFilter, dateFrom, dateTo]);
+
+  const filterSections: FilterSection[] = useMemo(() => [
+    {
+      kind: 'chips',
+      label: 'סוג קובץ',
+      options: typeOptions,
+      value: typeFilter,
+      onChange: setTypeFilter,
+    },
+    {
+      kind: 'dateRange',
+      label: 'תאריך העלאה',
+      from: dateFrom,
+      to: dateTo,
+      onFromChange: setDateFrom,
+      onToChange: setDateTo,
+    },
+  ], [typeFilter, dateFrom, dateTo]);
+
+  const resetFilters = useCallback(() => {
+    setTypeFilter('all');
+    setDateFrom('');
+    setDateTo('');
+  }, []);
 
   const filtered = useMemo(() => {
-    const byCat = filter === 'all' ? MOCK_DOCS : MOCK_DOCS.filter((d) => d.category === filter);
-    const q = search.trim().toLowerCase();
-    if (!q) return byCat;
-    return byCat.filter((d) => d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q));
-  }, [filter, search]);
+    return MOCK_DOCS.filter((d) => {
+      if (catFilter !== 'all' && d.category !== catFilter) return false;
+      if (typeFilter !== 'all' && d.kind !== typeFilter) return false;
+      if (!inDateRange(d.uploadDate, dateFrom, dateTo)) return false;
+      const q = search.trim().toLowerCase();
+      if (q && !(d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [catFilter, typeFilter, dateFrom, dateTo, search]);
 
   const toggleDoc = (name: string) =>
     setCheckedDocs((prev) => ({ ...prev, [name]: !prev[name] }));
 
   return (
     <View style={{ flex: 1 }}>
-      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש מסמכים..." />
-      <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
+      <TabSearchField
+        value={search}
+        onChangeText={setSearch}
+        placeholder="חיפוש מסמכים..."
+        onFilterPress={() => setSheetOpen(true)}
+        activeFilterCount={activeFilterCount}
+      />
+      <FilterRow options={catOptions} active={catFilter} onSelect={setCatFilter} />
+      <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <ScrollView contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]} showsVerticalScrollIndicator={false}>
         {/* Recommended checklist toggle */}
         <Pressable
@@ -753,6 +982,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
         )}
 
         {/* Document list */}
+        {filtered.length === 0 && <InlineEmpty text="אין מסמכים להצגה" />}
         {filtered.map((doc, i) => (
           <View key={doc.id} style={[listStyles.docRow, i > 0 && { marginTop: Spacing.md }]}>
             <View style={[listStyles.docIcon, { backgroundColor: doc.kind === 'pdf' ? Colors.errorContainer : Colors.infoContainer }]}>
@@ -766,24 +996,14 @@ function DocumentsTab({ entityId }: { entityId: string }) {
               <AppText variant="bodyMd" weight="semiBold" numberOfLines={2}>{doc.name}</AppText>
               <AppText variant="bodySm" color="muted">{doc.category} · {doc.uploadDate}</AppText>
             </View>
-            <View style={listStyles.iconActions}>
-              <Pressable
-                onPress={() => Alert.alert('בקרוב', 'צפייה במסמך')}
-                style={listStyles.iconBtn}
-                accessibilityRole="button"
-                accessibilityLabel="צפה"
-              >
-                <MaterialCommunityIcons name="eye-outline" size={20} color={Colors.primary} />
-              </Pressable>
-              <Pressable
-                onPress={() => router.push(`/(app)/documents/edit/${doc.id}`)}
-                style={listStyles.iconBtn}
-                accessibilityRole="button"
-                accessibilityLabel="ערוך"
-              >
-                <MaterialCommunityIcons name="pencil-outline" size={20} color={Colors.onBackground} />
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={() => setMenuDoc(doc)}
+              style={listStyles.iconBtn}
+              accessibilityRole="button"
+              accessibilityLabel="פעולות"
+            >
+              <MaterialCommunityIcons name="dots-vertical" size={22} color={Colors.onSurfaceVariant} />
+            </Pressable>
           </View>
         ))}
       </ScrollView>
@@ -796,6 +1016,52 @@ function DocumentsTab({ entityId }: { entityId: string }) {
         }
         accessibilityLabel="העלאת מסמך חדש"
       />
+
+      <Modal visible={!!menuDoc} transparent animationType="slide" onRequestClose={() => setMenuDoc(null)}>
+        <Pressable style={listStyles.menuBackdrop} onPress={() => setMenuDoc(null)}>
+          <Pressable style={listStyles.menuSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={listStyles.menuHandle} />
+            {menuDoc && (
+              <AppText variant="labelMd" weight="bold" numberOfLines={1} style={listStyles.menuTitle}>
+                {menuDoc.name}
+              </AppText>
+            )}
+            {[
+              {
+                icon: 'eye-outline' as const,
+                label: 'צפייה',
+                color: Colors.primary,
+                onPress: () => { Alert.alert('בקרוב', 'צפייה במסמך'); setMenuDoc(null); },
+              },
+              {
+                icon: 'share-variant-outline' as const,
+                label: 'שיתוף',
+                color: Colors.onBackground,
+                onPress: () => {
+                  if (menuDoc) Share.share({ title: menuDoc.name, message: `${menuDoc.name}\nקטגוריה: ${menuDoc.category}\nתאריך: ${menuDoc.uploadDate}` });
+                  setMenuDoc(null);
+                },
+              },
+              {
+                icon: 'pencil-outline' as const,
+                label: 'עריכה',
+                color: Colors.onBackground,
+                onPress: () => { if (menuDoc) router.push(`/(app)/documents/edit/${menuDoc.id}`); setMenuDoc(null); },
+              },
+            ].map((action) => (
+              <Pressable key={action.label} onPress={action.onPress} style={({ pressed }) => [listStyles.menuAction, pressed && { opacity: 0.7 }]}>
+                <MaterialCommunityIcons name={action.icon} size={22} color={action.color} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: action.color }}>
+                  {action.label}
+                </AppText>
+              </Pressable>
+            ))}
+            <Pressable onPress={() => setMenuDoc(null)} style={[listStyles.menuAction, { marginTop: Spacing.sm, justifyContent: 'center', borderBottomWidth: 0 }]}>
+              <AppText variant="bodyMd" color="variant" align="center">ביטול</AppText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -803,29 +1069,61 @@ function DocumentsTab({ entityId }: { entityId: string }) {
 // ─── Tab: Payments ────────────────────────────────────────────────────────────
 
 function PaymentsTab({ entityId }: { entityId: string }) {
-  const filterOptions = [
+  const dirOptions = [
     { key: 'all' as const, label: 'הכל' },
     { key: 'inbound' as const, label: 'הכנסות' },
     { key: 'outbound' as const, label: 'הוצאות' },
   ];
-  const [filter, setFilter] = useState<'all' | 'inbound' | 'outbound'>('all');
+  const [dirFilter, setDirFilter] = useState<'all' | 'inbound' | 'outbound'>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (dateFrom) n++;
+    if (dateTo) n++;
+    return n;
+  }, [dateFrom, dateTo]);
+
+  const filterSections: FilterSection[] = useMemo(() => [
+    {
+      kind: 'dateRange',
+      label: 'טווח תאריך תשלום',
+      from: dateFrom,
+      to: dateTo,
+      onFromChange: setDateFrom,
+      onToChange: setDateTo,
+    },
+  ], [dateFrom, dateTo]);
+
+  const resetFilters = useCallback(() => {
+    setDateFrom('');
+    setDateTo('');
+  }, []);
+
   const filtered = useMemo(() => {
-    const byDir = MOCK_PAYMENTS.filter((p) => filter === 'all' || p.direction === filter);
-    const q = search.trim().toLowerCase();
-    if (!q) return byDir;
-    return byDir.filter(
-      (p) =>
-        p.category.toLowerCase().includes(q) ||
-        p.date.includes(q) ||
-        String(p.amount).includes(q),
-    );
-  }, [filter, search]);
+    return MOCK_PAYMENTS.filter((p) => {
+      if (dirFilter !== 'all' && p.direction !== dirFilter) return false;
+      if (!inDateRange(p.date, dateFrom, dateTo)) return false;
+      const q = search.trim().toLowerCase();
+      if (q && !(p.category.toLowerCase().includes(q) || p.date.includes(q) || String(p.amount).includes(q))) return false;
+      return true;
+    });
+  }, [dirFilter, dateFrom, dateTo, search]);
 
   return (
     <View style={{ flex: 1 }}>
-      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש תשלומים..." />
-      <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
+      <TabSearchField
+        value={search}
+        onChangeText={setSearch}
+        placeholder="חיפוש תשלומים..."
+        onFilterPress={() => setSheetOpen(true)}
+        activeFilterCount={activeFilterCount}
+      />
+      <FilterRow options={dirOptions} active={dirFilter} onSelect={setDirFilter} />
+      <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <View style={[listStyles.content, { paddingBottom: 80 }]}>
         {/* Table header */}
         <View style={[listStyles.tableRow, listStyles.tableHeader]}>
@@ -834,6 +1132,7 @@ function PaymentsTab({ entityId }: { entityId: string }) {
           <AppText variant="labelSm" weight="semiBold" style={listStyles.colCat}>קטגוריה</AppText>
           <AppText variant="labelSm" weight="semiBold" style={listStyles.colAmt}>סכום</AppText>
         </View>
+        {filtered.length === 0 && <InlineEmpty text="אין תשלומים להצגה" />}
         {filtered.map((p) => {
           const inbound = p.direction === 'inbound';
           const color = inbound ? Colors.inbound : Colors.outbound;
@@ -960,6 +1259,7 @@ const listStyles = StyleSheet.create({
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: 0, paddingTop: Spacing.base },
   row: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md },
   rowGap: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.xs },
+  taskIconWrap: { width: 36, height: 36, borderRadius: Radius.md, backgroundColor: Colors.primaryContainer, alignItems: 'center', justifyContent: 'center' },
   divider: { height: 1, backgroundColor: Colors.outlineLight, marginVertical: Spacing.sm },
 
   // Feed
@@ -990,6 +1290,39 @@ const listStyles = StyleSheet.create({
   docIcon: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   iconActions: { flexDirection: RTL_ROW, alignItems: 'center', gap: 4 },
   iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.md },
+  menuBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  menuSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xl,
+    ...Shadow.lg,
+  },
+  menuHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  menuTitle: {
+    textAlign: 'right',
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  menuAction: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
 
   // Checklist
   checklistHeader: {

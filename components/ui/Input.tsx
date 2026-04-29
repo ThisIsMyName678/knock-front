@@ -13,6 +13,7 @@ import { RTL_ROW } from '@/constants/rtl';
 
 type Props = TextInputProps & {
   label?: string;
+  required?: boolean;
   hint?: string;
   error?: string;
   icon?: React.ReactNode;
@@ -23,6 +24,7 @@ type Props = TextInputProps & {
 
 export function Input({
   label,
+  required,
   hint,
   error,
   icon,
@@ -43,9 +45,16 @@ export function Input({
   return (
     <View style={[styles.wrapper, containerStyle]}>
       {label ? (
-        <AppText variant="labelMd" weight="semiBold" style={styles.label}>
-          {label}
-        </AppText>
+        <View style={styles.labelRow}>
+          <AppText variant="labelMd" weight="semiBold" style={styles.label}>
+            {label}
+          </AppText>
+          {required && (
+            <AppText variant="labelMd" weight="bold" style={styles.asterisk}>
+              {' '}*
+            </AppText>
+          )}
+        </View>
       ) : null}
 
       <View style={[styles.inputRow, { borderColor }]}>
@@ -86,7 +95,9 @@ export function Input({
 
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.xs },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   label: { textAlign: 'right' },
+  asterisk: { color: Colors.error },
   inputRow: {
     flexDirection: RTL_ROW,
     alignItems: 'center',

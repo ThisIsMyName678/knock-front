@@ -173,6 +173,7 @@ function FieldInput({
   multiline,
   numberOfLines,
   inputStyle,
+  error,
 }: {
   label: string;
   value: string;
@@ -184,6 +185,7 @@ function FieldInput({
   multiline?: boolean;
   numberOfLines?: number;
   inputStyle?: object;
+  error?: string;
 }) {
   return (
     <View style={fieldStyles.wrap}>
@@ -191,7 +193,7 @@ function FieldInput({
         {label}
         {required && <AppText variant="labelMd" color="error"> *</AppText>}
       </AppText>
-      <View style={[fieldStyles.row, multiline && { alignItems: 'flex-start' }]}>
+      <View style={[fieldStyles.row, multiline && { alignItems: 'flex-start' }, error ? { borderColor: Colors.error } : undefined]}>
         <TextInput
           style={[fieldStyles.input, inputStyle]}
           value={value}
@@ -210,6 +212,9 @@ function FieldInput({
           </AppText>
         )}
       </View>
+      {error ? (
+        <AppText variant="caption" color="error" style={{ textAlign: 'right' }}>{error}</AppText>
+      ) : null}
     </View>
   );
 }
@@ -495,9 +500,13 @@ const autoStyles = StyleSheet.create({
 function Step1({
   data,
   setData,
+  errors,
+  showErrors,
 }: {
   data: Step1Data;
   setData: React.Dispatch<React.SetStateAction<Step1Data>>;
+  errors?: { kind: string; name: string; address: string };
+  showErrors?: boolean;
 }) {
   const update = useCallback(
     <K extends keyof Step1Data>(key: K, val: Step1Data[K]) =>
@@ -509,9 +518,10 @@ function Step1({
     <View style={{ gap: Spacing.base }}>
       {/* Project kind */}
       <View>
-        <AppText variant="labelLg" weight="bold" style={s1.label}>
-          סוג הפרויקט *
-        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+          <AppText variant="labelLg" weight="bold" style={s1.label}>סוג הפרויקט</AppText>
+          <AppText variant="labelLg" weight="bold" style={{ color: Colors.error }}>*</AppText>
+        </View>
         <View style={s1.kindGrid}>
           {PROJECT_KINDS.map((k) => (
             <Pressable
@@ -541,6 +551,9 @@ function Step1({
             </Pressable>
           ))}
         </View>
+        {showErrors && errors?.kind ? (
+          <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{errors.kind}</AppText>
+        ) : null}
       </View>
 
       {/* Name */}
@@ -550,18 +563,23 @@ function Step1({
         onChangeText={(t) => update('name', t)}
         placeholder="לדוגמה: מגדלי הים"
         required
+        error={showErrors ? errors?.name : ''}
       />
 
       {/* Address */}
       <View style={{ gap: Spacing.xs }}>
-        <AppText variant="labelMd" weight="semiBold" style={s1.label}>
-          כתובת *
-        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+          <AppText variant="labelMd" weight="semiBold" style={s1.label}>כתובת</AppText>
+          <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+        </View>
         <AddressAutocomplete
           value={data.address}
           onChange={(t) => update('address', t)}
           onSelect={(s) => update('addressSuggestion', s)}
         />
+        {showErrors && errors?.address ? (
+          <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{errors.address}</AppText>
+        ) : null}
       </View>
 
       {/* Description */}
@@ -931,12 +949,23 @@ export default function NewProjectScreen() {
     pendingSource: null,
   });
 
-  const canAdvance =
-    step === 1
-      ? step1.kind !== null && step1.name.trim().length > 0 && step1.address.trim().length > 0
-      : true;
+  const [step1Submitted, setStep1Submitted] = useState(false);
+
+  const step1Errors = useMemo(() => ({
+    kind: step1.kind === null ? 'יש לבחור סוג פרויקט' : '',
+    name: step1.name.trim().length === 0 ? 'שדה חובה' : '',
+    address: step1.address.trim().length === 0 ? 'שדה חובה' : '',
+  }), [step1.kind, step1.name, step1.address]);
+
+  const step1Valid = Object.values(step1Errors).every((e) => !e);
 
   const handleNext = () => {
+    if (step === 1) {
+      setStep1Submitted(true);
+      if (!step1Valid) return;
+      setStep((s) => s + 1);
+      return;
+    }
     if (step < 2) {
       setStep((s) => s + 1);
       return;
@@ -979,7 +1008,7 @@ export default function NewProjectScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {step === 1 && <Step1 data={step1} setData={setStep1} />}
+        {step === 1 && <Step1 data={step1} setData={setStep1} errors={step1Errors} showErrors={step1Submitted} />}
         {step === 2 && <Step2 data={step2} setData={setStep2} />}
       </ScrollView>
 
@@ -999,7 +1028,6 @@ export default function NewProjectScreen() {
         <Button
           label={step === 2 ? 'סיום' : 'הבא'}
           onPress={handleNext}
-          disabled={!canAdvance}
           style={wizardStyles.footerPrimary}
           variant="primary"
         />

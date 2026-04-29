@@ -767,7 +767,7 @@ const projSearchStyles = StyleSheet.create({
 
 // ─── Step 1 ───────────────────────────────────────────────────────────────────
 
-function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<React.SetStateAction<Step1Data>> }) {
+function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData: React.Dispatch<React.SetStateAction<Step1Data>>; errors?: { kind: string; address: string }; showErrors?: boolean }) {
   const update = useCallback(<K extends keyof Step1Data>(key: K, val: Step1Data[K]) => {
     setData((prev) => ({ ...prev, [key]: val }));
   }, [setData]);
@@ -802,7 +802,10 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
     <View style={{ gap: Spacing.base }}>
       {/* Asset kind */}
       <View>
-        <AppText variant="labelLg" weight="bold" style={s1.label}>סוג הנכס *</AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+          <AppText variant="labelLg" weight="bold" style={s1.label}>סוג הנכס</AppText>
+          <AppText variant="labelLg" weight="bold" style={{ color: Colors.error }}>*</AppText>
+        </View>
         <View style={s1.kindRow}>
           {ASSET_KINDS.map((k) => (
             <Pressable
@@ -819,16 +822,25 @@ function Step1({ data, setData }: { data: Step1Data; setData: React.Dispatch<Rea
             </Pressable>
           ))}
         </View>
+        {showErrors && errors?.kind ? (
+          <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{errors.kind}</AppText>
+        ) : null}
       </View>
 
       {/* Address */}
       <View style={{ gap: Spacing.xs }}>
-        <AppText variant="labelMd" weight="semiBold" style={s1.label}>כתובת *</AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+          <AppText variant="labelMd" weight="semiBold" style={s1.label}>כתובת</AppText>
+          <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+        </View>
         <AddressAutocomplete
           value={data.address}
           onChange={(t) => update('address', t)}
           onSelect={(s) => update('addressSuggestion', s)}
         />
+        {showErrors && errors?.address ? (
+          <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{errors.address}</AppText>
+        ) : null}
       </View>
 
       {/* Apartment number */}
@@ -1504,9 +1516,20 @@ export default function NewAssetScreen() {
     contractSearch: '',
   });
 
-  const canAdvance = step === 1 ? !!step1.kind && step1.address.trim().length > 0 : true;
+  const [step1Submitted, setStep1Submitted] = useState(false);
+
+  const step1Errors = useMemo(() => ({
+    kind: !step1.kind ? 'יש לבחור סוג נכס' : '',
+    address: step1.address.trim().length === 0 ? 'שדה חובה' : '',
+  }), [step1.kind, step1.address]);
+
+  const step1Valid = Object.values(step1Errors).every((e) => !e);
 
   const handleNext = () => {
+    if (step === 1) {
+      setStep1Submitted(true);
+      if (!step1Valid) return;
+    }
     if (step < 3) { setStep((s) => s + 1); return; }
     router.replace('/(app)/assets-screens');
   };
@@ -1537,7 +1560,7 @@ export default function NewAssetScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {step === 1 && <Step1 data={step1} setData={setStep1} />}
+        {step === 1 && <Step1 data={step1} setData={setStep1} errors={step1Errors} showErrors={step1Submitted} />}
         {step === 2 && <Step2 data={step2} setData={setStep2} />}
         {step === 3 && <Step3 data={step3} setData={setStep3} step1Address={step1.address} />}
       </ScrollView>

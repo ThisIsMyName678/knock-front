@@ -123,15 +123,34 @@ function reminderOffsetLabel(days: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetailMock } = {}) {
+type PreloadedLink = { id: string; name: string; address: string; kind: 'asset' | 'project' };
+
+export function PaymentCreateForm({
+  initialData,
+  preloadedLink,
+  preloadedContractId,
+  preloadedContractName,
+}: {
+  initialData?: PaymentDetailMock;
+  preloadedLink?: PreloadedLink;
+  preloadedContractId?: string;
+  preloadedContractName?: string;
+} = {}) {
   const insets = useSafeAreaInsets();
 
   const [paymentName, setPaymentName] = useState(() => initialData?.displayName ?? '');
   const [direction, setDirection] = useState<'in' | 'out'>(() => initialData?.direction === 'inbound' ? 'in' : 'out');
-  const [linkQuery, setLinkQuery] = useState(() => initialData?.linkLabel ?? '');
-  const [linkSelected, setLinkSelected] = useState<(typeof PAYMENT_ENTITY_OPTIONS)[0] | null>(() =>
-    initialData ? (PAYMENT_ENTITY_OPTIONS.find((e) => e.id === initialData.linkId) ?? null) : null,
-  );
+  const [linkQuery, setLinkQuery] = useState(() => {
+    if (preloadedLink) return `${preloadedLink.name}${preloadedLink.address ? ', ' + preloadedLink.address : ''}`;
+    return initialData?.linkLabel ?? '';
+  });
+  const [linkSelected, setLinkSelected] = useState<(typeof PAYMENT_ENTITY_OPTIONS)[0] | null>(() => {
+    if (preloadedLink) {
+      const found = PAYMENT_ENTITY_OPTIONS.find((e) => e.id === preloadedLink.id);
+      return found ?? { id: preloadedLink.id, name: preloadedLink.name, address: preloadedLink.address, kind: preloadedLink.kind };
+    }
+    return initialData ? (PAYMENT_ENTITY_OPTIONS.find((e) => e.id === initialData.linkId) ?? null) : null;
+  });
   const [showSuggest, setShowSuggest] = useState(false);
 
   // Modals
@@ -141,7 +160,7 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
   const [datePickerTarget, setDatePickerTarget] = useState<'due' | 'row' | 'guaranteeEnd' | null>(null);
   const [datePickerRowId, setDatePickerRowId] = useState<string | null>(null);
 
-  const [contractId, setContractId] = useState<string | null>(null);
+  const [contractId, setContractId] = useState<string | null>(() => preloadedContractId ?? null);
   const [paymentType, setPaymentType] = useState<PaymentTypeKey>(() => initialData?.paymentType ?? 'rent');
   const [maintenanceCallId, setMaintenanceCallId] = useState<string | null>(null);
   const [amountExVat, setAmountExVat] = useState(() => initialData?.amountNet ? String(initialData.amountNet) : '');
@@ -298,7 +317,25 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
     ]);
   };
 
-  const valid = paymentName.trim().length > 0 && linkSelected !== null;
+  const [submitted, setSubmitted] = useState(false);
+
+  const errors = useMemo(() => ({
+    paymentName: paymentName.trim().length === 0 ? 'שדה חובה' : '',
+    linkSelected: !linkSelected ? 'יש לבחור נכס או פרויקט' : '',
+    amount: !amountExVat && !amountIncVat ? 'יש להזין סכום' : '',
+  }), [paymentName, linkSelected, amountExVat, amountIncVat]);
+
+  const hasErrors = Object.values(errors).some(Boolean);
+
+  const handleSave = () => {
+    setSubmitted(true);
+    if (hasErrors) return;
+    if (preloadedContractId) {
+      router.replace('/(app)/contracts' as const);
+    } else {
+      router.back();
+    }
+  };
 
   // Current date picker value
   const currentDatePickerValue = datePickerTarget === 'due'
@@ -327,8 +364,24 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {preloadedContractId && (
+            <View style={styles.contractBanner}>
+              <MaterialCommunityIcons name="file-document-outline" size={18} color={Colors.primary} />
+              <AppText variant="bodySm" color="primary" style={{ flex: 1, textAlign: 'right' }}>
+                מקושר לחוזה: {preloadedContractName || preloadedContractId}
+              </AppText>
+            </View>
+          )}
+
           {/* ─── שם תשלום ─── */}
-          <Input label="שם תשלום" value={paymentName} onChangeText={setPaymentName} containerStyle={{ marginBottom: Spacing.md }} />
+          <Input
+            label="שם תשלום"
+            required
+            value={paymentName}
+            onChangeText={setPaymentName}
+            error={submitted ? errors.paymentName : ''}
+            containerStyle={{ marginBottom: Spacing.md }}
+          />
 
           {/* ─── כיוון ─── */}
           <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>כיוון</AppText>
@@ -348,11 +401,12 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
           </View>
 
           {/* ─── שיוך לנכס ─── */}
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-            שיוך לנכס / פרויקט (חובה)
-          </AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+            <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>שיוך לנכס / פרויקט</AppText>
+            <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+          </View>
           <TextInput
-            style={styles.entityInput}
+            style={[styles.entityInput, submitted && errors.linkSelected ? { borderColor: Colors.error } : undefined]}
             placeholder="חיפוש..."
             placeholderTextColor={Colors.onSurfaceMuted}
             value={linkQuery}
@@ -390,6 +444,9 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
               ))}
             </View>
           )}
+          {submitted && errors.linkSelected ? (
+            <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{errors.linkSelected}</AppText>
+          ) : null}
 
           {/* ─── שיוך לחוזה ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
@@ -439,7 +496,13 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
           )}
 
           {/* ─── סכומים ומע״מ ─── */}
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>סכומים ומע״מ</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+            <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>סכומים ומע״מ</AppText>
+            <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+          </View>
+          {submitted && errors.amount ? (
+            <AppText variant="caption" color="error" style={{ textAlign: 'right', marginBottom: Spacing.xs }}>{errors.amount}</AppText>
+          ) : null}
           <AmountField
             label="סכום ללא מע״מ (₪)"
             value={amountExVat}
@@ -837,7 +900,7 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
-          <Button label="שמור תשלום" onPress={() => valid && router.back()} disabled={!valid} fullWidth size="lg" />
+          <Button label="שמור תשלום" onPress={handleSave} fullWidth size="lg" />
         </View>
       </View>
 
@@ -916,6 +979,15 @@ export function PaymentCreateForm({ initialData }: { initialData?: PaymentDetail
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base },
+  contractBanner: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primaryContainer,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
   sectionLabel: { textAlign: 'right', marginBottom: Spacing.sm, color: Colors.onBackground },
   hintRow: {
     flexDirection: RTL_ROW,

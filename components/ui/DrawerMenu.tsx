@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, Pressable, Modal, ScrollView, Alert, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -7,12 +7,21 @@ import { AppText } from './Text';
 import { Colors, Spacing, Radius, Shadow, FontFamily, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
+// ─── Mock user data (matches Dashboard) ───────────────────────────────────────
+
+const MOCK_USER = {
+  name: 'ניר',
+  role: 'מנהל נכסים',
+  email: 'manager@knocknock.co.il',
+};
+
+// ─── Nav items ────────────────────────────────────────────────────────────────
+
 type NavItem = {
   label: string;
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   route?: string;
   onPress?: () => void;
-  danger?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -26,16 +35,19 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const ACCOUNT_ITEMS: NavItem[] = [
-  { label: 'פרופיל', icon: 'account-edit-outline', route: '/(app)/settings' },
-  { label: 'הגדרות חשבון', icon: 'cog-outline', route: '/(app)/settings' },
+  { label: 'פרופיל והגדרות', icon: 'account-edit-outline', route: '/(app)/settings' },
+  { label: 'מסלולי מנוי', icon: 'crown-outline', route: '/(app)/subscription' },
   { label: 'ייבוא נתונים', icon: 'database-import-outline', onPress: () => Alert.alert('ייבוא נתונים', 'פונקציית ייבוא נתונים בקרוב') },
+  { label: 'עזרה ותמיכה', icon: 'lifebuoy', route: '/(app)/settings/help' },
 ];
 
-const INFO_ITEMS: NavItem[] = [
-  { label: 'מדיניות פרטיות', icon: 'shield-outline', route: '/(app)/settings/privacy' },
-  { label: 'תקנון שימוש', icon: 'file-document-outline', route: '/(app)/settings/terms' },
-  { label: 'יצירת קשר', icon: 'lifebuoy', route: '/(app)/settings/contact' },
+const INFO_LINKS = [
+  { label: 'מדיניות פרטיות', route: '/(app)/settings/privacy' },
+  { label: 'תקנון שימוש', route: '/(app)/settings/terms' },
+  { label: 'יצירת קשר', route: '/(app)/settings/contact' },
 ];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 type Props = {
   visible: boolean;
@@ -44,6 +56,7 @@ type Props = {
 
 export function DrawerMenu({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const navigate = useCallback(
     (item: NavItem) => {
@@ -64,7 +77,6 @@ export function DrawerMenu({ visible, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalRoot}>
-        {/* Full-screen dim tap — does not participate in RTL flex mirroring */}
         <Pressable style={styles.backdropFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="סגור תפריט" />
         <View
           style={[
@@ -72,25 +84,27 @@ export function DrawerMenu({ visible, onClose }: Props) {
             {
               width: panelWidth,
               paddingTop: insets.top,
-              paddingBottom: insets.bottom + Spacing.lg,
             },
           ]}
         >
-          {/* Header */}
+          {/* ── Header ── */}
           <View style={styles.panelHeader}>
             <View style={styles.avatar}>
               <MaterialCommunityIcons name="account-circle" size={44} color={Colors.onPrimary} />
             </View>
             <View style={{ flex: 1 }}>
-              <AppText variant="headingSm" weight="bold" color="onPrimary">מנהל נכסים</AppText>
-              <AppText variant="caption" color="onPrimary" style={{ opacity: 0.8 }}>manager@knocknock.co.il</AppText>
+              <AppText variant="headingSm" weight="bold" color="onPrimary">{MOCK_USER.name}</AppText>
+              <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>{MOCK_USER.role}</AppText>
+              <AppText variant="caption" color="onPrimary" style={{ opacity: 0.65 }}>{MOCK_USER.email}</AppText>
             </View>
             <Pressable onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="סגור תפריט">
               <MaterialCommunityIcons name="close" size={22} color={Colors.onPrimary} />
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+          {/* ── Scrollable body ── */}
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+
             {/* Navigation */}
             <AppText variant="labelSm" weight="semiBold" style={styles.sectionLabel}>ניווט</AppText>
             <View style={styles.sectionCard}>
@@ -98,66 +112,83 @@ export function DrawerMenu({ visible, onClose }: Props) {
                 <Pressable
                   key={item.label}
                   onPress={() => navigate(item)}
-                  style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: Colors.surfaceVariant }, i < NAV_ITEMS.length - 1 && styles.rowBorder]}
+                  style={({ pressed }) => [
+                    styles.menuRow,
+                    pressed && { backgroundColor: Colors.surfaceVariant },
+                    i < NAV_ITEMS.length - 1 && styles.rowBorder,
+                  ]}
                   accessibilityRole="button"
                 >
                   <MaterialCommunityIcons name={item.icon} size={20} color={Colors.primary} />
-                  <AppText variant="bodyMd" style={{ flex: 1, fontFamily: FontFamily.regular, textAlign: 'right' }}>{item.label}</AppText>
+                  <AppText variant="bodyMd" style={styles.rowLabel}>{item.label}</AppText>
                   <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} />
                 </Pressable>
               ))}
             </View>
 
-            {/* Account */}
+            {/* Account — collapsible */}
             <AppText variant="labelSm" weight="semiBold" style={styles.sectionLabel}>חשבון</AppText>
             <View style={styles.sectionCard}>
-              {ACCOUNT_ITEMS.map((item, i) => (
-                <Pressable
-                  key={item.label}
-                  onPress={() => navigate(item)}
-                  style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: Colors.surfaceVariant }, i < ACCOUNT_ITEMS.length - 1 && styles.rowBorder]}
-                  accessibilityRole="button"
-                >
-                  <MaterialCommunityIcons name={item.icon} size={20} color={Colors.primary} />
-                  <AppText variant="bodyMd" style={{ flex: 1, fontFamily: FontFamily.regular, textAlign: 'right' }}>{item.label}</AppText>
-                  <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} />
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Info */}
-            <AppText variant="labelSm" weight="semiBold" style={styles.sectionLabel}>מידע</AppText>
-            <View style={styles.sectionCard}>
-              {INFO_ITEMS.map((item, i) => (
-                <Pressable
-                  key={item.label}
-                  onPress={() => navigate(item)}
-                  style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: Colors.surfaceVariant }, i < INFO_ITEMS.length - 1 && styles.rowBorder]}
-                  accessibilityRole="button"
-                >
-                  <MaterialCommunityIcons name={item.icon} size={20} color={Colors.primary} />
-                  <AppText variant="bodyMd" style={{ flex: 1, fontFamily: FontFamily.regular, textAlign: 'right' }}>{item.label}</AppText>
-                  <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} />
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Logout */}
-            <View style={[styles.sectionCard, { marginTop: Spacing.sm }]}>
+              {/* Toggle row */}
               <Pressable
-                onPress={() => { onClose(); Alert.alert('התנתקות', 'האם אתה בטוח?'); }}
+                onPress={() => setAccountOpen((v) => !v)}
                 style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: Colors.surfaceVariant }]}
                 accessibilityRole="button"
+                accessibilityState={{ expanded: accountOpen }}
               >
-                <MaterialCommunityIcons name="logout" size={20} color={Colors.error} />
-                <AppText variant="bodyMd" style={{ flex: 1, fontFamily: FontFamily.regular, textAlign: 'right', color: Colors.error }}>התנתקות</AppText>
+                <MaterialCommunityIcons name="account-cog-outline" size={20} color={Colors.primary} />
+                <AppText variant="bodyMd" style={styles.rowLabel}>ניהול חשבון</AppText>
+                <MaterialCommunityIcons
+                  name={accountOpen ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={Colors.onSurfaceMuted}
+                />
               </Pressable>
+
+              {/* Expanded items */}
+              {accountOpen && (
+                <View style={styles.dropdownBody}>
+                  {ACCOUNT_ITEMS.map((item, i) => (
+                    <Pressable
+                      key={item.label}
+                      onPress={() => navigate(item)}
+                      style={({ pressed }) => [
+                        styles.dropdownRow,
+                        pressed && { backgroundColor: Colors.surfaceVariant },
+                        i < ACCOUNT_ITEMS.length - 1 && styles.rowBorder,
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <MaterialCommunityIcons name={item.icon} size={18} color={Colors.primary} style={{ opacity: 0.85 }} />
+                      <AppText variant="bodyMd" style={styles.rowLabel}>{item.label}</AppText>
+                      <MaterialCommunityIcons name="chevron-left" size={14} color={Colors.onSurfaceMuted} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
 
-            <AppText variant="caption" color="muted" style={{ textAlign: 'center', marginTop: Spacing.xl }}>
+          </ScrollView>
+
+          {/* ── Footer: info text links + version ── */}
+          <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
+            <View style={styles.footerLinks}>
+              {INFO_LINKS.map((link, i) => (
+                <React.Fragment key={link.label}>
+                  {i > 0 && <AppText variant="caption" color="muted">·</AppText>}
+                  <Pressable
+                    onPress={() => { onClose(); setTimeout(() => router.push(link.route as any), 150); }}
+                    accessibilityRole="link"
+                  >
+                    <AppText variant="caption" style={styles.footerLink}>{link.label}</AppText>
+                  </Pressable>
+                </React.Fragment>
+              ))}
+            </View>
+            <AppText variant="caption" color="muted" style={{ textAlign: 'center' }}>
               גרסה 1.0.0 · Knock
             </AppText>
-          </ScrollView>
+          </View>
         </View>
       </View>
     </Modal>
@@ -169,7 +200,6 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  /** Physical edges are not flipped by RTL — drawer stays on the right like web */
   backdropFill: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -208,6 +238,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scrollContent: {
+    paddingBottom: Spacing.md,
+  },
   sectionLabel: {
     textAlign: 'right',
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
@@ -230,5 +263,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.md,
   },
+  rowLabel: {
+    flex: 1,
+    fontFamily: FontFamily.regular,
+    textAlign: 'right',
+  },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
+  dropdownBody: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineLight,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  dropdownRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm + 2,
+    paddingRight: Spacing.base + Spacing.lg,
+  },
+  footer: {
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineLight,
+    gap: Spacing.xs,
+    backgroundColor: Colors.background,
+  },
+  footerLinks: {
+    flexDirection: RTL_ROW,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  footerLink: {
+    color: Colors.primary,
+    textDecorationLine: 'underline',
+  },
 });

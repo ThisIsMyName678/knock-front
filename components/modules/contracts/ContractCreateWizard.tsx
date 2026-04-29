@@ -18,6 +18,7 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { Badge } from '@/components/ui/Badge';
 import {
   CONTRACT_TYPE_LABELS,
@@ -30,6 +31,7 @@ import {
   type EntityLinkOption,
   type ContractAccessLevel,
 } from '@/lib/mocks/contracts';
+import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
   Colors,
   Spacing,
@@ -42,16 +44,9 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
-const STEPS = ['פרטי חוזה', 'תשלומים', 'תיעוד מונים', 'העלאת קבצים'] as const;
+const STEPS = ['פרטי חוזה', 'מחיר', 'תיעוד תשלום', 'תיעוד מונים', 'העלאת קבצים'] as const;
 
 const CONTRACT_TYPES: ContractTypeKey[] = ['rent', 'purchase', 'supplier_work', 'other'];
-
-const PAYMENT_TYPES = [
-  { key: 'rent', label: 'שכירות', icon: 'home-outline' as const },
-  { key: 'maintenance', label: 'תחזוקה', icon: 'hammer-wrench' as const },
-  { key: 'management', label: 'ניהול', icon: 'office-building-outline' as const },
-  { key: 'other', label: 'אחר', icon: 'dots-horizontal' as const },
-];
 
 const METER_KINDS = [
   { key: 'electric', label: 'חשמל' },
@@ -80,9 +75,7 @@ const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['owner_only', 'tenant_only', 
 type PaymentDraft = {
   id: string;
   direction: 'in' | 'out';
-  categoryKey: string;
   amount: string;
-  date: string;
   notes: string;
 };
 
@@ -145,17 +138,18 @@ export function ContractCreateWizard({
   const [reminderUnit, setReminderUnit] = useState<'days' | 'weeks' | 'months'>('days');
   const [reminderAmount, setReminderAmount] = useState('30');
   const [contractAccess, setContractAccess] = useState<ContractAccessLevel>('owner_only');
+  const [datePickerTarget, setDatePickerTarget] = useState<'agreement' | 'expiry' | null>(null);
 
-  // Step 2
+  // Step 1 – מחיר
   const [payments, setPayments] = useState<PaymentDraft[]>([]);
   const [payDirection, setPayDirection] = useState<'in' | 'out'>('in');
-  const [payCategory, setPayCategory] = useState('');
   const [payAmount, setPayAmount] = useState('');
-  const [payDate, setPayDate] = useState('');
   const [payNotes, setPayNotes] = useState('');
-  const [paymentLoopModal, setPaymentLoopModal] = useState(false);
 
-  // Step 3
+  // Step 2 – תיעוד תשלום
+  const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
+
+  // Step 3 – מונים
   const [meters, setMeters] = useState<MeterRow[]>([]);
 
   // Step 4
@@ -178,42 +172,33 @@ export function ContractCreateWizard({
     [expiryDate],
   );
 
-  const step1Valid =
-    contractName.trim().length > 0 &&
-    contractType !== '' &&
-    linkSelected !== null &&
-    counterpartyName.trim().length > 0 &&
-    (contractType !== 'supplier_work' || serviceType.trim().length > 0);
+  const [step1Submitted, setStep1Submitted] = useState(false);
+
+  const step1Errors = useMemo(() => ({
+    contractName: contractName.trim().length === 0 ? 'שדה חובה' : '',
+    contractType: contractType === '' ? 'יש לבחור סוג חוזה' : '',
+    linkSelected: !linkSelected ? 'יש לבחור נכס או פרויקט' : '',
+    counterpartyName: counterpartyName.trim().length === 0 ? 'שדה חובה' : '',
+    serviceType: contractType === 'supplier_work' && serviceType.trim().length === 0 ? 'שדה חובה' : '',
+    agreementDate: agreementDate.trim().length === 0 ? 'שדה חובה' : '',
+  }), [contractName, contractType, linkSelected, counterpartyName, serviceType, agreementDate]);
+
+  const step1Valid = Object.values(step1Errors).every((e) => !e);
 
   const appendPayment = useCallback(() => {
-    if (!payCategory || !payAmount.trim()) return;
+    if (!payAmount.trim()) return;
     setPayments((prev) => [
       ...prev,
       {
         id: randomId(),
         direction: payDirection,
-        categoryKey: payCategory,
         amount: payAmount,
-        date: payDate || '—',
         notes: payNotes,
       },
     ]);
-    setPayCategory('');
     setPayAmount('');
-    setPayDate('');
     setPayNotes('');
-  }, [payDirection, payCategory, payAmount, payDate, payNotes]);
-
-  const openFinishPaymentStep = () => {
-    if (!payCategory && !payAmount.trim() && payments.length === 0) {
-      setStep(2);
-      return;
-    }
-    if (payCategory && payAmount.trim()) {
-      appendPayment();
-    }
-    setPaymentLoopModal(true);
-  };
+  }, [payDirection, payAmount, payNotes]);
 
   const addMeter = () => {
     setMeters((prev) => [
@@ -252,13 +237,13 @@ export function ContractCreateWizard({
   };
 
   const goNext = () => {
-    if (step === 0 && !step1Valid) return;
     if (step === 0) {
+      setStep1Submitted(true);
+      if (!step1Valid) return;
       setDefaultFileVisibility(contractAccess);
     }
-    if (step === 1) {
-      openFinishPaymentStep();
-      return;
+    if (step === 1 && payAmount.trim()) {
+      appendPayment();
     }
     if (step < STEPS.length - 1) setStep((s) => s + 1);
     else router.back();
@@ -300,7 +285,7 @@ export function ContractCreateWizard({
         >
           {step === 0 && (
             <View style={styles.card}>
-              <Input label="שם החוזה" placeholder="לדוגמה: חוזה שכירות 2026" value={contractName} onChangeText={setContractName} containerStyle={{ marginBottom: Spacing.md }} />
+              <Input label="שם החוזה" required placeholder="לדוגמה: חוזה שכירות 2026" value={contractName} onChangeText={setContractName} error={step1Submitted ? step1Errors.contractName : ''} containerStyle={{ marginBottom: Spacing.md }} />
 
               <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>
                 הרשאות גישה לחוזה
@@ -327,9 +312,13 @@ export function ContractCreateWizard({
                 ))}
               </View>
 
-              <AppText variant="labelMd" weight="semiBold" style={[styles.blockLabel, { marginTop: Spacing.lg }]}>
-                סוג חוזה
-              </AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+                <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>סוג חוזה</AppText>
+                <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+              </View>
+              {step1Submitted && step1Errors.contractType ? (
+                <AppText variant="caption" color="error" style={{ textAlign: 'right', marginBottom: Spacing.xs }}>{step1Errors.contractType}</AppText>
+              ) : null}
               <View style={styles.typeGrid}>
                 {CONTRACT_TYPES.map((t) => (
                   <Pressable
@@ -346,10 +335,11 @@ export function ContractCreateWizard({
                 ))}
               </View>
 
-              <AppText variant="labelMd" weight="semiBold" style={[styles.blockLabel, { marginTop: Spacing.base }]}>
-                שיוך לנכס / פרויקט (חובה)
-              </AppText>
-              <View style={styles.entityBox}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: Spacing.base, marginBottom: Spacing.sm }}>
+                <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>שיוך לנכס / פרויקט</AppText>
+                <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+              </View>
+              <View style={[styles.entityBox, step1Submitted && step1Errors.linkSelected ? { borderColor: Colors.error, borderWidth: 1.5, borderRadius: Radius.md } : undefined]}>
                 <TextInput
                   style={styles.entityInput}
                   placeholder="חיפוש נכס או פרויקט..."
@@ -395,15 +385,20 @@ export function ContractCreateWizard({
                   </View>
                 )}
               </View>
+              {step1Submitted && step1Errors.linkSelected ? (
+                <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{step1Errors.linkSelected}</AppText>
+              ) : null}
 
               <Input
                 label="שם השוכר / רוכש / נותן שירות"
+                required
                 value={counterpartyName}
                 onChangeText={setCounterpartyName}
+                error={step1Submitted ? step1Errors.counterpartyName : ''}
                 containerStyle={{ marginTop: Spacing.md }}
               />
               {contractType === 'supplier_work' && (
-                <Input label="סוג השירות" placeholder="לדוגמה: ניקיון" value={serviceType} onChangeText={setServiceType} containerStyle={{ marginTop: Spacing.md }} />
+                <Input label="סוג השירות" required placeholder="לדוגמה: ניקיון" value={serviceType} onChangeText={setServiceType} error={step1Submitted ? step1Errors.serviceType : ''} containerStyle={{ marginTop: Spacing.md }} />
               )}
 
               <Input label="ת.ז / ח.פ" value={idNumber} onChangeText={setIdNumber} containerStyle={{ marginTop: Spacing.md }} />
@@ -411,8 +406,46 @@ export function ContractCreateWizard({
               <Input label="אימייל" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" containerStyle={{ marginTop: Spacing.md }} />
               <Input label="שם איש קשר" value={contactName} onChangeText={setContactName} containerStyle={{ marginTop: Spacing.md }} />
 
-              <Input label="תאריך הסכם" placeholder="DD/MM/YYYY" value={agreementDate} onChangeText={onAgreementDateChange} containerStyle={{ marginTop: Spacing.md }} />
-              <Input label="תאריך תוקף" placeholder="ברירת מחדל: שנה קדימה" value={expiryDate} onChangeText={setExpiryDate} containerStyle={{ marginTop: Spacing.md }} />
+              <View style={{ marginTop: Spacing.md }}>
+                <View style={styles.dateFieldLabelRow}>
+                  <AppText variant="labelMd" weight="semiBold" style={styles.dateFieldLabel}>
+                    תאריך הסכם
+                  </AppText>
+                  <AppText variant="labelMd" weight="bold" style={styles.dateAsterisk}> *</AppText>
+                </View>
+                <Pressable
+                  onPress={() => setDatePickerTarget('agreement')}
+                  style={[
+                    styles.dateField,
+                    step1Submitted && step1Errors.agreementDate ? styles.dateFieldError : undefined,
+                  ]}
+                >
+                  <MaterialCommunityIcons name="calendar-outline" size={18} color={agreementDate ? Colors.onBackground : Colors.onSurfaceMuted} />
+                  <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: agreementDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                    {agreementDate || 'בחר תאריך'}
+                  </AppText>
+                </Pressable>
+                {step1Submitted && step1Errors.agreementDate ? (
+                  <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 4 }}>
+                    {step1Errors.agreementDate}
+                  </AppText>
+                ) : null}
+              </View>
+
+              <View style={{ marginTop: Spacing.md }}>
+                <AppText variant="labelMd" weight="semiBold" style={[styles.dateFieldLabel, { marginBottom: Spacing.xs }]}>
+                  תאריך תוקף
+                </AppText>
+                <Pressable
+                  onPress={() => setDatePickerTarget('expiry')}
+                  style={styles.dateField}
+                >
+                  <MaterialCommunityIcons name="calendar-outline" size={18} color={expiryDate ? Colors.onBackground : Colors.onSurfaceMuted} />
+                  <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: expiryDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                    {expiryDate || 'ברירת מחדל: שנה קדימה'}
+                  </AppText>
+                </Pressable>
+              </View>
 
               <View style={styles.reminderRow}>
                 <Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{ false: Colors.outlineVariant, true: Colors.primaryLight }} thumbColor={reminderEnabled ? Colors.primary : Colors.onSurfaceMuted} />
@@ -439,6 +472,10 @@ export function ContractCreateWizard({
 
           {step === 1 && (
             <View style={styles.card}>
+              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
+                מחיר
+              </AppText>
+
               {payments.length > 0 && (
                 <View style={{ marginBottom: Spacing.md }}>
                   <AppText variant="labelMd" weight="bold" style={{ marginBottom: Spacing.sm }}>
@@ -447,16 +484,16 @@ export function ContractCreateWizard({
                   {payments.map((p) => (
                     <View key={p.id} style={styles.paymentChip}>
                       <AppText variant="bodySm" style={{ flex: 1 }}>
-                        {p.direction === 'in' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪ · {p.date}
+                        {p.direction === 'in' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪
                       </AppText>
+                      <Pressable onPress={() => setPayments((prev) => prev.filter((x) => x.id !== p.id))}>
+                        <MaterialCommunityIcons name="close" size={16} color={Colors.onSurfaceVariant} />
+                      </Pressable>
                     </View>
                   ))}
                 </View>
               )}
 
-              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
-                תשלום בחוזה
-              </AppText>
               <View style={styles.directionRow}>
                 {(['in', 'out'] as const).map((d) => (
                   <Pressable
@@ -477,26 +514,116 @@ export function ContractCreateWizard({
                   </Pressable>
                 ))}
               </View>
-              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.base, marginBottom: Spacing.sm }}>
-                קטגוריה
-              </AppText>
-              <View style={styles.typeGrid}>
-                {PAYMENT_TYPES.map((t) => (
-                  <Pressable key={t.key} onPress={() => setPayCategory(t.key)} style={[styles.typeCard, payCategory === t.key && styles.typeCardActive]}>
-                    <MaterialCommunityIcons name={t.icon} size={20} color={payCategory === t.key ? Colors.primary : Colors.onSurfaceVariant} />
-                    <AppText variant="caption" color={payCategory === t.key ? 'primary' : 'variant'} weight={payCategory === t.key ? 'bold' : 'regular'} align="center">
-                      {t.label}
-                    </AppText>
-                  </Pressable>
-                ))}
-              </View>
+
               <Input label="סכום (₪)" value={payAmount} onChangeText={setPayAmount} keyboardType="numeric" containerStyle={{ marginTop: Spacing.md }} />
-              <Input label="תאריך" placeholder="DD/MM/YYYY" value={payDate} onChangeText={setPayDate} containerStyle={{ marginTop: Spacing.md }} />
               <Input label="הערות" value={payNotes} onChangeText={setPayNotes} multiline numberOfLines={3} style={{ height: 72, textAlignVertical: 'top' }} containerStyle={{ marginTop: Spacing.md }} />
+
+              <Pressable onPress={appendPayment} style={[styles.addMeterBtn, { marginTop: Spacing.md }]} accessibilityRole="button">
+                <MaterialCommunityIcons name="plus" size={20} color={Colors.primary} />
+                <AppText variant="bodyMd" weight="semiBold" color="primary">
+                  הוסף תשלום נוסף
+                </AppText>
+              </Pressable>
+
+              <AppText variant="caption" color="variant" style={{ textAlign: 'right', marginTop: Spacing.sm }}>
+                ניתן להוסיף מספר תשלומים. לחץ "הבא" להמשך.
+              </AppText>
             </View>
           )}
 
           {step === 2 && (
+            <View style={styles.card}>
+              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
+                תיעוד תשלום
+              </AppText>
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.base }}>
+                קישור לתשלום קיים עבור נכס זה, או יצירת תשלום חדש.
+              </AppText>
+
+              {(() => {
+                const entityPayments = linkSelected
+                  ? MOCK_PAYMENTS_LIST.filter((p) => p.linkId === linkSelected.id)
+                  : [];
+                return (
+                  <>
+                    {entityPayments.length > 0 ? (
+                      <View style={{ marginBottom: Spacing.base }}>
+                        <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                          תשלומים קיימים לנכס
+                        </AppText>
+                        {entityPayments.map((p) => {
+                          const isSelected = linkedPaymentId === p.id;
+                          return (
+                            <Pressable
+                              key={p.id}
+                              onPress={() => setLinkedPaymentId(isSelected ? null : p.id)}
+                              style={[
+                                styles.paymentLinkRow,
+                                isSelected && styles.paymentLinkRowActive,
+                              ]}
+                            >
+                              <View style={{ flex: 1, gap: 2 }}>
+                                <AppText variant="bodyMd" weight={isSelected ? 'bold' : 'regular'}>
+                                  {p.displayName}
+                                </AppText>
+                                <AppText variant="caption" color="variant">
+                                  {PAYMENT_TYPE_LABELS[p.paymentType]} · {p.amount.toLocaleString('he-IL')} ₪ · {p.dueDate}
+                                </AppText>
+                              </View>
+                              <MaterialCommunityIcons
+                                name={isSelected ? 'check-circle' : 'circle-outline'}
+                                size={22}
+                                color={isSelected ? Colors.primary : Colors.outlineVariant}
+                              />
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <View style={styles.emptyPayments}>
+                        <MaterialCommunityIcons name="cash-remove" size={32} color={Colors.outlineVariant} />
+                        <AppText variant="bodySm" color="variant" style={{ textAlign: 'center', marginTop: Spacing.sm }}>
+                          {linkSelected ? 'אין תשלומים קיימים עבור נכס זה' : 'יש לשייך נכס בשלב הראשון כדי לראות תשלומים'}
+                        </AppText>
+                      </View>
+                    )}
+
+                    <View style={styles.orDivider}>
+                      <View style={styles.orLine} />
+                      <AppText variant="caption" color="variant" style={{ marginHorizontal: Spacing.sm }}>
+                        או
+                      </AppText>
+                      <View style={styles.orLine} />
+                    </View>
+
+                    <Pressable
+                      style={styles.newPaymentBtn}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/(app)/payments/new',
+                          params: {
+                            preloadContractId: `contract_${Date.now()}`,
+                            preloadContractName: contractName || 'חוזה חדש',
+                            preloadLinkId: linkSelected?.id ?? '',
+                            preloadLinkLabel: linkSelected?.name ?? '',
+                            preloadLinkKind: linkSelected?.kind ?? '',
+                            preloadLinkAddress: linkSelected?.address ?? '',
+                          },
+                        });
+                      }}
+                    >
+                      <MaterialCommunityIcons name="plus-circle-outline" size={22} color={Colors.primary} />
+                      <AppText variant="bodyMd" weight="semiBold" color="primary">
+                        יצירת תשלום חדש
+                      </AppText>
+                    </Pressable>
+                  </>
+                );
+              })()}
+            </View>
+          )}
+
+          {step === 3 && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
                 תיעוד מונים (לא חובה)
@@ -534,7 +661,7 @@ export function ContractCreateWizard({
             </View>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
                 העלאת קבצים
@@ -630,47 +757,14 @@ export function ContractCreateWizard({
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
           <Button
-            label={
-              step === STEPS.length - 1
-                ? 'סיום'
-                : step === 1
-                  ? 'סיום תשלומים'
-                  : 'הבא'
-            }
+            label={step === STEPS.length - 1 ? 'סיום' : 'הבא'}
             onPress={goNext}
-            disabled={step === 0 && !step1Valid}
+            disabled={false}
             fullWidth
             size="lg"
           />
         </View>
       </View>
-
-      <Modal visible={paymentLoopModal} transparent animationType="fade" onRequestClose={() => setPaymentLoopModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <AppText variant="headingSm" weight="bold" align="center" style={{ marginBottom: Spacing.md }}>
-              האם להוסיף תשלום נוסף או להמשיך?
-            </AppText>
-            <Button
-              label="הוספת תשלום נוסף"
-              onPress={() => {
-                setPaymentLoopModal(false);
-              }}
-              fullWidth
-              style={{ marginBottom: Spacing.sm }}
-            />
-            <Button
-              label="המשך לשלב הבא"
-              variant="secondary"
-              onPress={() => {
-                setPaymentLoopModal(false);
-                setStep(2);
-              }}
-              fullWidth
-            />
-          </View>
-        </View>
-      </Modal>
 
       <Modal visible={categoryModal} transparent animationType="slide" onRequestClose={() => setCategoryModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setCategoryModal(false)}>
@@ -693,6 +787,21 @@ export function ContractCreateWizard({
           </Pressable>
         </Pressable>
       </Modal>
+
+      <DatePickerModal
+        visible={datePickerTarget !== null}
+        value={datePickerTarget === 'agreement' ? agreementDate : expiryDate}
+        title={datePickerTarget === 'agreement' ? 'תאריך הסכם' : 'תאריך תוקף'}
+        onSelect={(dateStr) => {
+          if (datePickerTarget === 'agreement') {
+            onAgreementDateChange(dateStr);
+          } else {
+            setExpiryDate(dateStr);
+          }
+          setDatePickerTarget(null);
+        }}
+        onClose={() => setDatePickerTarget(null)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -805,10 +914,55 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   paymentChip: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
     padding: Spacing.sm,
     borderRadius: Radius.md,
     backgroundColor: Colors.surfaceVariant,
     marginBottom: Spacing.xs,
+  },
+  paymentLinkRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surface,
+    marginBottom: Spacing.sm,
+  },
+  paymentLinkRowActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight ?? Colors.surface,
+  },
+  emptyPayments: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.base,
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.base,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.outlineVariant,
+  },
+  newPaymentBtn: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    minHeight: MIN_TOUCH,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.sm,
   },
   meterBlock: {
     borderWidth: 1,
@@ -837,6 +991,24 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     borderStyle: 'dashed',
     borderRadius: Radius.lg,
+  },
+  dateFieldLabelRow: { flexDirection: RTL_ROW, alignItems: 'center', marginBottom: Spacing.xs },
+  dateFieldLabel: { textAlign: 'right' },
+  dateAsterisk: { color: Colors.error },
+  dateField: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minHeight: MIN_TOUCH,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surface,
+  },
+  dateFieldError: {
+    borderColor: Colors.error,
   },
   visGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   visChip: {

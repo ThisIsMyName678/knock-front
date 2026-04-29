@@ -114,14 +114,18 @@ export function DocumentUploadForm({ initialData }: { initialData?: DocumentList
     };
   };
 
+  const [submitted, setSubmitted] = useState(false);
+
+  const errors = useMemo(() => ({
+    fileName: fileName.trim().length === 0 ? 'שדה חובה' : '',
+  }), [fileName]);
+
   const onSave = () => {
-    const name = fileName.trim();
-    if (!name) return;
+    setSubmitted(true);
+    if (errors.fileName) return;
     queueNewDocument(buildRow());
     router.back();
   };
-
-  const valid = fileName.trim().length > 0;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -151,7 +155,7 @@ export function DocumentUploadForm({ initialData }: { initialData?: DocumentList
           </View>
 
           <View style={styles.card}>
-            <Input label="שם הקובץ (חובה)" placeholder="לדוגמה: חוזה שכירות" value={fileName} onChangeText={setFileName} containerStyle={{ marginBottom: Spacing.md }} />
+            <Input label="שם הקובץ" required placeholder="לדוגמה: חוזה שכירות" value={fileName} onChangeText={setFileName} error={submitted ? errors.fileName : ''} containerStyle={{ marginBottom: Spacing.md }} />
 
             <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>
               סוג מסמך
@@ -247,7 +251,7 @@ export function DocumentUploadForm({ initialData }: { initialData?: DocumentList
             </View>
           </View>
 
-          <Button label="שמור והעלה" onPress={onSave} fullWidth size="lg" disabled={!valid} style={{ marginTop: Spacing.sm }} />
+          <Button label="שמור והעלה" onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
         </ScrollView>
 
         <Modal visible={taskModal} transparent animationType="slide" onRequestClose={() => setTaskModal(false)}>
