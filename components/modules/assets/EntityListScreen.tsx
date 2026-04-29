@@ -164,6 +164,17 @@ function EntityCard({ entity, onPress }: { entity: Entity; onPress: () => void }
           );
         })()}
 
+        {!isProject && entity.kind === 'asset' && (entity.floorNumber || entity.sizeSqm) ? (
+          <AppText variant="caption" color="variant" numberOfLines={1} style={{ marginTop: 2, textAlign: 'right' }}>
+            {[
+              entity.floorNumber ? `קומה ${entity.floorNumber}` : null,
+              entity.sizeSqm ? `${entity.sizeSqm} מ״ר` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </AppText>
+        ) : null}
+
         {/* Asset-only: Occupancy status badge */}
         {!isProject && (
           <Badge
@@ -251,6 +262,42 @@ function CreateChoiceSheet({
   );
 }
 
+/** רשת מוטמעת בתוך ScrollView — מיפוי שורות מבטיח 3 כרטיסים בשורה (לעומת FlatList מקונן). */
+const EMBEDDED_GRID_COLS = 3;
+
+function EmbeddedEntityGrid({
+  items,
+  bottomPadding,
+  onCardPress,
+}: {
+  items: Entity[];
+  bottomPadding: number;
+  onCardPress: (entity: Entity) => void;
+}) {
+  const rows: Entity[][] = [];
+  for (let i = 0; i < items.length; i += EMBEDDED_GRID_COLS) {
+    rows.push(items.slice(i, i + EMBEDDED_GRID_COLS));
+  }
+  return (
+    <View style={[styles.grid, { paddingBottom: bottomPadding }]}>
+      {rows.map((row, ri) => (
+        <View key={`erow-${ri}`} style={styles.gridRow}>
+          {row.map((entity) => (
+            <View key={entity.id} style={styles.gridCell}>
+              <EntityCard entity={entity} onPress={() => onCardPress(entity)} />
+            </View>
+          ))}
+          {row.length < EMBEDDED_GRID_COLS
+            ? Array.from({ length: EMBEDDED_GRID_COLS - row.length }, (_, i) => (
+                <View key={`epad-${ri}-${i}`} style={styles.gridCell} />
+              ))
+            : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // ─── Main EntityListScreen ─────────────────────────────────────────────────────
 
 type Props = {
@@ -259,6 +306,8 @@ type Props = {
   embedded?: boolean;
   /** הצגת נכסים השייכים לפרויקט זה בלבד */
   scopedProjectId?: string;
+  /** העלאה מזהה מחדש של רשימה אחרי שינוי mock (למשל שיוך נכס) */
+  refreshNonce?: number;
 };
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -268,7 +317,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'construction', label: 'בבנייה' },
 ];
 
-export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Props) {
+export function EntityListScreen({ mode, embedded = false, scopedProjectId, refreshNonce = 0 }: Props) {
   const insets = useSafeAreaInsets();
   const plan = useSubscriptionPlan();
   const [search, setSearch] = useState('');
@@ -284,7 +333,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
       return [...MOCK_PROJECTS, ...orphans];
     }
     return MOCK_ASSETS;
-  }, [mode, scopedProjectId, plan]);
+  }, [mode, scopedProjectId, plan, refreshNonce]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -404,15 +453,20 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId }: Pr
           }
           style={{ flex: 1 }}
         />
+      ) : embedded ? (
+        <EmbeddedEntityGrid
+          items={filtered}
+          bottomPadding={Spacing['2xl']}
+          onCardPress={handleCardPress}
+        />
       ) : (
-        /* Grid */
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
           numColumns={3}
           contentContainerStyle={[
             styles.grid,
-            { paddingBottom: embedded ? Spacing['2xl'] : insets.bottom + Spacing['2xl'] },
+            { paddingBottom: insets.bottom + Spacing['2xl'] },
           ]}
           columnWrapperStyle={styles.gridRow}
           showsVerticalScrollIndicator={false}
@@ -469,7 +523,7 @@ const CARD_GAP = Spacing.sm;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  embeddedWrap: { flex: 1, backgroundColor: Colors.background },
+  embeddedWrap: { flex: 1, width: '100%', backgroundColor: Colors.background },
   hintBanner: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
@@ -490,6 +544,10 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     gap: CARD_GAP,
     marginBottom: CARD_GAP,
+  },
+  gridCell: {
+    flex: 1,
+    minWidth: 0,
   },
 
   // Card

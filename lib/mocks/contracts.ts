@@ -146,6 +146,21 @@ function parseDdMmYyyy(s: string): number {
   return new Date(y, mo, d).getTime();
 }
 
+/** תאריך הסכם בפורמט DD/MM/YYYY בתוך טווח (מ–עד), ריקים מתעלמים */
+function agreementDateInRange(agreementDate: string, from: string, to: string): boolean {
+  const t = parseDdMmYyyy(agreementDate);
+  if (!t) return true;
+  if (from.trim()) {
+    const f = parseDdMmYyyy(from);
+    if (f && t < f) return false;
+  }
+  if (to.trim()) {
+    const toT = parseDdMmYyyy(to);
+    if (toT && t > toT) return false;
+  }
+  return true;
+}
+
 export function filterContractRows(
   rows: ContractListRow[],
   opts: {
@@ -153,14 +168,21 @@ export function filterContractRows(
     linkScope: LinkScopeFilter;
     typeFilter: ContractTypeFilter;
     entityId: string | null;
+    /** תאריך הסכם מתוך—בפורמט DD/MM/YYYY */
+    dateFrom?: string;
+    /** תאריך הסכם עד—בפורמט DD/MM/YYYY */
+    dateTo?: string;
   },
 ): ContractListRow[] {
   const q = opts.search.trim().toLowerCase();
+  const from = opts.dateFrom ?? '';
+  const to = opts.dateTo ?? '';
   return rows.filter((r) => {
     if (opts.linkScope === 'asset' && r.linkKind !== 'asset') return false;
     if (opts.linkScope === 'project' && r.linkKind !== 'project') return false;
     if (opts.typeFilter !== 'all' && r.contractType !== opts.typeFilter) return false;
     if (opts.entityId && r.linkId !== opts.entityId) return false;
+    if (!agreementDateInRange(r.agreementDate, from, to)) return false;
     if (!q) return true;
     const hay = `${r.contractName} ${r.counterpartyName} ${r.linkLabel} ${CONTRACT_TYPE_LABELS[r.contractType]}`.toLowerCase();
     return hay.includes(q);

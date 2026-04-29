@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   ScrollView,
@@ -18,6 +19,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
 import {
   Colors,
   Spacing,
@@ -29,6 +31,8 @@ import {
   MIN_TOUCH,
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
+import { AddAssetToProjectActions } from '@/components/modules/assets/AddAssetToProjectActions';
+import { MOCK_PROJECTS, assetsForProject, type ProjectEntity } from '@/lib/mocks/assets';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,7 +99,98 @@ const DOCUMENT_TYPE_ORDER: DocumentType[] = [
   'accounts', 'invoice_receipt', 'other',
 ];
 
-const STEP_TITLES = ['פרטי הפרויקט', 'הוספת קבצים'];
+const STEP_TITLES = ['פרטי הפרויקט', 'הוספת קבצים', 'הוספת נכסים'];
+
+function createDraftProjectFromStep1(s: Step1Data): string {
+  const id = `p_new_${Date.now()}`;
+  const row: ProjectEntity = {
+    id,
+    kind: 'project',
+    name: s.name.trim() || 'פרויקט חדש',
+    address: s.address.trim() || '',
+    assetCount: 0,
+    occupancy: 'construction',
+    role: { kind: 'owner' },
+  };
+  MOCK_PROJECTS.push(row);
+  return id;
+}
+
+function Step3ProjectAssets({
+  draftProjectId,
+  projectName,
+  refreshNonce,
+  onAssetsChanged,
+}: {
+  draftProjectId: string;
+  projectName: string;
+  refreshNonce: number;
+  onAssetsChanged: () => void;
+}) {
+  const linked = useMemo(() => assetsForProject(draftProjectId), [draftProjectId, refreshNonce]);
+
+  return (
+    <View style={{ gap: Spacing.lg }}>
+      <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right', lineHeight: 22 }}>
+        ניתן לשייך נכסים קיימים שאינם משויכים לפרויקט, או ליצור נכס חדש — הוא ישויך אוטומטית לפרויקט זה.
+      </AppText>
+
+      <AddAssetToProjectActions
+        projectId={draftProjectId}
+        projectName={projectName}
+        onAssetsChanged={onAssetsChanged}
+        variant="inline"
+      />
+
+      {linked.length > 0 ? (
+        <View style={{ gap: Spacing.sm }}>
+          <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right' }}>
+            נכסים משויכים
+          </AppText>
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: Colors.outlineLight,
+              borderRadius: Radius.lg,
+              padding: Spacing.md,
+              gap: Spacing.sm,
+              backgroundColor: Colors.surface,
+            }}
+          >
+            {linked.map((a, i) => (
+              <View
+                key={a.id}
+                style={{
+                  flexDirection: RTL_ROW,
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: Spacing.sm,
+                  paddingVertical: Spacing.xs,
+                  borderBottomWidth: i < linked.length - 1 ? 1 : 0,
+                  borderBottomColor: Colors.outlineLight,
+                }}
+              >
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <AppText variant="bodyMd" weight="semiBold">
+                    {a.name}
+                  </AppText>
+                  <AppText variant="caption" color="variant" numberOfLines={2}>
+                    {a.address}
+                  </AppText>
+                </View>
+                <MaterialCommunityIcons name="home-outline" size={20} color={Colors.primaryLight} />
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : (
+        <AppText variant="bodySm" color="variant" style={{ textAlign: 'right' }}>
+          עדיין לא שויכו נכסים — ניתן לדלג ולסיים, או להוסיף כעת.
+        </AppText>
+      )}
+    </View>
+  );
+}
 
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 
@@ -708,6 +803,8 @@ function Step2({
         הוסף קבצים ומסמכים לפרויקט. ניתן להוסיף מספר קבצים ולהמשיך לסיום בכל עת.
       </AppText>
 
+      <RecommendedDocChecklistPanel />
+
       {/* ── Add-file form card ── */}
       <View style={s2.formCard}>
         <View style={s2.formCardHeader}>
@@ -949,6 +1046,9 @@ export default function NewProjectScreen() {
     pendingSource: null,
   });
 
+  const [draftProjectId, setDraftProjectId] = useState<string | null>(null);
+  const [step3Refresh, setStep3Refresh] = useState(0);
+
   const [step1Submitted, setStep1Submitted] = useState(false);
 
   const step1Errors = useMemo(() => ({
@@ -959,18 +1059,32 @@ export default function NewProjectScreen() {
 
   const step1Valid = Object.values(step1Errors).every((e) => !e);
 
+  const bumpStep3List = useCallback(() => {
+    setStep3Refresh((n) => n + 1);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (step === 3) bumpStep3List();
+    }, [step, bumpStep3List]),
+  );
+
   const handleNext = () => {
     if (step === 1) {
       setStep1Submitted(true);
       if (!step1Valid) return;
-      setStep((s) => s + 1);
+      setStep(2);
       return;
     }
-    if (step < 2) {
-      setStep((s) => s + 1);
+    if (step === 2) {
+      const id = draftProjectId ?? createDraftProjectFromStep1(step1);
+      setDraftProjectId(id);
+      setStep(3);
       return;
     }
-    router.back();
+    if (step === 3) {
+      router.back();
+    }
   };
 
   const handleBack = () => {
@@ -990,7 +1104,7 @@ export default function NewProjectScreen() {
 
       {/* Step indicator */}
       <View style={wizardStyles.indicatorWrap}>
-        <StepIndicator step={step} total={2} />
+        <StepIndicator step={step} total={3} />
         <AppText
           variant="bodyMd"
           weight="semiBold"
@@ -998,7 +1112,7 @@ export default function NewProjectScreen() {
           align="center"
           style={{ marginTop: -Spacing.sm, marginBottom: Spacing.sm }}
         >
-          שלב {step} מתוך 2 — {STEP_TITLES[step - 1]}
+          שלב {step} מתוך 3 — {STEP_TITLES[step - 1]}
         </AppText>
       </View>
 
@@ -1010,6 +1124,14 @@ export default function NewProjectScreen() {
       >
         {step === 1 && <Step1 data={step1} setData={setStep1} errors={step1Errors} showErrors={step1Submitted} />}
         {step === 2 && <Step2 data={step2} setData={setStep2} />}
+        {step === 3 && draftProjectId ? (
+          <Step3ProjectAssets
+            draftProjectId={draftProjectId}
+            projectName={step1.name.trim() || 'פרויקט חדש'}
+            refreshNonce={step3Refresh}
+            onAssetsChanged={bumpStep3List}
+          />
+        ) : null}
       </ScrollView>
 
       {/* Bottom nav */}
@@ -1026,7 +1148,7 @@ export default function NewProjectScreen() {
           </Pressable>
         )}
         <Button
-          label={step === 2 ? 'סיום' : 'הבא'}
+          label={step === 3 ? 'סיום' : 'הבא'}
           onPress={handleNext}
           style={wizardStyles.footerPrimary}
           variant="primary"

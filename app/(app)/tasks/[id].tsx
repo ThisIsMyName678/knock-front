@@ -153,6 +153,40 @@ export default function TaskDetailRoute() {
           showBack
         />
 
+        <View style={styles.taskHeaderActions}>
+          <Pressable
+            onPress={openEdit}
+            style={({ pressed }) => [styles.taskHeaderBtn, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityLabel="עריכת משימה"
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={20} color={Colors.primary} />
+            <AppText variant="bodySm" weight="semiBold" color="primary">
+              עריכה
+            </AppText>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              Alert.alert('מחיקת משימה', 'האם למחוק את המשימה? (במימוש מלא יימחק מהמערכת)', [
+                { text: 'ביטול', style: 'cancel' },
+                {
+                  text: 'מחק',
+                  style: 'destructive',
+                  onPress: () => router.back(),
+                },
+              ])
+            }
+            style={({ pressed }) => [styles.taskHeaderBtn, styles.taskHeaderBtnDanger, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityLabel="מחיקת משימה"
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={20} color={Colors.error} />
+            <AppText variant="bodySm" weight="semiBold" style={{ color: Colors.error }}>
+              מחיקה
+            </AppText>
+          </Pressable>
+        </View>
+
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
           {isMaintenance && (
             <View style={styles.maintenanceBanner}>
@@ -459,6 +493,32 @@ export default function TaskDetailRoute() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   iconBtnDark: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  taskHeaderActions: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: Spacing.sm,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  taskHeaderBtn: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  taskHeaderBtnDanger: {
+    borderColor: `${Colors.error}55`,
+    backgroundColor: Colors.surface,
+  },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   maintenanceBanner: {
     flexDirection: RTL_ROW,

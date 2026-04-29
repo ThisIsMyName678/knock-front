@@ -10,6 +10,8 @@ import {
   Alert,
   Linking,
   Share,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -32,6 +34,8 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { EntityListScreen } from './EntityListScreen';
+import { AddAssetToProjectActions } from './AddAssetToProjectActions';
+import { MOCK_PROJECTS } from '@/lib/mocks/assets';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
@@ -46,6 +50,9 @@ import {
   type TaskPriority,
   TASK_PRIORITY_LABELS,
 } from '@/lib/mocks/tasks';
+import { assetsForProject } from '@/lib/mocks/assets';
+import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
+import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,19 +90,12 @@ type DocItem = {
   kind: 'pdf' | 'image';
 };
 
-type PaymentItem = {
-  id: string;
-  direction: 'inbound' | 'outbound';
-  date: string;
-  category: string;
-  amount: number;
-};
-
 type ContactItem = {
   id: string;
   name: string;
   role: string;
   phone: string;
+  email?: string;
 };
 
 // ─── Mock data generators ─────────────────────────────────────────────────────
@@ -166,28 +166,10 @@ const MOCK_DOCS: DocItem[] = [
   { id: 'doc3', name: 'אישור עירייה.pdf', category: 'רשויות', uploadDate: '15/12/2023', kind: 'pdf' },
 ];
 
-const MOCK_PAYMENTS: PaymentItem[] = [
-  { id: 'p1', direction: 'inbound', date: '01/04/2026', category: 'שכירות', amount: 7200 },
-  { id: 'p2', direction: 'outbound', date: '15/04/2026', category: 'תחזוקה', amount: 850 },
-  { id: 'p3', direction: 'inbound', date: '01/03/2026', category: 'שכירות', amount: 7200 },
-];
-
 const MOCK_CONTACTS: ContactItem[] = [
-  { id: 'ct1', name: 'יוסי כהן', role: 'דייר', phone: '050-1234567' },
-  { id: 'ct2', name: 'מיכל לוי', role: 'מנהל נכס', phone: '052-9876543' },
-  { id: 'ct3', name: 'שירות חרום', role: 'בעל תפקיד', phone: '054-1111222' },
-];
-
-// Recommended document checklist
-const DOC_CHECKLIST = [
-  'צילום מונה חשמל',
-  'צילום מונה מים',
-  'אישור עירייה (ארנונה)',
-  'חוזה שכירות חתום',
-  'פרוטוקול מסירה',
-  'ביטוח דירה',
-  'אישור ועד בית',
-  'אישור חברת חשמל',
+  { id: 'ct1', name: 'יוסי כהן', role: 'דייר', phone: '050-1234567', email: 'yossi.cohen@example.com' },
+  { id: 'ct2', name: 'מיכל לוי', role: 'מנהל נכס', phone: '052-9876543', email: 'michal.property@example.com' },
+  { id: 'ct3', name: 'שירות חרום', role: 'בעל תפקיד', phone: '054-1111222', email: 'emergency.service@example.com' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -305,7 +287,6 @@ function TabSearchField({
             placeholder={placeholder}
             placeholderTextColor={Colors.onSurfaceMuted}
             style={tabSearchStyles.input}
-            textAlign="right"
             returnKeyType="search"
           />
           {value.length > 0 ? (
@@ -394,6 +375,8 @@ const tabSearchStyles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.onBackground,
     paddingVertical: 0,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
 });
 
@@ -469,16 +452,18 @@ function FilterRow<T extends string>({
   options,
   active,
   onSelect,
+  contentContainerStyle,
 }: {
   options: { key: T; label: string }[];
   active: T;
   onSelect: (k: T) => void;
+  contentContainerStyle?: StyleProp<ViewStyle>;
 }) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={filterStyles.row}
+      contentContainerStyle={[filterStyles.row, contentContainerStyle]}
       style={filterStyles.scroll}
     >
       {options.map((o) => (
@@ -528,6 +513,11 @@ const filterStyles = StyleSheet.create({
   chipActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
+  },
+  /** פיד: צמידת כפתורי סינון לימין (התחלה ב־RTL) */
+  feedChipsAlign: {
+    flexGrow: 1,
+    justifyContent: 'flex-start',
   },
 });
 
@@ -584,7 +574,12 @@ function FeedTab() {
   return (
     <View style={{ flex: 1 }}>
       <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש בפיד..." />
-      <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
+      <FilterRow
+        options={filterOptions}
+        active={filter}
+        onSelect={setFilter}
+        contentContainerStyle={filterStyles.feedChipsAlign}
+      />
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
@@ -636,13 +631,31 @@ function FeedTab() {
 
 // ─── Tab: Main (asset = contracts / project = assets list) ────────────────────
 
+function ProjectMainAssetsTab({ entityId }: { entityId: string }) {
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const project = MOCK_PROJECTS.find((p) => p.id === entityId);
+  const projectName = project?.name ?? '';
+  return (
+    <View style={{ flex: 1 }}>
+      <EntityListScreen
+        mode="assets"
+        embedded
+        scopedProjectId={entityId}
+        refreshNonce={refreshNonce}
+      />
+      <AddAssetToProjectActions
+        projectId={entityId}
+        projectName={projectName}
+        onAssetsChanged={() => setRefreshNonce((n) => n + 1)}
+        variant="fab"
+      />
+    </View>
+  );
+}
+
 function MainTab({ mode, entityId }: { mode: DetailMode; entityId: string }) {
   if (mode === 'project') {
-    return (
-      <View style={{ flex: 1 }}>
-        <EntityListScreen mode="assets" embedded scopedProjectId={entityId} />
-      </View>
-    );
+    return <ProjectMainAssetsTab entityId={entityId} />;
   }
 
   // Asset mode: contract details
@@ -706,7 +719,7 @@ function MainTab({ mode, entityId }: { mode: DetailMode; entityId: string }) {
 
 type TaskStatusFilter = 'all' | 'open' | 'in_progress' | 'completed';
 
-function TasksTab({ entityId }: { entityId: string }) {
+function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
   const statusOptions: { key: TaskStatusFilter; label: string }[] = [
     { key: 'all', label: 'הכל' },
     { key: 'open', label: 'פתוח' },
@@ -740,6 +753,11 @@ function TasksTab({ entityId }: { entityId: string }) {
     ...Object.entries(TASK_PRIORITY_LABELS).map(([k, v]) => ({ key: k, label: v })),
   ], []);
 
+  const projectAssetIds = useMemo(
+    () => new Set(assetsForProject(entityId).map((a) => a.id)),
+    [entityId],
+  );
+
   const filterSections: FilterSection[] = useMemo(() => [
     {
       kind: 'chips',
@@ -767,6 +785,11 @@ function TasksTab({ entityId }: { entityId: string }) {
 
   const filtered = useMemo(() => {
     return MOCK_TASKS_LIST.filter((t) => {
+      const matchesScope =
+        mode === 'asset'
+          ? t.linkId === entityId
+          : t.linkId === entityId || (t.linkKind === 'asset' && projectAssetIds.has(t.linkId));
+      if (!matchesScope) return false;
       if (statusFilter !== 'all') {
         if (statusFilter === 'open' && !(t.workflowStatus === 'open' || t.workflowStatus === 'not_started')) return false;
         if (statusFilter === 'in_progress' && t.workflowStatus !== 'in_progress') return false;
@@ -779,7 +802,7 @@ function TasksTab({ entityId }: { entityId: string }) {
       if (q && !(t.title.toLowerCase().includes(q) || TASK_KIND_LABELS[t.taskKind].toLowerCase().includes(q) || t.dueDate.includes(q))) return false;
       return true;
     });
-  }, [statusFilter, kindFilter, priorityFilter, dateFrom, dateTo, search]);
+  }, [mode, entityId, projectAssetIds, statusFilter, kindFilter, priorityFilter, dateFrom, dateTo, search]);
 
   const resetFilters = useCallback(() => {
     setKindFilter('all');
@@ -847,7 +870,10 @@ function TasksTab({ entityId }: { entityId: string }) {
         onPress={() =>
           router.push({
             pathname: '/(app)/tasks/new',
-            params: { contextEntityId: entityId },
+            params: {
+              preloadLinkId: entityId,
+              preloadLinkKind: mode === 'project' ? 'project' : 'asset',
+            },
           })
         }
         accessibilityLabel="משימה חדשה"
@@ -876,8 +902,6 @@ function DocumentsTab({ entityId }: { entityId: string }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
-  const [checkedDocs, setCheckedDocs] = useState<Record<string, boolean>>({});
-  const [showChecklist, setShowChecklist] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [menuDoc, setMenuDoc] = useState<(typeof MOCK_DOCS)[0] | null>(null);
 
@@ -924,9 +948,6 @@ function DocumentsTab({ entityId }: { entityId: string }) {
     });
   }, [catFilter, typeFilter, dateFrom, dateTo, search]);
 
-  const toggleDoc = (name: string) =>
-    setCheckedDocs((prev) => ({ ...prev, [name]: !prev[name] }));
-
   return (
     <View style={{ flex: 1 }}>
       <TabSearchField
@@ -939,52 +960,18 @@ function DocumentsTab({ entityId }: { entityId: string }) {
       <FilterRow options={catOptions} active={catFilter} onSelect={setCatFilter} />
       <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <ScrollView contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]} showsVerticalScrollIndicator={false}>
-        {/* Recommended checklist toggle */}
-        <Pressable
-          onPress={() => setShowChecklist((v) => !v)}
-          style={listStyles.checklistHeader}
-          accessibilityRole="button"
-        >
-          <AppText variant="labelMd" weight="bold" color="primary">
-            רשימת מסמכים מומלצים
-          </AppText>
-          <MaterialCommunityIcons
-            name={showChecklist ? 'chevron-up' : 'chevron-down'}
-            size={20}
-            color={Colors.primary}
-          />
-        </Pressable>
-
-        {showChecklist && (
-          <View style={listStyles.checklistBody}>
-            {DOC_CHECKLIST.map((name) => (
-              <Pressable
-                key={name}
-                onPress={() => toggleDoc(name)}
-                style={listStyles.checklistRow}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: !!checkedDocs[name] }}
-              >
-                <MaterialCommunityIcons
-                  name={checkedDocs[name] ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                  size={20}
-                  color={checkedDocs[name] ? Colors.success : Colors.outlineVariant}
-                />
-                <AppText
-                  variant="bodyMd"
-                  style={{ flex: 1, textDecorationLine: checkedDocs[name] ? 'line-through' : 'none', opacity: checkedDocs[name] ? 0.5 : 1 }}
-                >
-                  {name}
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        <RecommendedDocChecklistPanel />
 
         {/* Document list */}
         {filtered.length === 0 && <InlineEmpty text="אין מסמכים להצגה" />}
         {filtered.map((doc, i) => (
-          <View key={doc.id} style={[listStyles.docRow, i > 0 && { marginTop: Spacing.md }]}>
+          <Pressable
+            key={doc.id}
+            onPress={() => router.push(`/(app)/documents/${doc.id}`)}
+            style={({ pressed }) => [listStyles.docRow, i > 0 && { marginTop: Spacing.md }, pressed && { opacity: 0.88 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`פתח מסמך: ${doc.name}`}
+          >
             <View style={[listStyles.docIcon, { backgroundColor: doc.kind === 'pdf' ? Colors.errorContainer : Colors.infoContainer }]}>
               <MaterialCommunityIcons
                 name={doc.kind === 'pdf' ? 'file-pdf-box' : 'file-image-outline'}
@@ -1004,7 +991,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
             >
               <MaterialCommunityIcons name="dots-vertical" size={22} color={Colors.onSurfaceVariant} />
             </Pressable>
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
       <TabFab
@@ -1031,7 +1018,11 @@ function DocumentsTab({ entityId }: { entityId: string }) {
                 icon: 'eye-outline' as const,
                 label: 'צפייה',
                 color: Colors.primary,
-                onPress: () => { Alert.alert('בקרוב', 'צפייה במסמך'); setMenuDoc(null); },
+                onPress: () => {
+                  const d = menuDoc;
+                  setMenuDoc(null);
+                  if (d) router.push(`/(app)/documents/${d.id}`);
+                },
               },
               {
                 icon: 'share-variant-outline' as const,
@@ -1068,7 +1059,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
 
 // ─── Tab: Payments ────────────────────────────────────────────────────────────
 
-function PaymentsTab({ entityId }: { entityId: string }) {
+function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
   const dirOptions = [
     { key: 'all' as const, label: 'הכל' },
     { key: 'inbound' as const, label: 'הכנסות' },
@@ -1103,15 +1094,45 @@ function PaymentsTab({ entityId }: { entityId: string }) {
     setDateTo('');
   }, []);
 
+  const projectAssetIds = useMemo(
+    () => new Set(assetsForProject(entityId).map((a) => a.id)),
+    [entityId],
+  );
+
+  const inScope = useMemo(
+    () =>
+      MOCK_PAYMENTS_LIST.filter((p) => {
+        if (mode === 'asset') {
+          return p.linkKind === 'asset' && p.linkId === entityId;
+        }
+        return (
+          (p.linkKind === 'project' && p.linkId === entityId) ||
+          (p.linkKind === 'asset' && projectAssetIds.has(p.linkId))
+        );
+      }),
+    [mode, entityId, projectAssetIds],
+  );
+
   const filtered = useMemo(() => {
-    return MOCK_PAYMENTS.filter((p) => {
+    return inScope.filter((p) => {
       if (dirFilter !== 'all' && p.direction !== dirFilter) return false;
-      if (!inDateRange(p.date, dateFrom, dateTo)) return false;
+      if (!inDateRange(p.dueDate, dateFrom, dateTo)) return false;
       const q = search.trim().toLowerCase();
-      if (q && !(p.category.toLowerCase().includes(q) || p.date.includes(q) || String(p.amount).includes(q))) return false;
+      if (
+        q &&
+        !(
+          p.displayName.toLowerCase().includes(q) ||
+          p.linkLabel.toLowerCase().includes(q) ||
+          PAYMENT_TYPE_LABELS[p.paymentType].toLowerCase().includes(q) ||
+          p.dueDate.includes(q) ||
+          String(p.amount).includes(q)
+        )
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [dirFilter, dateFrom, dateTo, search]);
+  }, [inScope, dirFilter, dateFrom, dateTo, search]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -1125,13 +1146,6 @@ function PaymentsTab({ entityId }: { entityId: string }) {
       <FilterRow options={dirOptions} active={dirFilter} onSelect={setDirFilter} />
       <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <View style={[listStyles.content, { paddingBottom: 80 }]}>
-        {/* Table header */}
-        <View style={[listStyles.tableRow, listStyles.tableHeader]}>
-          <AppText variant="labelSm" weight="semiBold" style={listStyles.colDir}>כיוון</AppText>
-          <AppText variant="labelSm" weight="semiBold" style={listStyles.colDate}>תאריך</AppText>
-          <AppText variant="labelSm" weight="semiBold" style={listStyles.colCat}>קטגוריה</AppText>
-          <AppText variant="labelSm" weight="semiBold" style={listStyles.colAmt}>סכום</AppText>
-        </View>
         {filtered.length === 0 && <InlineEmpty text="אין תשלומים להצגה" />}
         {filtered.map((p) => {
           const inbound = p.direction === 'inbound';
@@ -1140,17 +1154,28 @@ function PaymentsTab({ entityId }: { entityId: string }) {
             <Pressable
               key={p.id}
               onPress={() => router.push(`/(app)/payments/${p.id}`)}
-              style={({ pressed }) => [listStyles.tableRow, listStyles.tableRowBody, pressed && { backgroundColor: Colors.surfaceVariant }]}
+              style={({ pressed }) => [listStyles.paymentCardRow, pressed && { backgroundColor: Colors.surfaceVariant }]}
               accessibilityRole="button"
             >
-              <View style={listStyles.colDir}>
-                <MaterialCommunityIcons name={inbound ? 'arrow-down' : 'arrow-up'} size={16} color={color} />
+              <View style={{ flexDirection: RTL_ROW, alignItems: 'flex-start', gap: Spacing.sm }}>
+                <View style={[listStyles.colDir, { marginTop: 2 }]}>
+                  <MaterialCommunityIcons name={inbound ? 'arrow-down' : 'arrow-up'} size={18} color={color} />
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <AppText variant="bodyMd" weight="semiBold" style={{ textAlign: 'right' }} numberOfLines={2}>
+                    {p.displayName}
+                  </AppText>
+                  <AppText variant="caption" color="variant" style={{ textAlign: 'right' }} numberOfLines={1}>
+                    {p.linkLabel}
+                  </AppText>
+                  <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+                    {p.dueDate} · {PAYMENT_TYPE_LABELS[p.paymentType]}
+                  </AppText>
+                </View>
+                <AppText variant="bodyMd" weight="bold" style={{ color, textAlign: 'left', minWidth: 88 }}>
+                  {inbound ? '+' : '−'}{fmtIls(p.amount).replace('₪', '')} ₪
+                </AppText>
               </View>
-              <AppText variant="bodySm" style={listStyles.colDate}>{p.date}</AppText>
-              <AppText variant="bodySm" style={listStyles.colCat} numberOfLines={1}>{p.category}</AppText>
-              <AppText variant="bodySm" weight="bold" style={[listStyles.colAmt, { color }]}>
-                {inbound ? '+' : '−'}{fmtIls(p.amount).replace('₪', '')} ₪
-              </AppText>
             </Pressable>
           );
         })}
@@ -1228,14 +1253,26 @@ function ContactsTab({ entityId }: { entityId: string }) {
                 <MaterialCommunityIcons name="phone-outline" size={18} color={Colors.primary} />
                 <AppText variant="labelMd" weight="semiBold" color="primary">{item.phone}</AppText>
               </Pressable>
-              <Pressable
-                onPress={() => openUrl(`whatsapp://send?phone=972${item.phone.replace(/[^\d]/g, '').slice(1)}`)}
-                style={({ pressed }) => [listStyles.iconBtn, pressed && { opacity: 0.8 }]}
-                accessibilityRole="button"
-                accessibilityLabel="WhatsApp"
-              >
-                <MaterialCommunityIcons name="whatsapp" size={22} color={Colors.success} />
-              </Pressable>
+              <View style={{ flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.xs }}>
+                <Pressable
+                  onPress={() => openUrl(`whatsapp://send?phone=972${item.phone.replace(/[^\d]/g, '').slice(1)}`)}
+                  style={({ pressed }) => [listStyles.iconBtn, pressed && { opacity: 0.8 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="WhatsApp"
+                >
+                  <MaterialCommunityIcons name="whatsapp" size={22} color={Colors.success} />
+                </Pressable>
+                {item.email ? (
+                  <Pressable
+                    onPress={() => openUrl(`mailto:${item.email}`)}
+                    style={({ pressed }) => [listStyles.iconBtn, pressed && { opacity: 0.8 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="שליחת מייל"
+                  >
+                    <MaterialCommunityIcons name="email-outline" size={22} color={Colors.primary} />
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </Card>
         )}
@@ -1324,28 +1361,17 @@ const listStyles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
 
-  // Checklist
-  checklistHeader: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.primaryContainer,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  checklistBody: {
+  // Payments (כרטיסים ברשימה)
+  paymentCardRow: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
     padding: Spacing.md,
-    gap: Spacing.sm,
-    marginBottom: Spacing.base,
+    marginBottom: Spacing.sm,
   },
-  checklistRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.xs },
 
-  // Payments table
+  // Payments table (legacy columns — עדיין בשימוש חלקי)
   tableRow: { flexDirection: RTL_ROW, alignItems: 'center', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.sm },
   tableHeader: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, marginBottom: 2 },
   tableRowBody: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
@@ -1392,11 +1418,11 @@ export function DetailTabsScreen({
       case 'main':
         return <MainTab mode={mode} entityId={id} />;
       case 'tasks':
-        return <TasksTab entityId={id} />;
+        return <TasksTab entityId={id} mode={mode} />;
       case 'documents':
         return <DocumentsTab entityId={id} />;
       case 'payments':
-        return <PaymentsTab entityId={id} />;
+        return <PaymentsTab entityId={id} mode={mode} />;
       case 'contacts':
         return <ContactsTab entityId={id} />;
       default:

@@ -66,6 +66,18 @@ export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategoryFilter, string> = 
   other: 'אחר',
 };
 
+/** רשימת מסמכים מומלצים (צ׳קליסט) — פרטי נכס/פרויקט ואשפי הוספה */
+export const RECOMMENDED_DOCUMENT_CHECKLIST: string[] = [
+  'צילום מונה חשמל',
+  'צילום מונה מים',
+  'אישור עירייה (ארנונה)',
+  'חוזה שכירות חתום',
+  'פרוטוקול מסירה',
+  'ביטוח דירה',
+  'אישור ועד בית',
+  'אישור חברת חשמל',
+];
+
 export function categoryOfDocumentType(t: DocumentType): Exclude<DocumentCategoryFilter, 'all'> {
   if (t === 'formats') return 'formats';
   if (t === 'invoice_receipt' || t === 'payment') return 'invoice_receipt';

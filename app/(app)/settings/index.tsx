@@ -23,6 +23,7 @@ const SECTIONS: { title: string; items: SettingItem[] }[] = [
     title: 'אפליקציה',
     items: [
       { label: 'הגדרות התראות', icon: 'bell-cog-outline', route: '/(app)/settings/notifications' },
+      { label: 'דוחות', icon: 'file-chart-outline', route: '/(app)/reports' },
       { label: 'שפה ואזור', icon: 'translate' },
     ],
   },

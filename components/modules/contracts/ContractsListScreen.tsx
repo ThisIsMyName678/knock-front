@@ -138,7 +138,7 @@ function DisclaimerBanner() {
       <View style={styles.disclaimerContent}>
         <MaterialCommunityIcons name="information-outline" size={16} color={Colors.warning} style={{ marginTop: 1 }} />
         <AppText variant="caption" style={styles.disclaimerText}>
-          ההסכם המחייב מבוסס אך ורק על החוזה החתום בין הצדדים. כל המידע והכלים המוצגים בפלטפורמה זו מהווים כלי עזר ניהוליים בלבד, ואינם מהווים הסכם משפטי מחייב.
+          ההסכם המחייב מבוסס אך ורק על החוזה החתום בין הצדדים. כל המידע והכלים המוצגים בפלטפורמה זו מהווים כלי עזר ניהוליים בלבד, ואינם מהווים הסכם משפטי.
         </AppText>
       </View>
       <Pressable onPress={() => setDismissed(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel="סגור">
@@ -159,6 +159,8 @@ export function ContractsListScreen() {
   const [entityId, setEntityId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<ContractSortKey>('agreementDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [agreementDateFrom, setAgreementDateFrom] = useState('');
+  const [agreementDateTo, setAgreementDateTo] = useState('');
 
   // ── Fixed sort handler: no nested setState ──
   const handleSortKeyChange = useCallback((key: string) => {
@@ -176,8 +178,10 @@ export function ContractsListScreen() {
         linkScope,
         typeFilter,
         entityId,
+        dateFrom: agreementDateFrom,
+        dateTo: agreementDateTo,
       }),
-    [search, linkScope, typeFilter, entityId],
+    [search, linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo],
   );
 
   const sorted = useMemo(() => sortContractRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
@@ -196,8 +200,9 @@ export function ContractsListScreen() {
     let count = 0;
     if (linkScope !== 'all') count++;
     if (entityId !== null) count++;
+    if (agreementDateFrom.trim() || agreementDateTo.trim()) count++;
     return count;
-  }, [linkScope, entityId]);
+  }, [linkScope, entityId, agreementDateFrom, agreementDateTo]);
 
   const filterSections: FilterSection[] = useMemo(
     () => [
@@ -210,6 +215,14 @@ export function ContractsListScreen() {
           setLinkScope(k as LinkScopeFilter);
           setEntityId(null);
         },
+      },
+      {
+        kind: 'dateRange',
+        label: 'תאריך הסכם (מ–עד)',
+        from: agreementDateFrom,
+        to: agreementDateTo,
+        onFromChange: setAgreementDateFrom,
+        onToChange: setAgreementDateTo,
       },
       {
         kind: 'entitySearch',
@@ -230,12 +243,24 @@ export function ContractsListScreen() {
         onSortDirToggle: handleSortDirToggle,
       },
     ],
-    [linkScope, entityId, entityOptionsForScope, sortKey, sortDir, handleSortKeyChange, handleSortDirToggle],
+    [
+      linkScope,
+      entityId,
+      entityOptionsForScope,
+      agreementDateFrom,
+      agreementDateTo,
+      sortKey,
+      sortDir,
+      handleSortKeyChange,
+      handleSortDirToggle,
+    ],
   );
 
   const resetSecondaryFilters = useCallback(() => {
     setLinkScope('all');
     setEntityId(null);
+    setAgreementDateFrom('');
+    setAgreementDateTo('');
     setSortKey('agreementDate');
     setSortDir('desc');
   }, []);

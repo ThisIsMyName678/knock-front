@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'משימות', icon: 'checkbox-marked-outline', route: '/(app)/tasks' },
   { label: 'חוזים', icon: 'file-sign', route: '/(app)/contracts' },
   { label: 'תשלומים', icon: 'cash-multiple', route: '/(app)/payments' },
+  { label: 'דוחות', icon: 'file-chart-outline', route: '/(app)/reports' },
   { label: 'מסמכים', icon: 'folder-outline', route: '/(app)/documents' },
   { label: 'אנשי קשר', icon: 'contacts-outline', route: '/(app)/contacts' },
 ];

@@ -69,6 +69,7 @@ export function DocumentUploadForm({ initialData }: { initialData?: DocumentList
   );
   const [showSuggest, setShowSuggest] = useState(false);
   const [taskModal, setTaskModal] = useState(false);
+  const [pickSourceOpen, setPickSourceOpen] = useState(false);
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(() => initialData?.linkedTaskId ?? null);
   const [fileKind, setFileKind] = useState<DocumentFileKind>(() => initialData?.fileKind ?? 'other');
 
@@ -133,26 +134,25 @@ export function DocumentUploadForm({ initialData }: { initialData?: DocumentList
         <AppHeader title={initialData ? 'עריכת מסמך' : 'העלאת מסמך'} showBack />
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.pickRow}>
-            <Pressable onPress={() => pickMock('file')} style={styles.pickBtn} accessibilityRole="button">
-              <MaterialCommunityIcons name="file-upload-outline" size={26} color={Colors.primary} />
-              <AppText variant="caption" weight="semiBold" align="center">
-                קובץ
+          <Pressable
+            onPress={() => setPickSourceOpen(true)}
+            style={({ pressed }) => [styles.pickTrigger, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
+          >
+            <View style={styles.pickTriggerIconWrap}>
+              <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodySm" weight="semiBold">
+                פעולות מהירות
               </AppText>
-            </Pressable>
-            <Pressable onPress={() => pickMock('image')} style={styles.pickBtn} accessibilityRole="button">
-              <MaterialCommunityIcons name="image-outline" size={26} color={Colors.primary} />
-              <AppText variant="caption" weight="semiBold" align="center">
-                תמונה
+              <AppText variant="caption" color="muted">
+                בחר קובץ, תמונה או מצלמה
               </AppText>
-            </Pressable>
-            <Pressable onPress={() => pickMock('camera')} style={styles.pickBtn} accessibilityRole="button">
-              <MaterialCommunityIcons name="camera-outline" size={26} color={Colors.primary} />
-              <AppText variant="caption" weight="semiBold" align="center">
-                מצלמה
-              </AppText>
-            </Pressable>
-          </View>
+            </View>
+            <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
+          </Pressable>
 
           <View style={styles.card}>
             <Input label="שם הקובץ" required placeholder="לדוגמה: חוזה שכירות" value={fileName} onChangeText={setFileName} error={submitted ? errors.fileName : ''} containerStyle={{ marginBottom: Spacing.md }} />
@@ -254,6 +254,60 @@ export function DocumentUploadForm({ initialData }: { initialData?: DocumentList
           <Button label="שמור והעלה" onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
         </ScrollView>
 
+        <Modal visible={pickSourceOpen} transparent animationType="slide" onRequestClose={() => setPickSourceOpen(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setPickSourceOpen(false)}>
+            <Pressable style={[styles.modalSheet, { paddingBottom: insets.bottom + Spacing.lg }]} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.pickSheetHandle} />
+              <AppText variant="labelMd" weight="bold" style={styles.pickSheetTitle}>
+                בחירת מקור
+              </AppText>
+              {(
+                [
+                  { kind: 'file' as const, icon: 'file-upload-outline' as const, label: 'קובץ מהמכשיר', hint: 'PDF או מסמך' },
+                  { kind: 'image' as const, icon: 'image-outline' as const, label: 'תמונה מהגלריה', hint: 'בחירת תמונה' },
+                  { kind: 'camera' as const, icon: 'camera-outline' as const, label: 'מצלמה', hint: 'צילום חדש' },
+                ] as const
+              ).map((opt, i) => (
+                <Pressable
+                  key={opt.kind}
+                  onPress={() => {
+                    pickMock(opt.kind);
+                    setPickSourceOpen(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.pickSheetRow,
+                    i < 2 && styles.pickSheetRowBorder,
+                    pressed && { backgroundColor: Colors.surfaceVariant },
+                  ]}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.pickSheetIconCircle}>
+                    <MaterialCommunityIcons name={opt.icon} size={22} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="bodyMd" weight="semiBold">
+                      {opt.label}
+                    </AppText>
+                    <AppText variant="caption" color="muted">
+                      {opt.hint}
+                    </AppText>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.onSurfaceMuted} />
+                </Pressable>
+              ))}
+              <Pressable
+                onPress={() => setPickSourceOpen(false)}
+                style={({ pressed }) => [styles.pickSheetCancel, pressed && { opacity: 0.75 }]}
+                accessibilityRole="button"
+              >
+                <AppText variant="bodyMd" color="variant" align="center">
+                  ביטול
+                </AppText>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         <Modal visible={taskModal} transparent animationType="slide" onRequestClose={() => setTaskModal(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setTaskModal(false)}>
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
@@ -295,16 +349,61 @@ export function DocumentUploadForm({ initialData }: { initialData?: DocumentList
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   content: { padding: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.base },
-  pickRow: { flexDirection: RTL_ROW, gap: Spacing.md, marginBottom: Spacing.md },
-  pickBtn: {
-    flex: 1,
+  pickTrigger: {
+    flexDirection: RTL_ROW,
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
     padding: Spacing.md,
     borderRadius: Radius.lg,
     borderWidth: 1.5,
-    borderColor: Colors.outlineVariant,
+    borderColor: Colors.primary,
     backgroundColor: Colors.surface,
+  },
+  pickTriggerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  pickSheetTitle: {
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  pickSheetRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  pickSheetRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  pickSheetIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickSheetCancel: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.md,
   },
   card: {
     backgroundColor: Colors.surface,

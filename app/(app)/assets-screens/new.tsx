@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -32,6 +32,7 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,8 @@ type Step1Data = {
   address: string;
   addressSuggestion: AddressSuggestion | null;
   apartmentNumber: string;
+  floorNumber: string;
+  sizeSqm: string;
   linkedProjectId: string | null;
   linkedProjectName: string | null;
   projectSearch: string;
@@ -133,7 +136,7 @@ const AIR_DIRECTIONS: { key: AirDirection; label: string }[] = [
 const AMENITIES: { key: AmenityKey; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
   { key: 'garden', label: 'גינה', icon: 'flower-outline' },
   { key: 'balcony', label: 'מרפסת', icon: 'door-sliding-open' },
-  { key: 'furnished', label: 'הוספת רהיטים / מרוהטת', icon: 'sofa-outline' },
+  { key: 'furnished', label: 'נכס מרוהט', icon: 'sofa-outline' },
   { key: 'elevator', label: 'מעלית', icon: 'elevator-passenger-outline' },
   { key: 'shelter', label: 'ממ"ד', icon: 'shield-home-outline' },
   { key: 'solarWater', label: 'דוד שמש', icon: 'white-balance-sunny' },
@@ -851,6 +854,23 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
         placeholder="לדוגמה: 4B"
       />
 
+      <FieldInput
+        label="מספר קומה"
+        value={data.floorNumber}
+        onChangeText={(t) => update('floorNumber', t)}
+        placeholder="לדוגמה: 3"
+        keyboardType="number-pad"
+      />
+
+      <FieldInput
+        label="גודל הנכס"
+        value={data.sizeSqm}
+        onChangeText={(t) => update('sizeSqm', t)}
+        placeholder="לדוגמה: 90"
+        keyboardType="decimal-pad"
+        suffix="מ״ר"
+      />
+
       {/* Project link */}
       <View style={{ gap: Spacing.xs }}>
         <View style={[s1.labelRow]}>
@@ -1055,6 +1075,8 @@ function Step2({ data, setData }: { data: Step2Data; setData: React.Dispatch<Rea
       <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right' }}>
         הוסף קבצים ומסמכים לנכס. ניתן להוסיף מספר קבצים ולהמשיך לשלב הבא בסיום.
       </AppText>
+
+      <RecommendedDocChecklistPanel />
 
       {/* ── Add-file form card ── */}
       <View style={s2.formCard}>
@@ -1473,7 +1495,11 @@ const STEP_TITLES = ['פרטי הנכס', 'הוספת קבצים', 'חוזה'];
 
 export default function NewAssetScreen() {
   const insets = useSafeAreaInsets();
-  const { editId } = useLocalSearchParams<{ editId?: string }>();
+  const { editId, preloadedProjectId, preloadedProjectName } = useLocalSearchParams<{
+    editId?: string;
+    preloadedProjectId?: string;
+    preloadedProjectName?: string;
+  }>();
 
   const editEntity = editId
     ? (MOCK_ASSETS.find((a) => a.id === editId) ?? MOCK_PROJECTS.find((p) => p.id === editId) ?? null)
@@ -1482,11 +1508,15 @@ export default function NewAssetScreen() {
 
   const [step, setStep] = useState(1);
 
+  const preloadedAppliedRef = useRef(false);
+
   const [step1, setStep1] = useState<Step1Data>(() => ({
     kind: null,
     address: editEntity?.address ?? '',
     addressSuggestion: editEntity ? { label: editEntity.address, street: editEntity.address, city: '' } : null,
     apartmentNumber: '',
+    floorNumber: editEntity?.kind === 'asset' ? (editEntity.floorNumber ?? '') : '',
+    sizeSqm: editEntity?.kind === 'asset' ? (editEntity.sizeSqm ?? '') : '',
     linkedProjectId: null,
     linkedProjectName: null,
     projectSearch: '',
@@ -1501,6 +1531,20 @@ export default function NewAssetScreen() {
     assetValue: '',
     meters: [],
   }));
+
+  useEffect(() => {
+    if (isEditMode || preloadedAppliedRef.current) return;
+    const pid = typeof preloadedProjectId === 'string' ? preloadedProjectId : undefined;
+    if (!pid) return;
+    preloadedAppliedRef.current = true;
+    const nameFromParam =
+      typeof preloadedProjectName === 'string' ? preloadedProjectName : MOCK_PROJECTS.find((p) => p.id === pid)?.name;
+    setStep1((prev) => ({
+      ...prev,
+      linkedProjectId: pid,
+      linkedProjectName: nameFromParam ?? null,
+    }));
+  }, [isEditMode, preloadedProjectId, preloadedProjectName]);
 
   const [step2, setStep2] = useState<Step2Data>({
     files: [],
@@ -1524,6 +1568,9 @@ export default function NewAssetScreen() {
   }), [step1.kind, step1.address]);
 
   const step1Valid = Object.values(step1Errors).every((e) => !e);
+
+  /** שלבים 2–3 לא חוסמים המשך (קבצים וחוזה אופציונליים). */
+  const canAdvance = step === 1 ? step1Valid : true;
 
   const handleNext = () => {
     if (step === 1) {

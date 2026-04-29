@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -57,7 +58,14 @@ const METER_KINDS = [
 
 type MeterKind = (typeof METER_KINDS)[number]['key'];
 
-type MeterRow = { id: string; kind: MeterKind; name: string; identifier: string; value: string };
+type MeterRow = {
+  id: string;
+  kind: MeterKind;
+  name: string;
+  identifier: string;
+  value: string;
+  photoUri: string | null;
+};
 
 const FILE_CATEGORIES = [
   'צילום חוזה',
@@ -209,9 +217,25 @@ export function ContractCreateWizard({
         name: '',
         identifier: '',
         value: '',
+        photoUri: null,
       },
     ]);
   };
+
+  const setMeterPhotoUri = useCallback((meterId: string, uri: string | null) => {
+    setMeters((prev) => prev.map((x) => (x.id === meterId ? { ...x, photoUri: uri } : x)));
+  }, []);
+
+  const pickMeterPhotoMock = useCallback((meterId: string) => {
+    Alert.alert('תמונת מונה', 'במימוש אמיתי: בחירה מהמצלמה או מהגלריה.', [
+      { text: 'ביטול', style: 'cancel' },
+      {
+        text: 'הוסף תמונת דוגמה',
+        onPress: () =>
+          setMeterPhotoUri(meterId, `https://picsum.photos/seed/meter-${meterId}/400/240`),
+      },
+    ]);
+  }, [setMeterPhotoUri]);
 
   const mockPickFile = (source: string) => {
     Alert.alert('בחירת קובץ (תצוגה)', `במימוש אמיתי ייפתח ${source}. לעת עתה נוסף קובץ לדוגמה.`, [
@@ -650,6 +674,37 @@ export function ContractCreateWizard({
                   <Input label="שם מונה" value={m.name} onChangeText={(t) => setMeters((prev) => prev.map((x) => (x.id === m.id ? { ...x, name: t } : x)))} containerStyle={{ marginTop: Spacing.sm }} />
                   <Input label="מספר מזהה" value={m.identifier} onChangeText={(t) => setMeters((prev) => prev.map((x) => (x.id === m.id ? { ...x, identifier: t } : x)))} containerStyle={{ marginTop: Spacing.sm }} />
                   <Input label="ערך" value={m.value} onChangeText={(t) => setMeters((prev) => prev.map((x) => (x.id === m.id ? { ...x, value: t } : x)))} containerStyle={{ marginTop: Spacing.sm }} />
+
+                  <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right', marginTop: Spacing.md }}>
+                    תמונת מונה
+                  </AppText>
+                  {m.photoUri ? (
+                    <View style={styles.meterPhotoPreview}>
+                      <Image source={{ uri: m.photoUri }} style={styles.meterPhotoImage} resizeMode="cover" />
+                      <Pressable
+                        onPress={() => setMeterPhotoUri(m.id, null)}
+                        style={({ pressed }) => [styles.meterPhotoRemove, pressed && { opacity: 0.85 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel="הסר תמונה"
+                      >
+                        <MaterialCommunityIcons name="close-circle-outline" size={20} color={Colors.error} />
+                        <AppText variant="bodySm" color="error" weight="semiBold">
+                          הסר תמונה
+                        </AppText>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                  <Pressable
+                    onPress={() => pickMeterPhotoMock(m.id)}
+                    style={({ pressed }) => [styles.meterPhotoAddBtn, pressed && { opacity: 0.88 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="צירוף תמונה למונה"
+                  >
+                    <MaterialCommunityIcons name="camera-plus-outline" size={22} color={Colors.primary} />
+                    <AppText variant="bodyMd" weight="semiBold" color="primary">
+                      {m.photoUri ? 'החלפת תמונה' : 'צירוף תמונה'}
+                    </AppText>
+                  </Pressable>
                 </View>
               ))}
               <Pressable onPress={addMeter} style={styles.addMeterBtn} accessibilityRole="button">
@@ -991,6 +1046,33 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     borderStyle: 'dashed',
     borderRadius: Radius.lg,
+  },
+  meterPhotoPreview: { gap: Spacing.xs, marginTop: Spacing.xs },
+  meterPhotoImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  meterPhotoRemove: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.xs,
+    alignSelf: 'flex-start',
+    marginTop: Spacing.xs,
+  },
+  meterPhotoAddBtn: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
   },
   dateFieldLabelRow: { flexDirection: RTL_ROW, alignItems: 'center', marginBottom: Spacing.xs },
   dateFieldLabel: { textAlign: 'right' },

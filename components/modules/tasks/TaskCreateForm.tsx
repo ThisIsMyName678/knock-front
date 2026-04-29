@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   ScrollView,
@@ -11,13 +11,13 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AppHeader } from '@/components/ui/AppHeader';
-import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption } from '@/lib/mocks/contracts';
+import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption, type LinkKind } from '@/lib/mocks/contracts';
 import { PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
   TASK_KIND_LABELS,
@@ -66,6 +66,12 @@ function iconName(icon: string): React.ComponentProps<typeof MaterialCommunityIc
 
 export function TaskCreateForm() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    preloadLinkId?: string;
+    preloadLinkKind?: string;
+    contextEntityId?: string;
+  }>();
+
   const [title, setTitle] = useState('');
   const [taskKind, setTaskKind] = useState<TaskKind>('maintenance');
   const [priority, setPriority] = useState<TaskPriority>('medium');
@@ -82,6 +88,23 @@ export function TaskCreateForm() {
 
   const entities = useMemo(() => filterEntitiesForTaskQuery(linkQuery), [linkQuery]);
   const paymentOptions = useMemo(() => paymentsForTaskLink(linkSelected?.id ?? ''), [linkSelected]);
+
+  useEffect(() => {
+    const rawId =
+      typeof params.preloadLinkId === 'string'
+        ? params.preloadLinkId
+        : typeof params.contextEntityId === 'string'
+          ? params.contextEntityId
+          : undefined;
+    if (!rawId) return;
+    const kindParam = params.preloadLinkKind;
+    const kind: LinkKind | undefined =
+      kindParam === 'project' || kindParam === 'asset' ? kindParam : undefined;
+    const opt = kind
+      ? MOCK_ENTITY_LINKS.find((e) => e.id === rawId && e.kind === kind)
+      : MOCK_ENTITY_LINKS.find((e) => e.id === rawId);
+    if (opt) setLinkSelected(opt);
+  }, [params.preloadLinkId, params.preloadLinkKind, params.contextEntityId]);
 
   const workflowFromPreset = (): WorkflowStatus => {
     if (startPreset === 'in_progress') return 'in_progress';
