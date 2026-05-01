@@ -369,18 +369,22 @@ function AddressAutocomplete({
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (value.trim().length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
-
+    if (value.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
         const url = `${ADDRESS_DATASTORE_URL}&q=${encodeURIComponent(value)}&limit=12`;
         const res = await fetch(url);
-        const json = (await res.json()) as {
-          success?: boolean;
-          result?: { records?: Record<string, unknown>[] };
-        };
-        if (!res.ok || json?.success === false) { setSuggestions([]); setShowSuggestions(false); return; }
+        const json = await res.json();
+        if (!res.ok || json?.success === false) {
+          setSuggestions([]);
+          setShowSuggestions(false);
+          return;
+        }
         const records = json?.result?.records ?? [];
         const seen = new Set<string>();
         const mapped: AddressSuggestion[] = [];
@@ -400,6 +404,10 @@ function AddressAutocomplete({
         setLoading(false);
       }
     }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [value]);
 
   const handleSelect = (s: AddressSuggestion) => {

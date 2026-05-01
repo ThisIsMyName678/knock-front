@@ -1,16 +1,7 @@
 import 'react-native-url-polyfill/auto'
 import { createClient } from '@supabase/supabase-js'
 import 'expo-sqlite/localStorage/install';
-
-function requirePublicEnv(name: string, value: string | undefined): string {
-  const trimmed = value?.trim()
-  if (!trimmed) {
-    throw new Error(
-      `Missing ${name}. Copy .env.example to .env and set a value (see README or team docs).`,
-    )
-  }
-  return trimmed
-}
+import { requirePublicEnv } from './env'
 
 const supabaseUrl = requirePublicEnv(
   'EXPO_PUBLIC_SUPABASE_URL',

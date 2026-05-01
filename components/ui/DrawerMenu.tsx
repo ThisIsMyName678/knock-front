@@ -6,14 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Colors, Spacing, Radius, Shadow, FontFamily, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
-
-// ─── Mock user data (matches Dashboard) ───────────────────────────────────────
-
-const MOCK_USER = {
-  name: 'ניר',
-  role: 'מנהל נכסים',
-  email: 'manager@knocknock.co.il',
-};
+import { useAuth } from '@/lib/auth';
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
@@ -57,7 +50,12 @@ type Props = {
 
 export function DrawerMenu({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
+  const { backendUser, user } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
+  const userMetadata = backendUser?.userMetadata ?? user?.user_metadata;
+  const displayName = resolveDisplayName(userMetadata, backendUser?.email ?? user?.email);
+  const displayEmail = backendUser?.email ?? user?.email ?? 'לא הוגדר אימייל';
+  const displayRole = backendUser?.role ?? 'משתמש';
 
   const navigate = useCallback(
     (item: NavItem) => {
@@ -94,9 +92,9 @@ export function DrawerMenu({ visible, onClose }: Props) {
               <MaterialCommunityIcons name="account-circle" size={44} color={Colors.onPrimary} />
             </View>
             <View style={{ flex: 1 }}>
-              <AppText variant="headingSm" weight="bold" color="onPrimary">{MOCK_USER.name}</AppText>
-              <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>{MOCK_USER.role}</AppText>
-              <AppText variant="caption" color="onPrimary" style={{ opacity: 0.65 }}>{MOCK_USER.email}</AppText>
+              <AppText variant="headingSm" weight="bold" color="onPrimary">{displayName}</AppText>
+              <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>{displayRole}</AppText>
+              <AppText variant="caption" color="onPrimary" style={{ opacity: 0.65 }}>{displayEmail}</AppText>
             </View>
             <Pressable onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="סגור תפריט">
               <MaterialCommunityIcons name="close" size={22} color={Colors.onPrimary} />
@@ -194,6 +192,23 @@ export function DrawerMenu({ visible, onClose }: Props) {
       </View>
     </Modal>
   );
+}
+
+function resolveDisplayName(
+  metadata: Record<string, unknown> | undefined,
+  email: string | undefined,
+): string {
+  const candidateKeys = ['full_name', 'name', 'display_name', 'given_name'];
+
+  for (const key of candidateKeys) {
+    const value = metadata?.[key];
+
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return email?.split('@')[0] || 'משתמש';
 }
 
 const styles = StyleSheet.create({
