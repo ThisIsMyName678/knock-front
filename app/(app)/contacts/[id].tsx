@@ -23,6 +23,7 @@ import {
   assetsUnderProject,
 } from '@/lib/mocks/contacts';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 async function openUrl(url: string) {
   try {
@@ -233,8 +234,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionsRow: { flexDirection: 'row-reverse', justifyContent: 'space-around', gap: Spacing.sm },
+  actionsRow: { flexDirection: RTL_ROW, justifyContent: 'space-around', gap: Spacing.sm },
   actionBtn: { alignItems: 'center', gap: 4, padding: Spacing.sm },
-  row: { flexDirection: 'row-reverse', justifyContent: 'space-between', paddingVertical: Spacing.sm, gap: Spacing.md },
+  row: { flexDirection: RTL_ROW, justifyContent: 'space-between', paddingVertical: Spacing.sm, gap: Spacing.md },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
 });

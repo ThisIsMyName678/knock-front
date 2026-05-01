@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { AppText } from './Text';
 import { Colors, Radius, Spacing, FontFamily, MIN_TOUCH } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
@@ -88,7 +89,7 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,

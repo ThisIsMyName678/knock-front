@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -18,6 +19,7 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { Badge } from '@/components/ui/Badge';
 import {
   CONTRACT_TYPE_LABELS,
@@ -30,6 +32,7 @@ import {
   type EntityLinkOption,
   type ContractAccessLevel,
 } from '@/lib/mocks/contracts';
+import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
   Colors,
   Spacing,
@@ -40,17 +43,11 @@ import {
   CONTENT_HORIZONTAL_PADDING,
   MIN_TOUCH,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
-const STEPS = ['פרטי חוזה', 'תשלומים', 'תיעוד מונים', 'העלאת קבצים'] as const;
+const STEPS = ['פרטי חוזה', 'מחיר', 'תיעוד תשלום', 'תיעוד מונים', 'העלאת קבצים'] as const;
 
 const CONTRACT_TYPES: ContractTypeKey[] = ['rent', 'purchase', 'supplier_work', 'other'];
-
-const PAYMENT_TYPES = [
-  { key: 'rent', label: 'שכירות', icon: 'home-outline' as const },
-  { key: 'maintenance', label: 'תחזוקה', icon: 'hammer-wrench' as const },
-  { key: 'management', label: 'ניהול', icon: 'office-building-outline' as const },
-  { key: 'other', label: 'אחר', icon: 'dots-horizontal' as const },
-];
 
 const METER_KINDS = [
   { key: 'electric', label: 'חשמל' },
@@ -61,7 +58,14 @@ const METER_KINDS = [
 
 type MeterKind = (typeof METER_KINDS)[number]['key'];
 
-type MeterRow = { id: string; kind: MeterKind; name: string; identifier: string; value: string };
+type MeterRow = {
+  id: string;
+  kind: MeterKind;
+  name: string;
+  identifier: string;
+  value: string;
+  photoUri: string | null;
+};
 
 const FILE_CATEGORIES = [
   'צילום חוזה',
@@ -79,9 +83,7 @@ const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['owner_only', 'tenant_only', 
 type PaymentDraft = {
   id: string;
   direction: 'in' | 'out';
-  categoryKey: string;
   amount: string;
-  date: string;
   notes: string;
 };
 
@@ -110,17 +112,27 @@ function randomId() {
   return `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function ContractCreateWizard({ initialData }: { initialData?: ContractListRow | ContractDetailMock } = {}) {
+export function ContractCreateWizard({
+  initialData,
+  preloadedLink,
+}: {
+  initialData?: ContractListRow | ContractDetailMock;
+  preloadedLink?: EntityLinkOption;
+} = {}) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
 
   // Step 1
   const [contractName, setContractName] = useState(() => initialData?.contractName ?? '');
   const [contractType, setContractType] = useState<ContractTypeKey | ''>(() => initialData?.contractType ?? '');
-  const [linkQuery, setLinkQuery] = useState(() => initialData?.linkLabel ?? '');
-  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() =>
-    initialData ? (MOCK_ENTITY_LINKS.find((e) => e.id === initialData.linkId) ?? null) : null,
-  );
+  const [linkQuery, setLinkQuery] = useState(() => {
+    if (preloadedLink) return `${preloadedLink.name}, ${preloadedLink.address}`;
+    return initialData?.linkLabel ?? '';
+  });
+  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() => {
+    if (preloadedLink) return preloadedLink;
+    return initialData ? (MOCK_ENTITY_LINKS.find((e) => e.id === initialData.linkId) ?? null) : null;
+  });
   const [showEntitySuggest, setShowEntitySuggest] = useState(false);
   const [counterpartyName, setCounterpartyName] = useState(() => initialData?.counterpartyName ?? '');
   const [serviceType, setServiceType] = useState('');
@@ -134,17 +146,18 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
   const [reminderUnit, setReminderUnit] = useState<'days' | 'weeks' | 'months'>('days');
   const [reminderAmount, setReminderAmount] = useState('30');
   const [contractAccess, setContractAccess] = useState<ContractAccessLevel>('owner_only');
+  const [datePickerTarget, setDatePickerTarget] = useState<'agreement' | 'expiry' | null>(null);
 
-  // Step 2
+  // Step 1 – מחיר
   const [payments, setPayments] = useState<PaymentDraft[]>([]);
   const [payDirection, setPayDirection] = useState<'in' | 'out'>('in');
-  const [payCategory, setPayCategory] = useState('');
   const [payAmount, setPayAmount] = useState('');
-  const [payDate, setPayDate] = useState('');
   const [payNotes, setPayNotes] = useState('');
-  const [paymentLoopModal, setPaymentLoopModal] = useState(false);
 
-  // Step 3
+  // Step 2 – תיעוד תשלום
+  const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
+
+  // Step 3 – מונים
   const [meters, setMeters] = useState<MeterRow[]>([]);
 
   // Step 4
@@ -167,42 +180,33 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
     [expiryDate],
   );
 
-  const step1Valid =
-    contractName.trim().length > 0 &&
-    contractType !== '' &&
-    linkSelected !== null &&
-    counterpartyName.trim().length > 0 &&
-    (contractType !== 'supplier_work' || serviceType.trim().length > 0);
+  const [step1Submitted, setStep1Submitted] = useState(false);
+
+  const step1Errors = useMemo(() => ({
+    contractName: contractName.trim().length === 0 ? 'שדה חובה' : '',
+    contractType: contractType === '' ? 'יש לבחור סוג חוזה' : '',
+    linkSelected: !linkSelected ? 'יש לבחור נכס או פרויקט' : '',
+    counterpartyName: counterpartyName.trim().length === 0 ? 'שדה חובה' : '',
+    serviceType: contractType === 'supplier_work' && serviceType.trim().length === 0 ? 'שדה חובה' : '',
+    agreementDate: agreementDate.trim().length === 0 ? 'שדה חובה' : '',
+  }), [contractName, contractType, linkSelected, counterpartyName, serviceType, agreementDate]);
+
+  const step1Valid = Object.values(step1Errors).every((e) => !e);
 
   const appendPayment = useCallback(() => {
-    if (!payCategory || !payAmount.trim()) return;
+    if (!payAmount.trim()) return;
     setPayments((prev) => [
       ...prev,
       {
         id: randomId(),
         direction: payDirection,
-        categoryKey: payCategory,
         amount: payAmount,
-        date: payDate || '—',
         notes: payNotes,
       },
     ]);
-    setPayCategory('');
     setPayAmount('');
-    setPayDate('');
     setPayNotes('');
-  }, [payDirection, payCategory, payAmount, payDate, payNotes]);
-
-  const openFinishPaymentStep = () => {
-    if (!payCategory && !payAmount.trim() && payments.length === 0) {
-      setStep(2);
-      return;
-    }
-    if (payCategory && payAmount.trim()) {
-      appendPayment();
-    }
-    setPaymentLoopModal(true);
-  };
+  }, [payDirection, payAmount, payNotes]);
 
   const addMeter = () => {
     setMeters((prev) => [
@@ -213,9 +217,25 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
         name: '',
         identifier: '',
         value: '',
+        photoUri: null,
       },
     ]);
   };
+
+  const setMeterPhotoUri = useCallback((meterId: string, uri: string | null) => {
+    setMeters((prev) => prev.map((x) => (x.id === meterId ? { ...x, photoUri: uri } : x)));
+  }, []);
+
+  const pickMeterPhotoMock = useCallback((meterId: string) => {
+    Alert.alert('תמונת מונה', 'במימוש אמיתי: בחירה מהמצלמה או מהגלריה.', [
+      { text: 'ביטול', style: 'cancel' },
+      {
+        text: 'הוסף תמונת דוגמה',
+        onPress: () =>
+          setMeterPhotoUri(meterId, `https://picsum.photos/seed/meter-${meterId}/400/240`),
+      },
+    ]);
+  }, [setMeterPhotoUri]);
 
   const mockPickFile = (source: string) => {
     Alert.alert('בחירת קובץ (תצוגה)', `במימוש אמיתי ייפתח ${source}. לעת עתה נוסף קובץ לדוגמה.`, [
@@ -241,13 +261,13 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
   };
 
   const goNext = () => {
-    if (step === 0 && !step1Valid) return;
     if (step === 0) {
+      setStep1Submitted(true);
+      if (!step1Valid) return;
       setDefaultFileVisibility(contractAccess);
     }
-    if (step === 1) {
-      openFinishPaymentStep();
-      return;
+    if (step === 1 && payAmount.trim()) {
+      appendPayment();
     }
     if (step < STEPS.length - 1) setStep((s) => s + 1);
     else router.back();
@@ -289,7 +309,7 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
         >
           {step === 0 && (
             <View style={styles.card}>
-              <Input label="שם החוזה" placeholder="לדוגמה: חוזה שכירות 2026" value={contractName} onChangeText={setContractName} containerStyle={{ marginBottom: Spacing.md }} />
+              <Input label="שם החוזה" required placeholder="לדוגמה: חוזה שכירות 2026" value={contractName} onChangeText={setContractName} error={step1Submitted ? step1Errors.contractName : ''} containerStyle={{ marginBottom: Spacing.md }} />
 
               <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>
                 הרשאות גישה לחוזה
@@ -316,9 +336,13 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
                 ))}
               </View>
 
-              <AppText variant="labelMd" weight="semiBold" style={[styles.blockLabel, { marginTop: Spacing.lg }]}>
-                סוג חוזה
-              </AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
+                <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>סוג חוזה</AppText>
+                <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+              </View>
+              {step1Submitted && step1Errors.contractType ? (
+                <AppText variant="caption" color="error" style={{ textAlign: 'right', marginBottom: Spacing.xs }}>{step1Errors.contractType}</AppText>
+              ) : null}
               <View style={styles.typeGrid}>
                 {CONTRACT_TYPES.map((t) => (
                   <Pressable
@@ -335,10 +359,11 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
                 ))}
               </View>
 
-              <AppText variant="labelMd" weight="semiBold" style={[styles.blockLabel, { marginTop: Spacing.base }]}>
-                שיוך לנכס / פרויקט (חובה)
-              </AppText>
-              <View style={styles.entityBox}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: Spacing.base, marginBottom: Spacing.sm }}>
+                <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>שיוך לנכס / פרויקט</AppText>
+                <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+              </View>
+              <View style={[styles.entityBox, step1Submitted && step1Errors.linkSelected ? { borderColor: Colors.error, borderWidth: 1.5, borderRadius: Radius.md } : undefined]}>
                 <TextInput
                   style={styles.entityInput}
                   placeholder="חיפוש נכס או פרויקט..."
@@ -384,15 +409,20 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
                   </View>
                 )}
               </View>
+              {step1Submitted && step1Errors.linkSelected ? (
+                <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{step1Errors.linkSelected}</AppText>
+              ) : null}
 
               <Input
                 label="שם השוכר / רוכש / נותן שירות"
+                required
                 value={counterpartyName}
                 onChangeText={setCounterpartyName}
+                error={step1Submitted ? step1Errors.counterpartyName : ''}
                 containerStyle={{ marginTop: Spacing.md }}
               />
               {contractType === 'supplier_work' && (
-                <Input label="סוג השירות" placeholder="לדוגמה: ניקיון" value={serviceType} onChangeText={setServiceType} containerStyle={{ marginTop: Spacing.md }} />
+                <Input label="סוג השירות" required placeholder="לדוגמה: ניקיון" value={serviceType} onChangeText={setServiceType} error={step1Submitted ? step1Errors.serviceType : ''} containerStyle={{ marginTop: Spacing.md }} />
               )}
 
               <Input label="ת.ז / ח.פ" value={idNumber} onChangeText={setIdNumber} containerStyle={{ marginTop: Spacing.md }} />
@@ -400,8 +430,46 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
               <Input label="אימייל" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" containerStyle={{ marginTop: Spacing.md }} />
               <Input label="שם איש קשר" value={contactName} onChangeText={setContactName} containerStyle={{ marginTop: Spacing.md }} />
 
-              <Input label="תאריך הסכם" placeholder="DD/MM/YYYY" value={agreementDate} onChangeText={onAgreementDateChange} containerStyle={{ marginTop: Spacing.md }} />
-              <Input label="תאריך תוקף" placeholder="ברירת מחדל: שנה קדימה" value={expiryDate} onChangeText={setExpiryDate} containerStyle={{ marginTop: Spacing.md }} />
+              <View style={{ marginTop: Spacing.md }}>
+                <View style={styles.dateFieldLabelRow}>
+                  <AppText variant="labelMd" weight="semiBold" style={styles.dateFieldLabel}>
+                    תאריך הסכם
+                  </AppText>
+                  <AppText variant="labelMd" weight="bold" style={styles.dateAsterisk}> *</AppText>
+                </View>
+                <Pressable
+                  onPress={() => setDatePickerTarget('agreement')}
+                  style={[
+                    styles.dateField,
+                    step1Submitted && step1Errors.agreementDate ? styles.dateFieldError : undefined,
+                  ]}
+                >
+                  <MaterialCommunityIcons name="calendar-outline" size={18} color={agreementDate ? Colors.onBackground : Colors.onSurfaceMuted} />
+                  <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: agreementDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                    {agreementDate || 'בחר תאריך'}
+                  </AppText>
+                </Pressable>
+                {step1Submitted && step1Errors.agreementDate ? (
+                  <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 4 }}>
+                    {step1Errors.agreementDate}
+                  </AppText>
+                ) : null}
+              </View>
+
+              <View style={{ marginTop: Spacing.md }}>
+                <AppText variant="labelMd" weight="semiBold" style={[styles.dateFieldLabel, { marginBottom: Spacing.xs }]}>
+                  תאריך תוקף
+                </AppText>
+                <Pressable
+                  onPress={() => setDatePickerTarget('expiry')}
+                  style={styles.dateField}
+                >
+                  <MaterialCommunityIcons name="calendar-outline" size={18} color={expiryDate ? Colors.onBackground : Colors.onSurfaceMuted} />
+                  <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: expiryDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                    {expiryDate || 'ברירת מחדל: שנה קדימה'}
+                  </AppText>
+                </Pressable>
+              </View>
 
               <View style={styles.reminderRow}>
                 <Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{ false: Colors.outlineVariant, true: Colors.primaryLight }} thumbColor={reminderEnabled ? Colors.primary : Colors.onSurfaceMuted} />
@@ -428,6 +496,10 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
 
           {step === 1 && (
             <View style={styles.card}>
+              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
+                מחיר
+              </AppText>
+
               {payments.length > 0 && (
                 <View style={{ marginBottom: Spacing.md }}>
                   <AppText variant="labelMd" weight="bold" style={{ marginBottom: Spacing.sm }}>
@@ -436,16 +508,16 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
                   {payments.map((p) => (
                     <View key={p.id} style={styles.paymentChip}>
                       <AppText variant="bodySm" style={{ flex: 1 }}>
-                        {p.direction === 'in' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪ · {p.date}
+                        {p.direction === 'in' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪
                       </AppText>
+                      <Pressable onPress={() => setPayments((prev) => prev.filter((x) => x.id !== p.id))}>
+                        <MaterialCommunityIcons name="close" size={16} color={Colors.onSurfaceVariant} />
+                      </Pressable>
                     </View>
                   ))}
                 </View>
               )}
 
-              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
-                תשלום בחוזה
-              </AppText>
               <View style={styles.directionRow}>
                 {(['in', 'out'] as const).map((d) => (
                   <Pressable
@@ -466,26 +538,116 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
                   </Pressable>
                 ))}
               </View>
-              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.base, marginBottom: Spacing.sm }}>
-                קטגוריה
-              </AppText>
-              <View style={styles.typeGrid}>
-                {PAYMENT_TYPES.map((t) => (
-                  <Pressable key={t.key} onPress={() => setPayCategory(t.key)} style={[styles.typeCard, payCategory === t.key && styles.typeCardActive]}>
-                    <MaterialCommunityIcons name={t.icon} size={20} color={payCategory === t.key ? Colors.primary : Colors.onSurfaceVariant} />
-                    <AppText variant="caption" color={payCategory === t.key ? 'primary' : 'variant'} weight={payCategory === t.key ? 'bold' : 'regular'} align="center">
-                      {t.label}
-                    </AppText>
-                  </Pressable>
-                ))}
-              </View>
+
               <Input label="סכום (₪)" value={payAmount} onChangeText={setPayAmount} keyboardType="numeric" containerStyle={{ marginTop: Spacing.md }} />
-              <Input label="תאריך" placeholder="DD/MM/YYYY" value={payDate} onChangeText={setPayDate} containerStyle={{ marginTop: Spacing.md }} />
               <Input label="הערות" value={payNotes} onChangeText={setPayNotes} multiline numberOfLines={3} style={{ height: 72, textAlignVertical: 'top' }} containerStyle={{ marginTop: Spacing.md }} />
+
+              <Pressable onPress={appendPayment} style={[styles.addMeterBtn, { marginTop: Spacing.md }]} accessibilityRole="button">
+                <MaterialCommunityIcons name="plus" size={20} color={Colors.primary} />
+                <AppText variant="bodyMd" weight="semiBold" color="primary">
+                  הוסף תשלום נוסף
+                </AppText>
+              </Pressable>
+
+              <AppText variant="caption" color="variant" style={{ textAlign: 'right', marginTop: Spacing.sm }}>
+                ניתן להוסיף מספר תשלומים. לחץ "הבא" להמשך.
+              </AppText>
             </View>
           )}
 
           {step === 2 && (
+            <View style={styles.card}>
+              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
+                תיעוד תשלום
+              </AppText>
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.base }}>
+                קישור לתשלום קיים עבור נכס זה, או יצירת תשלום חדש.
+              </AppText>
+
+              {(() => {
+                const entityPayments = linkSelected
+                  ? MOCK_PAYMENTS_LIST.filter((p) => p.linkId === linkSelected.id)
+                  : [];
+                return (
+                  <>
+                    {entityPayments.length > 0 ? (
+                      <View style={{ marginBottom: Spacing.base }}>
+                        <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                          תשלומים קיימים לנכס
+                        </AppText>
+                        {entityPayments.map((p) => {
+                          const isSelected = linkedPaymentId === p.id;
+                          return (
+                            <Pressable
+                              key={p.id}
+                              onPress={() => setLinkedPaymentId(isSelected ? null : p.id)}
+                              style={[
+                                styles.paymentLinkRow,
+                                isSelected && styles.paymentLinkRowActive,
+                              ]}
+                            >
+                              <View style={{ flex: 1, gap: 2 }}>
+                                <AppText variant="bodyMd" weight={isSelected ? 'bold' : 'regular'}>
+                                  {p.displayName}
+                                </AppText>
+                                <AppText variant="caption" color="variant">
+                                  {PAYMENT_TYPE_LABELS[p.paymentType]} · {p.amount.toLocaleString('he-IL')} ₪ · {p.dueDate}
+                                </AppText>
+                              </View>
+                              <MaterialCommunityIcons
+                                name={isSelected ? 'check-circle' : 'circle-outline'}
+                                size={22}
+                                color={isSelected ? Colors.primary : Colors.outlineVariant}
+                              />
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <View style={styles.emptyPayments}>
+                        <MaterialCommunityIcons name="cash-remove" size={32} color={Colors.outlineVariant} />
+                        <AppText variant="bodySm" color="variant" style={{ textAlign: 'center', marginTop: Spacing.sm }}>
+                          {linkSelected ? 'אין תשלומים קיימים עבור נכס זה' : 'יש לשייך נכס בשלב הראשון כדי לראות תשלומים'}
+                        </AppText>
+                      </View>
+                    )}
+
+                    <View style={styles.orDivider}>
+                      <View style={styles.orLine} />
+                      <AppText variant="caption" color="variant" style={{ marginHorizontal: Spacing.sm }}>
+                        או
+                      </AppText>
+                      <View style={styles.orLine} />
+                    </View>
+
+                    <Pressable
+                      style={styles.newPaymentBtn}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/(app)/payments/new',
+                          params: {
+                            preloadContractId: `contract_${Date.now()}`,
+                            preloadContractName: contractName || 'חוזה חדש',
+                            preloadLinkId: linkSelected?.id ?? '',
+                            preloadLinkLabel: linkSelected?.name ?? '',
+                            preloadLinkKind: linkSelected?.kind ?? '',
+                            preloadLinkAddress: linkSelected?.address ?? '',
+                          },
+                        });
+                      }}
+                    >
+                      <MaterialCommunityIcons name="plus-circle-outline" size={22} color={Colors.primary} />
+                      <AppText variant="bodyMd" weight="semiBold" color="primary">
+                        יצירת תשלום חדש
+                      </AppText>
+                    </Pressable>
+                  </>
+                );
+              })()}
+            </View>
+          )}
+
+          {step === 3 && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
                 תיעוד מונים (לא חובה)
@@ -512,6 +674,37 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
                   <Input label="שם מונה" value={m.name} onChangeText={(t) => setMeters((prev) => prev.map((x) => (x.id === m.id ? { ...x, name: t } : x)))} containerStyle={{ marginTop: Spacing.sm }} />
                   <Input label="מספר מזהה" value={m.identifier} onChangeText={(t) => setMeters((prev) => prev.map((x) => (x.id === m.id ? { ...x, identifier: t } : x)))} containerStyle={{ marginTop: Spacing.sm }} />
                   <Input label="ערך" value={m.value} onChangeText={(t) => setMeters((prev) => prev.map((x) => (x.id === m.id ? { ...x, value: t } : x)))} containerStyle={{ marginTop: Spacing.sm }} />
+
+                  <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right', marginTop: Spacing.md }}>
+                    תמונת מונה
+                  </AppText>
+                  {m.photoUri ? (
+                    <View style={styles.meterPhotoPreview}>
+                      <Image source={{ uri: m.photoUri }} style={styles.meterPhotoImage} resizeMode="cover" />
+                      <Pressable
+                        onPress={() => setMeterPhotoUri(m.id, null)}
+                        style={({ pressed }) => [styles.meterPhotoRemove, pressed && { opacity: 0.85 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel="הסר תמונה"
+                      >
+                        <MaterialCommunityIcons name="close-circle-outline" size={20} color={Colors.error} />
+                        <AppText variant="bodySm" color="error" weight="semiBold">
+                          הסר תמונה
+                        </AppText>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                  <Pressable
+                    onPress={() => pickMeterPhotoMock(m.id)}
+                    style={({ pressed }) => [styles.meterPhotoAddBtn, pressed && { opacity: 0.88 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="צירוף תמונה למונה"
+                  >
+                    <MaterialCommunityIcons name="camera-plus-outline" size={22} color={Colors.primary} />
+                    <AppText variant="bodyMd" weight="semiBold" color="primary">
+                      {m.photoUri ? 'החלפת תמונה' : 'צירוף תמונה'}
+                    </AppText>
+                  </Pressable>
                 </View>
               ))}
               <Pressable onPress={addMeter} style={styles.addMeterBtn} accessibilityRole="button">
@@ -523,7 +716,7 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
             </View>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
                 העלאת קבצים
@@ -619,47 +812,14 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
           <Button
-            label={
-              step === STEPS.length - 1
-                ? 'סיום'
-                : step === 1
-                  ? 'סיום תשלומים'
-                  : 'הבא'
-            }
+            label={step === STEPS.length - 1 ? 'סיום' : 'הבא'}
             onPress={goNext}
-            disabled={step === 0 && !step1Valid}
+            disabled={false}
             fullWidth
             size="lg"
           />
         </View>
       </View>
-
-      <Modal visible={paymentLoopModal} transparent animationType="fade" onRequestClose={() => setPaymentLoopModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <AppText variant="headingSm" weight="bold" align="center" style={{ marginBottom: Spacing.md }}>
-              האם להוסיף תשלום נוסף או להמשיך?
-            </AppText>
-            <Button
-              label="הוספת תשלום נוסף"
-              onPress={() => {
-                setPaymentLoopModal(false);
-              }}
-              fullWidth
-              style={{ marginBottom: Spacing.sm }}
-            />
-            <Button
-              label="המשך לשלב הבא"
-              variant="secondary"
-              onPress={() => {
-                setPaymentLoopModal(false);
-                setStep(2);
-              }}
-              fullWidth
-            />
-          </View>
-        </View>
-      </Modal>
 
       <Modal visible={categoryModal} transparent animationType="slide" onRequestClose={() => setCategoryModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setCategoryModal(false)}>
@@ -682,6 +842,21 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
           </Pressable>
         </Pressable>
       </Modal>
+
+      <DatePickerModal
+        visible={datePickerTarget !== null}
+        value={datePickerTarget === 'agreement' ? agreementDate : expiryDate}
+        title={datePickerTarget === 'agreement' ? 'תאריך הסכם' : 'תאריך תוקף'}
+        onSelect={(dateStr) => {
+          if (datePickerTarget === 'agreement') {
+            onAgreementDateChange(dateStr);
+          } else {
+            setExpiryDate(dateStr);
+          }
+          setDatePickerTarget(null);
+        }}
+        onClose={() => setDatePickerTarget(null)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -689,7 +864,7 @@ export function ContractCreateWizard({ initialData }: { initialData?: ContractLi
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   stepRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     justifyContent: 'center',
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xs,
@@ -718,7 +893,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   blockLabel: { textAlign: 'right', marginBottom: Spacing.sm, color: Colors.onBackground },
-  typeGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  typeGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   typeCard: {
     width: '47%',
     padding: Spacing.md,
@@ -742,7 +917,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   selectedEntity: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     marginTop: Spacing.sm,
@@ -759,7 +934,7 @@ const styles = StyleSheet.create({
     ...Shadow.sm,
   },
   suggestRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     padding: Spacing.md,
@@ -768,13 +943,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   reminderRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     marginTop: Spacing.lg,
   },
   reminderFields: { marginTop: Spacing.md },
-  unitRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  unitRow: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   unitChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -783,7 +958,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   unitChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  directionRow: { flexDirection: 'row-reverse', gap: Spacing.md },
+  directionRow: { flexDirection: RTL_ROW, gap: Spacing.md },
   dirBtn: {
     flex: 1,
     alignItems: 'center',
@@ -794,10 +969,55 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   paymentChip: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
     padding: Spacing.sm,
     borderRadius: Radius.md,
     backgroundColor: Colors.surfaceVariant,
     marginBottom: Spacing.xs,
+  },
+  paymentLinkRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surface,
+    marginBottom: Spacing.sm,
+  },
+  paymentLinkRowActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight ?? Colors.surface,
+  },
+  emptyPayments: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.base,
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.base,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.outlineVariant,
+  },
+  newPaymentBtn: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    minHeight: MIN_TOUCH,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.sm,
   },
   meterBlock: {
     borderWidth: 1,
@@ -806,8 +1026,8 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  meterHeader: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
-  kindRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.xs },
+  meterHeader: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
+  kindRow: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs },
   kindChip: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -817,7 +1037,7 @@ const styles = StyleSheet.create({
   },
   kindChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   addMeterBtn: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
@@ -827,7 +1047,52 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: Radius.lg,
   },
-  visGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm },
+  meterPhotoPreview: { gap: Spacing.xs, marginTop: Spacing.xs },
+  meterPhotoImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  meterPhotoRemove: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.xs,
+    alignSelf: 'flex-start',
+    marginTop: Spacing.xs,
+  },
+  meterPhotoAddBtn: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+  },
+  dateFieldLabelRow: { flexDirection: RTL_ROW, alignItems: 'center', marginBottom: Spacing.xs },
+  dateFieldLabel: { textAlign: 'right' },
+  dateAsterisk: { color: Colors.error },
+  dateField: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minHeight: MIN_TOUCH,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surface,
+  },
+  dateFieldError: {
+    borderColor: Colors.error,
+  },
+  visGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   visChip: {
     width: '48%',
     padding: Spacing.sm,
@@ -839,7 +1104,7 @@ const styles = StyleSheet.create({
   },
   visChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   dropdownFake: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
@@ -848,7 +1113,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     backgroundColor: Colors.surfaceVariant,
   },
-  fileSourceRow: { flexDirection: 'row-reverse', gap: Spacing.md, marginTop: Spacing.sm },
+  fileSourceRow: { flexDirection: RTL_ROW, gap: Spacing.md, marginTop: Spacing.sm },
   fileSourceBtn: {
     flex: 1,
     alignItems: 'center',
@@ -860,7 +1125,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   fileRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     paddingVertical: Spacing.sm,

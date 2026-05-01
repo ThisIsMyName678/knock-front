@@ -146,6 +146,21 @@ function parseDdMmYyyy(s: string): number {
   return new Date(y, mo, d).getTime();
 }
 
+/** תאריך הסכם בפורמט DD/MM/YYYY בתוך טווח (מ–עד), ריקים מתעלמים */
+function agreementDateInRange(agreementDate: string, from: string, to: string): boolean {
+  const t = parseDdMmYyyy(agreementDate);
+  if (!t) return true;
+  if (from.trim()) {
+    const f = parseDdMmYyyy(from);
+    if (f && t < f) return false;
+  }
+  if (to.trim()) {
+    const toT = parseDdMmYyyy(to);
+    if (toT && t > toT) return false;
+  }
+  return true;
+}
+
 export function filterContractRows(
   rows: ContractListRow[],
   opts: {
@@ -153,14 +168,21 @@ export function filterContractRows(
     linkScope: LinkScopeFilter;
     typeFilter: ContractTypeFilter;
     entityId: string | null;
+    /** תאריך הסכם מתוך—בפורמט DD/MM/YYYY */
+    dateFrom?: string;
+    /** תאריך הסכם עד—בפורמט DD/MM/YYYY */
+    dateTo?: string;
   },
 ): ContractListRow[] {
   const q = opts.search.trim().toLowerCase();
+  const from = opts.dateFrom ?? '';
+  const to = opts.dateTo ?? '';
   return rows.filter((r) => {
     if (opts.linkScope === 'asset' && r.linkKind !== 'asset') return false;
     if (opts.linkScope === 'project' && r.linkKind !== 'project') return false;
     if (opts.typeFilter !== 'all' && r.contractType !== opts.typeFilter) return false;
     if (opts.entityId && r.linkId !== opts.entityId) return false;
+    if (!agreementDateInRange(r.agreementDate, from, to)) return false;
     if (!q) return true;
     const hay = `${r.contractName} ${r.counterpartyName} ${r.linkLabel} ${CONTRACT_TYPE_LABELS[r.contractType]}`.toLowerCase();
     return hay.includes(q);
@@ -224,6 +246,45 @@ export function sortContractRows(
 }
 
 /** פירוט חוזה למסך פרטים (mock לפי id) */
+export type ContractPaymentMock = {
+  id: string;
+  direction: 'in' | 'out';
+  categoryLabel: string;
+  amount: string;
+  date: string;
+  notes: string;
+};
+
+export type ContractMeterMock = {
+  id: string;
+  kind: 'electric' | 'water' | 'gas' | 'other';
+  name: string;
+  identifier: string;
+  value: string;
+};
+
+export type ContractFileMock = {
+  id: string;
+  category: string;
+  displayName: string;
+  type: 'image' | 'pdf';
+  previewUri?: string;
+};
+
+export const METER_KIND_LABELS: Record<ContractMeterMock['kind'], string> = {
+  electric: 'חשמל',
+  water: 'מים',
+  gas: 'גז',
+  other: 'אחר',
+};
+
+export const METER_KIND_ICONS: Record<ContractMeterMock['kind'], string> = {
+  electric: 'lightning-bolt',
+  water: 'water',
+  gas: 'fire',
+  other: 'gauge',
+};
+
 export type ContractDetailMock = ContractListRow & {
   monthlyAmount?: string;
   idNumber?: string;
@@ -232,11 +293,24 @@ export type ContractDetailMock = ContractListRow & {
   contactName?: string;
   endDate?: string;
   accessLevel?: ContractAccessLevel;
+  payments: ContractPaymentMock[];
+  meters: ContractMeterMock[];
+  files: ContractFileMock[];
 };
 
 export function getContractDetailMock(id: string): ContractDetailMock | null {
   const row = MOCK_CONTRACTS_LIST.find((r) => r.id === id);
   if (!row) return null;
+
+  const baseFiles: ContractFileMock[] = [
+    {
+      id: 'f1',
+      category: 'צילום חוזה',
+      displayName: 'חוזה חתום.pdf',
+      type: 'pdf',
+    },
+  ];
+
   const extras: Partial<ContractDetailMock> =
     row.id === 'c1'
       ? {
@@ -247,6 +321,21 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
           contactName: 'יוסי כהן',
           endDate: '31/12/2025',
           accessLevel: 'tenant_only',
+          payments: [
+            { id: 'p1', direction: 'in', categoryLabel: 'שכירות', amount: '₪7,200', date: '01/01/2025', notes: 'ינואר 2025' },
+            { id: 'p2', direction: 'in', categoryLabel: 'שכירות', amount: '₪7,200', date: '01/02/2025', notes: 'פברואר 2025' },
+            { id: 'p3', direction: 'out', categoryLabel: 'תחזוקה', amount: '₪450', date: '15/01/2025', notes: 'תיקון מזגן' },
+          ],
+          meters: [
+            { id: 'm1', kind: 'electric', name: 'חשמל ראשי', identifier: '12345678', value: '1,234 קוט"ש' },
+            { id: 'm2', kind: 'water', name: 'מים', identifier: '87654321', value: '98 מ"ק' },
+          ],
+          files: [
+            ...baseFiles,
+            { id: 'f2', category: 'תיעוד הנכס', displayName: 'תמונת כניסה.jpg', type: 'image', previewUri: 'https://picsum.photos/seed/apt1/200/160' },
+            { id: 'f3', category: 'תיעוד הנכס', displayName: 'סלון.jpg', type: 'image', previewUri: 'https://picsum.photos/seed/apt2/200/160' },
+            { id: 'f4', category: 'צילום תעודת זהות', displayName: 'תז שוכר.jpg', type: 'image', previewUri: 'https://picsum.photos/seed/id1/200/160' },
+          ],
         }
       : row.id === 'c2'
         ? {
@@ -257,6 +346,17 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
             contactName: 'מיכל לוי',
             endDate: '28/02/2026',
             accessLevel: 'owner_only',
+            payments: [
+              { id: 'p1', direction: 'in', categoryLabel: 'שכירות', amount: '₪12,000', date: '01/03/2025', notes: 'מרץ 2025' },
+              { id: 'p2', direction: 'out', categoryLabel: 'ניהול', amount: '₪800', date: '01/03/2025', notes: 'דמי ניהול' },
+            ],
+            meters: [
+              { id: 'm1', kind: 'electric', name: 'חשמל', identifier: '22334455', value: '2,100 קוט"ש' },
+            ],
+            files: [
+              ...baseFiles,
+              { id: 'f2', category: 'תיעוד הנכס', displayName: 'כניסה למשרד.jpg', type: 'image', previewUri: 'https://picsum.photos/seed/office1/200/160' },
+            ],
           }
         : {
             monthlyAmount: '—',
@@ -266,8 +366,11 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
             contactName: row.counterpartyName,
             endDate: '—',
             accessLevel: 'public',
+            payments: [],
+            meters: [],
+            files: baseFiles,
           };
-  return { ...row, ...extras };
+  return { ...row, payments: [], meters: [], files: [], ...extras };
 }
 
 export function filterEntitiesByQuery(query: string): EntityLinkOption[] {

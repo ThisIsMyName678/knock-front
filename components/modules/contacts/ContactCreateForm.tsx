@@ -34,6 +34,7 @@ import { ContactPermissionsEditor } from '@/components/modules/contacts/ContactP
 import {
   Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -292,18 +293,20 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
     return { linkKind: 'asset', linkId: a.id, linkLabel: a.name };
   };
 
-  const valid = useMemo(() => {
-    if (!displayName.trim() || !phone.trim() || !assetSelection) return false;
-    if (contactKind === 'role_holder' && !nickname.trim()) return false;
-    return true;
-  }, [displayName, phone, assetSelection, contactKind, nickname]);
+  const [submitted, setSubmitted] = useState(false);
+
+  const fieldErrors = useMemo(() => ({
+    nickname: contactKind === 'role_holder' && !nickname.trim() ? 'שדה חובה' : '',
+    displayName: !displayName.trim() ? 'שדה חובה' : '',
+    phone: !phone.trim() ? 'שדה חובה' : '',
+    assetSelection: !assetSelection ? 'יש לבחור נכס או פרויקט' : '',
+  }), [contactKind, nickname, displayName, phone, assetSelection]);
+
+  const valid = useMemo(() => Object.values(fieldErrors).every((e) => !e), [fieldErrors]);
 
   const onSave = () => {
-    if (!valid) {
-      const missing = !displayName.trim() ? 'שם' : !phone.trim() ? 'טלפון' : !assetSelection ? 'שיוך נכס/פרויקט' : contactKind === 'role_holder' && !nickname.trim() ? 'כינוי תפקיד' : '';
-      Alert.alert('חסר מידע', `יש למלא: ${missing}.`);
-      return;
-    }
+    setSubmitted(true);
+    if (!valid) return;
     const link = resolveLink();
     if (!link) return;
 
@@ -386,15 +389,17 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
             <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>פרטי איש קשר</AppText>
             {contactKind === 'role_holder' && (
               <Input
-                label="כינוי תפקיד (חובה)"
+                label="כינוי תפקיד"
+                required
                 placeholder="רואה חשבון / שותף / קבלן..."
                 value={nickname}
                 onChangeText={setNickname}
+                error={submitted ? fieldErrors.nickname : ''}
                 containerStyle={{ marginBottom: Spacing.md }}
               />
             )}
-            <Input label="שם מלא (חובה)" placeholder="שם ושם משפחה" value={displayName} onChangeText={setDisplayName} containerStyle={{ marginBottom: Spacing.md }} />
-            <Input label="טלפון (חובה)" placeholder="05X-XXXXXXX" value={phone} onChangeText={setPhone} keyboardType="phone-pad" containerStyle={{ marginBottom: Spacing.md }} />
+            <Input label="שם מלא" required placeholder="שם ושם משפחה" value={displayName} onChangeText={setDisplayName} error={submitted ? fieldErrors.displayName : ''} containerStyle={{ marginBottom: Spacing.md }} />
+            <Input label="טלפון" required placeholder="05X-XXXXXXX" value={phone} onChangeText={setPhone} keyboardType="phone-pad" error={submitted ? fieldErrors.phone : ''} containerStyle={{ marginBottom: Spacing.md }} />
             <Input
               label="אימייל"
               placeholder="email@example.com"
@@ -408,12 +413,18 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
           </View>
 
           {/* ─── שיוך נכס / פרויקט ─── */}
-          <View style={[styles.card, { marginTop: Spacing.md }]}>
-            <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>שיוך נכס / פרויקט (חובה)</AppText>
+          <View style={[styles.card, { marginTop: Spacing.md, borderColor: submitted && fieldErrors.assetSelection ? Colors.error : Colors.outlineVariant }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginBottom: Spacing.md }}>
+              <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginBottom: 0 }]}>שיוך נכס / פרויקט</AppText>
+              <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+            </View>
             <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
               בחר פרויקט (לכל נכסיו), נכס בודד, או "כל הנכסים". לחץ על החץ להרחבת נכסי פרויקט.
             </AppText>
             <AssetPicker value={assetSelection} onChange={setAssetSelection} />
+            {submitted && fieldErrors.assetSelection ? (
+              <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: Spacing.xs }}>{fieldErrors.assetSelection}</AppText>
+            ) : null}
           </View>
 
           {/* ─── הרשאות ─── */}
@@ -427,7 +438,6 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
             fullWidth
             size="lg"
             style={{ marginTop: Spacing.md }}
-            disabled={!valid}
           />
         </ScrollView>
       </View>
@@ -449,7 +459,7 @@ const styles = StyleSheet.create({
 
   // Kind toggle
   kindToggle: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.sm,
   },
   kindBtn: {
@@ -470,7 +480,7 @@ const styles = StyleSheet.create({
 
   // Email badge
   emailBadge: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
@@ -485,7 +495,7 @@ const styles = StyleSheet.create({
   // Asset picker
   pickerWrap: { gap: Spacing.xs },
   pickRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
@@ -498,13 +508,13 @@ const styles = StyleSheet.create({
   pickRowIndent: { marginRight: Spacing.xl, borderStyle: 'dashed' },
   pickRowActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryContainer },
   pickProjectRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 0,
   },
   pickRowInner: {
     flex: 1,
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,

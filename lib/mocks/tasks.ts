@@ -41,6 +41,33 @@ export const WORKFLOW_STATUS_LABELS: Record<WorkflowStatus, string> = {
   cancelled: 'בוטל',
 };
 
+/** קטגוריות משנה למשימות תחזוקה — נצרך ע"י מודול הדוחות. */
+export type MaintenanceCategory = 'building' | 'electrical' | 'plumbing' | 'gas' | 'other';
+
+export const MAINTENANCE_CATEGORY_LABELS: Record<MaintenanceCategory, string> = {
+  building: 'בינוי',
+  electrical: 'חשמל',
+  plumbing: 'אינסטלציה',
+  gas: 'גז',
+  other: 'אחר',
+};
+
+export const MAINTENANCE_CATEGORY_ICONS: Record<MaintenanceCategory, string> = {
+  building: 'hammer',
+  electrical: 'flash',
+  plumbing: 'water-pump',
+  gas: 'fire',
+  other: 'wrench',
+};
+
+export const MAINTENANCE_CATEGORY_ORDER: MaintenanceCategory[] = [
+  'building',
+  'electrical',
+  'plumbing',
+  'gas',
+  'other',
+];
+
 export type TaskMessage = {
   id: string;
   text: string;
@@ -69,6 +96,16 @@ export type TaskListRow = {
   timeNotes?: string;
   linkedPaymentId?: string;
   messages: TaskMessage[];
+  /**
+   * קטגוריית משנה למשימות תחזוקה (אופציונלי) — בשימוש עיקרי במודול הדוחות.
+   * תקף רק כאשר taskKind === 'maintenance'.
+   */
+  maintenanceCategory?: MaintenanceCategory;
+  /**
+   * עלות מספרית מצטברת בשקלים (אופציונלי) — בשימוש בדוח תחזוקה.
+   * מקור הצגה ב-UI נשאר costNotes.
+   */
+  cost?: number;
 };
 
 function parseDdMmYyyy(s: string): number {
@@ -111,6 +148,8 @@ const BASE_TASKS: TaskListRow[] = [
     timeNotes: '2 שעות עבודה',
     linkedPaymentId: 'pay2',
     messages: MESSAGES_T1,
+    maintenanceCategory: 'plumbing',
+    cost: 450,
   },
   {
     id: 't2',
@@ -202,6 +241,8 @@ const BASE_TASKS: TaskListRow[] = [
       { id: 'p1', text: 'נא לאשר גוון', authorName: 'ועד בית', sentAt: '21/04/2026 09:00' },
       { id: 'p2', text: 'מצורף דוגמה', authorName: 'קבלן צבע', sentAt: '21/04/2026 15:00', imageUri: 'https://picsum.photos/id/433/400/300' },
     ],
+    maintenanceCategory: 'building',
+    cost: 1800,
   },
   {
     id: 't7',
@@ -270,6 +311,8 @@ const BASE_TASKS: TaskListRow[] = [
     dueDate: '26/04/2026',
     startDate: '22/04/2026',
     messages: [{ id: 'd1', text: 'ממתינים לחלק', authorName: 'נגר שירותים', sentAt: '22/04/2026 18:00' }],
+    maintenanceCategory: 'building',
+    cost: 600,
   },
   {
     id: 't11',
@@ -304,6 +347,132 @@ const BASE_TASKS: TaskListRow[] = [
     dueDate: '29/04/2026',
     startDate: '22/04/2026',
     messages: [],
+  },
+  {
+    id: 't13',
+    title: 'תקלת חשמל בלוח ראשי',
+    taskKind: 'maintenance',
+    priority: 'urgent',
+    workflowStatus: 'completed',
+    linkKind: 'asset',
+    linkId: 'a2',
+    linkLabel: 'דירה 7A',
+    assigneeName: 'חשמלאי שלמה',
+    assigneeHasUser: true,
+    createdBy: 'ניר',
+    isMine: true,
+    startDate: '05/03/2026',
+    dueDate: '07/03/2026',
+    endDate: '07/03/2026',
+    costNotes: '₪780',
+    messages: [],
+    maintenanceCategory: 'electrical',
+    cost: 780,
+  },
+  {
+    id: 't14',
+    title: 'תיקון בלון גז',
+    taskKind: 'maintenance',
+    priority: 'high',
+    workflowStatus: 'completed',
+    linkKind: 'asset',
+    linkId: 'a4',
+    linkLabel: 'בית פרטי',
+    assigneeName: 'טכנאי גז',
+    assigneeHasUser: true,
+    createdBy: 'ניר',
+    isMine: true,
+    startDate: '12/02/2026',
+    dueDate: '13/02/2026',
+    endDate: '14/02/2026',
+    costNotes: '₪320',
+    messages: [],
+    maintenanceCategory: 'gas',
+    cost: 320,
+  },
+  {
+    id: 't15',
+    title: 'החלפת שיש כיור',
+    taskKind: 'maintenance',
+    priority: 'medium',
+    workflowStatus: 'completed',
+    linkKind: 'asset',
+    linkId: 'a3',
+    linkLabel: 'משרד 201',
+    assigneeName: 'קבלן שיפוצים',
+    assigneeHasUser: false,
+    createdBy: 'ניר',
+    isMine: true,
+    startDate: '20/01/2026',
+    dueDate: '25/01/2026',
+    endDate: '28/01/2026',
+    costNotes: '₪2,200',
+    messages: [],
+    maintenanceCategory: 'building',
+    cost: 2200,
+  },
+  {
+    id: 't16',
+    title: 'בדיקת לוח חשמל שנתית',
+    taskKind: 'maintenance',
+    priority: 'low',
+    workflowStatus: 'completed',
+    linkKind: 'project',
+    linkId: 'p1',
+    linkLabel: 'מגדלי הים',
+    assigneeName: 'חשמלאי שלמה',
+    assigneeHasUser: true,
+    createdBy: 'ניר',
+    isMine: true,
+    startDate: '02/02/2026',
+    dueDate: '05/02/2026',
+    endDate: '04/02/2026',
+    costNotes: '₪1,400',
+    messages: [],
+    maintenanceCategory: 'electrical',
+    cost: 1400,
+  },
+  {
+    id: 't17',
+    title: 'סתימה במטבח',
+    taskKind: 'maintenance',
+    priority: 'high',
+    workflowStatus: 'completed',
+    linkKind: 'asset',
+    linkId: 'a1',
+    linkLabel: 'דירה 4B',
+    assigneeName: 'אינסטלטור דן',
+    assigneeHasUser: true,
+    createdBy: 'ניר',
+    isMine: true,
+    startDate: '15/03/2026',
+    dueDate: '16/03/2026',
+    endDate: '16/03/2026',
+    costNotes: '₪260',
+    messages: [],
+    maintenanceCategory: 'plumbing',
+    cost: 260,
+  },
+  {
+    id: 't18',
+    title: 'איטום גג',
+    taskKind: 'maintenance',
+    priority: 'medium',
+    workflowStatus: 'completed',
+    linkKind: 'project',
+    linkId: 'p2',
+    linkLabel: 'גני הדר',
+    assigneeName: 'קבלן איטום',
+    assigneeHasUser: false,
+    createdBy: 'ועד בית',
+    isMine: false,
+    startDate: '10/04/2026',
+    dueDate: '15/04/2026',
+    endDate: '17/04/2026',
+    costNotes: '₪3,500',
+    messages: [],
+    maintenanceCategory: 'building',
+    cost: 3500,
   },
 ];
 

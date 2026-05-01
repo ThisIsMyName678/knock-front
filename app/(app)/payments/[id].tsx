@@ -14,6 +14,7 @@ import {
 } from '@/lib/mocks/payments';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 
 export default function PaymentDetailScreen() {
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   amtIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm },
-  quickRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.sm, justifyContent: 'space-between' },
+  quickRow: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm, justifyContent: 'space-between' },
   quickBtn: {
     width: '18%',
     minWidth: 56,
@@ -176,6 +177,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
     backgroundColor: Colors.surface,
   },
-  row: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'flex-start', gap: Spacing.md, paddingVertical: Spacing.sm },
+  row: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'flex-start', gap: Spacing.md, paddingVertical: Spacing.sm },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
 });

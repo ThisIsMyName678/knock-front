@@ -16,6 +16,7 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection, DateRangeQuickPreset } from '@/components/ui/FilterSheet';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { RTL_ROW } from '@/constants/rtl';
 import {
   MOCK_PAYMENTS_LIST,
   PAYMENT_TYPE_LABELS,
@@ -315,7 +316,7 @@ export function PaymentsListScreen() {
                   </View>
                   {/* Row 2: type tag + mode + index + due date */}
                   <View style={[styles.cardRow, { marginTop: Spacing.xs }]}>
-                    <View style={{ flex: 1, flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.xs }}>
+                    <View style={{ flex: 1, flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs }}>
                       <View style={styles.tag}>
                         <AppText variant="caption" color="variant" numberOfLines={1}>{PAYMENT_TYPE_LABELS[item.paymentType]}</AppText>
                       </View>
@@ -335,7 +336,7 @@ export function PaymentsListScreen() {
                   </View>
                   {/* Row 3: link + progress */}
                   <View style={[styles.cardRow, { marginTop: Spacing.xs }]}>
-                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, flex: 1 }}>
+                    <View style={{ flexDirection: RTL_ROW, alignItems: 'center', gap: 4, flex: 1 }}>
                       <MaterialCommunityIcons name="home-outline" size={13} color={Colors.onSurfaceMuted} />
                       <AppText variant="caption" color="muted" numberOfLines={1} style={{ flex: 1, textAlign: 'right' }}>
                         {item.linkLabel}
@@ -386,7 +387,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   summaryTitle: { textAlign: 'right', opacity: 0.95 },
-  summaryRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
+  summaryRow: { flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'space-between' },
   summaryItem: { flex: 1, alignItems: 'flex-end', gap: 4 },
   summaryDivider: { width: 1, height: 36, backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: Spacing.sm },
 
@@ -404,13 +405,13 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   cardRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.sm,
   },
   amountCell: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 2,
   },
@@ -424,12 +425,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
   },
   dueDateWrap: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
   },
   cardActions: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: Colors.outlineLight,

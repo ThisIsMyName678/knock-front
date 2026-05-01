@@ -34,6 +34,7 @@ import {
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 // ─── Mock PDF Preview ─────────────────────────────────────────────────────────
 
@@ -127,7 +128,7 @@ const preview = StyleSheet.create({
     ...Shadow.sm,
   },
   pdfHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.xs,
     marginBottom: Spacing.sm,
@@ -274,7 +275,7 @@ const dropdown = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   row: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
     paddingVertical: Spacing.md,
@@ -378,7 +379,7 @@ export default function DocumentDetailScreen() {
             <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
               {doc.sizeLabel} · {fileKindLabel(doc.fileKind)}
             </AppText>
-            <View style={{ flexDirection: 'row-reverse', gap: Spacing.xs, marginTop: 4 }}>
+            <View style={{ flexDirection: RTL_ROW, gap: Spacing.xs, marginTop: 4 }}>
               <Badge label={DOCUMENT_TYPE_LABELS[doc.documentType]} preset="primary" />
               <Badge label={DOCUMENT_ACCESS_LABELS[doc.accessLevel]} preset="neutral" />
             </View>
@@ -460,7 +461,7 @@ const styles = StyleSheet.create({
 
   // Info row
   infoRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'flex-start',
     gap: Spacing.md,
     backgroundColor: Colors.surface,
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   openFullBtn: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.xs,
     alignSelf: 'flex-start',
@@ -504,7 +505,7 @@ const styles = StyleSheet.create({
 
   // Details
   row: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: Spacing.md,

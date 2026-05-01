@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { AppText } from './Text';
 import { Colors, Spacing, Shadow, HEADER_HEIGHT, FontFamily } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type Props = {
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   inner: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     paddingHorizontal: Spacing.base,
     gap: Spacing.sm,

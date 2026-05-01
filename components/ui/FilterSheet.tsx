@@ -11,6 +11,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { DatePickerModal } from './DatePickerModal';
 import { Colors, Spacing, Radius, Shadow, FontFamily, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 // ── Section types ────────────────────────────────────────────────────────────
 
@@ -44,7 +45,6 @@ export type DateRangeSection = {
   to: string;
   onFromChange: (v: string) => void;
   onToChange: (v: string) => void;
-  /** Optional quick-preset buttons (e.g. "מתחילת החודש") */
   quickPresets?: DateRangeQuickPreset[];
 };
 
@@ -65,7 +65,6 @@ export type EntitySearchSection = {
   options: { key: string; label: string }[];
   value: string | null;
   onChange: (key: string | null) => void;
-  /** Only render this section when true */
   visible: boolean;
 };
 
@@ -88,6 +87,11 @@ type Props = {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function FilterSheet({ visible, onClose, onReset, sections }: Props) {
+  const visibleSections = sections.filter((s) => {
+    if (s.kind === 'conditionalChips' || s.kind === 'entitySearch') return s.visible;
+    return true;
+  });
+
   return (
     <Modal
       visible={visible}
@@ -97,18 +101,21 @@ export function FilterSheet({ visible, onClose, onReset, sections }: Props) {
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          {/* Drag handle */}
+          <View style={styles.dragHandle} />
+
           {/* Title bar */}
           <View style={styles.titleBar}>
+            <Pressable onPress={onClose} accessibilityRole="button" style={styles.closeBtn}>
+              <MaterialCommunityIcons name="close" size={18} color={Colors.onSurface} />
+            </Pressable>
+            <AppText variant="bodyMd" weight="bold" style={{ flex: 1, textAlign: 'center' }}>
+              סינון ומיון
+            </AppText>
             <Pressable onPress={onReset} accessibilityRole="button" style={styles.resetBtn}>
               <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.error }}>
                 איפוס
               </AppText>
-            </Pressable>
-            <AppText variant="headingSm" weight="bold" style={{ flex: 1, textAlign: 'center' }}>
-              סינון ומיון
-            </AppText>
-            <Pressable onPress={onClose} accessibilityRole="button" style={styles.closeBtn}>
-              <MaterialCommunityIcons name="close" size={20} color={Colors.onSurface} />
             </Pressable>
           </View>
 
@@ -117,18 +124,31 @@ export function FilterSheet({ visible, onClose, onReset, sections }: Props) {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
           >
-            {sections.map((section, idx) => {
-              if ((section.kind === 'conditionalChips' || section.kind === 'entitySearch') && !section.visible) return null;
-              return (
-                <View key={idx} style={styles.section}>
+            {visibleSections.map((section, idx) => (
+              <React.Fragment key={idx}>
+                {idx > 0 && <View style={styles.divider} />}
+                <View style={styles.section}>
                   <SectionRenderer section={section} />
                 </View>
-              );
-            })}
+              </React.Fragment>
+            ))}
           </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+// ── Section label ─────────────────────────────────────────────────────────────
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <View style={styles.sectionLabelRow}>
+      <View style={styles.sectionAccent} />
+      <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabelText}>
+        {label}
+      </AppText>
+    </View>
   );
 }
 
@@ -152,9 +172,7 @@ function SectionRenderer({ section }: { section: FilterSection }) {
 function ChipsSectionView({ section }: { section: ChipsSection }) {
   return (
     <>
-      <AppText variant="labelSm" weight="semiBold" style={styles.sectionLabel}>
-        {section.label}
-      </AppText>
+      <SectionLabel label={section.label} />
       <View style={styles.chipsWrap}>
         {section.options.map((opt) => {
           const active = section.value === opt.key;
@@ -162,13 +180,14 @@ function ChipsSectionView({ section }: { section: ChipsSection }) {
             <Pressable
               key={opt.key}
               onPress={() => section.onChange(opt.key)}
-              style={[styles.chip, active && styles.chipActive]}
-              accessibilityRole="button"
+              style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.85 }]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active }}
             >
               {opt.icon ? (
                 <MaterialCommunityIcons
                   name={opt.icon as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
-                  size={15}
+                  size={14}
                   color={active ? Colors.onPrimary : Colors.primary}
                 />
               ) : null}
@@ -179,6 +198,9 @@ function ChipsSectionView({ section }: { section: ChipsSection }) {
               >
                 {opt.label}
               </AppText>
+              {active && (
+                <MaterialCommunityIcons name="check" size={13} color={Colors.onPrimary} />
+              )}
             </Pressable>
           );
         })}
@@ -190,14 +212,13 @@ function ChipsSectionView({ section }: { section: ChipsSection }) {
 function ConditionalChipsSectionView({ section }: { section: ConditionalChipsSection }) {
   return (
     <>
-      <AppText variant="labelSm" weight="semiBold" style={styles.sectionLabel}>
-        {section.label}
-      </AppText>
+      <SectionLabel label={section.label} />
       <View style={styles.chipsWrap}>
         <Pressable
           onPress={() => section.onChange(null)}
-          style={[styles.chip, section.value === null && styles.chipActive]}
-          accessibilityRole="button"
+          style={({ pressed }) => [styles.chip, section.value === null && styles.chipActive, pressed && { opacity: 0.85 }]}
+          accessibilityRole="radio"
+          accessibilityState={{ checked: section.value === null }}
         >
           <AppText
             variant="labelSm"
@@ -206,6 +227,9 @@ function ConditionalChipsSectionView({ section }: { section: ConditionalChipsSec
           >
             הכל
           </AppText>
+          {section.value === null && (
+            <MaterialCommunityIcons name="check" size={13} color={Colors.onPrimary} />
+          )}
         </Pressable>
         {section.options.map((opt) => {
           const active = section.value === opt.key;
@@ -213,8 +237,9 @@ function ConditionalChipsSectionView({ section }: { section: ConditionalChipsSec
             <Pressable
               key={opt.key}
               onPress={() => section.onChange(opt.key)}
-              style={[styles.chip, active && styles.chipActive]}
-              accessibilityRole="button"
+              style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.85 }]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active }}
             >
               <AppText
                 variant="labelSm"
@@ -223,6 +248,9 @@ function ConditionalChipsSectionView({ section }: { section: ConditionalChipsSec
               >
                 {opt.label}
               </AppText>
+              {active && (
+                <MaterialCommunityIcons name="check" size={13} color={Colors.onPrimary} />
+              )}
             </Pressable>
           );
         })}
@@ -241,12 +269,9 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
 
   return (
     <>
-      <AppText variant="labelSm" weight="semiBold" style={styles.sectionLabel}>
-        {section.label}
-      </AppText>
+      <SectionLabel label={section.label} />
 
-      {/* Quick presets */}
-      {section.quickPresets && section.quickPresets.length > 0 ? (
+      {section.quickPresets && section.quickPresets.length > 0 && (
         <View style={styles.presetRow}>
           {section.quickPresets.map((p) => {
             const active = section.from === p.from && section.to === p.to;
@@ -254,7 +279,7 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
               <Pressable
                 key={p.label}
                 onPress={() => applyPreset(p)}
-                style={[styles.chip, active && styles.chipActive]}
+                style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.85 }]}
                 accessibilityRole="button"
               >
                 <AppText
@@ -264,13 +289,14 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
                 >
                   {p.label}
                 </AppText>
+                {active && <MaterialCommunityIcons name="check" size={13} color={Colors.onPrimary} />}
               </Pressable>
             );
           })}
           {(section.from || section.to) ? (
             <Pressable
               onPress={() => { section.onFromChange(''); section.onToChange(''); }}
-              style={styles.chip}
+              style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
               accessibilityRole="button"
             >
               <MaterialCommunityIcons name="close-circle-outline" size={13} color={Colors.error} />
@@ -278,12 +304,11 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
             </Pressable>
           ) : null}
         </View>
-      ) : null}
+      )}
 
-      {/* Date fields with calendar icon */}
       <View style={styles.dateRow}>
         <Pressable style={[styles.dateField, { marginLeft: Spacing.sm }]} onPress={() => setPickerTarget('from')}>
-          <AppText variant="caption" color="variant" style={{ marginBottom: 2, textAlign: 'right' }}>
+          <AppText variant="caption" color="variant" style={{ marginBottom: 4, textAlign: 'right' }}>
             מתאריך
           </AppText>
           <View style={styles.dateInputWrap}>
@@ -296,11 +321,11 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
               textAlign="right"
               onFocus={() => setPickerTarget('from')}
             />
-            <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.primary} style={{ paddingHorizontal: 4 }} />
+            <MaterialCommunityIcons name="calendar-outline" size={17} color={Colors.primary} style={{ paddingHorizontal: 8 }} />
           </View>
         </Pressable>
         <Pressable style={styles.dateField} onPress={() => setPickerTarget('to')}>
-          <AppText variant="caption" color="variant" style={{ marginBottom: 2, textAlign: 'right' }}>
+          <AppText variant="caption" color="variant" style={{ marginBottom: 4, textAlign: 'right' }}>
             עד תאריך
           </AppText>
           <View style={styles.dateInputWrap}>
@@ -313,12 +338,11 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
               textAlign="right"
               onFocus={() => setPickerTarget('to')}
             />
-            <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.primary} style={{ paddingHorizontal: 4 }} />
+            <MaterialCommunityIcons name="calendar-outline" size={17} color={Colors.primary} style={{ paddingHorizontal: 8 }} />
           </View>
         </Pressable>
       </View>
 
-      {/* Calendar pickers */}
       <DatePickerModal
         visible={pickerTarget === 'from'}
         value={section.from}
@@ -340,68 +364,93 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
 function EntitySearchSectionView({ section }: { section: EntitySearchSection }) {
   const [query, setQuery] = useState('');
 
-  const selectedOption = section.value ? section.options.find((o) => o.key === section.value) : null;
+  const selectedOption = section.value
+    ? section.options.find((o) => o.key === section.value)
+    : null;
 
-  const filtered = useMemo(() => {
+  const displayList = useMemo(() => {
     const q = query.trim();
-    if (!q) return [];
+    if (!q) return section.options.slice(0, 6);
     return section.options.filter((o) => o.label.includes(q)).slice(0, 8);
   }, [query, section.options]);
 
+  const handleSelect = (key: string) => {
+    section.onChange(key);
+    setQuery('');
+  };
+
+  const handleClear = () => {
+    section.onChange(null);
+    setQuery('');
+  };
+
   return (
     <>
-      <AppText variant="labelSm" weight="semiBold" style={styles.sectionLabel}>
-        {section.label}
-      </AppText>
+      <SectionLabel label={section.label} />
 
-      {/* Selected entity chip */}
+      {/* Selected entity */}
       {selectedOption ? (
         <Pressable
-          onPress={() => { section.onChange(null); setQuery(''); }}
-          style={styles.entitySelected}
+          onPress={handleClear}
+          style={({ pressed }) => [styles.entitySelected, pressed && { opacity: 0.85 }]}
           accessibilityRole="button"
+          accessibilityLabel="הסר בחירה"
         >
-          <MaterialCommunityIcons name="close-circle" size={16} color={Colors.primary} />
-          <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.primary, flex: 1, textAlign: 'right' }}>
+          <MaterialCommunityIcons name="check-circle" size={18} color={Colors.primary} />
+          <AppText variant="bodyMd" weight="semiBold" style={{ flex: 1, textAlign: 'right', color: Colors.primary }}>
             {selectedOption.label}
           </AppText>
-          <MaterialCommunityIcons name="check-circle" size={16} color={Colors.primary} />
+          <MaterialCommunityIcons name="close-circle-outline" size={18} color={Colors.onSurfaceVariant} />
         </Pressable>
       ) : (
         <>
+          {/* Search input */}
           <View style={styles.entityInputWrap}>
-            <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceMuted} style={{ paddingHorizontal: 4 }} />
+            <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceMuted} style={{ paddingHorizontal: 6 }} />
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder={section.placeholder ?? 'חיפוש...'}
+              placeholder={section.placeholder ?? 'הקלד לחיפוש...'}
               placeholderTextColor={Colors.onSurfaceMuted}
               style={styles.entityInput}
               textAlign="right"
             />
+            {query.length > 0 && (
+              <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="נקה">
+                <MaterialCommunityIcons name="close-circle" size={16} color={Colors.onSurfaceMuted} style={{ paddingHorizontal: 6 }} />
+              </Pressable>
+            )}
           </View>
-          {query.trim().length > 0 && filtered.length === 0 && (
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.xs }}>
-              לא נמצאו תוצאות
-            </AppText>
-          )}
-          {filtered.length > 0 && (
+
+          {/* Results list */}
+          {displayList.length > 0 ? (
             <View style={styles.entityList}>
-              {filtered.map((opt) => (
+              {displayList.map((opt, idx) => (
                 <Pressable
                   key={opt.key}
-                  onPress={() => { section.onChange(opt.key); setQuery(''); }}
-                  style={styles.entityOption}
+                  onPress={() => handleSelect(opt.key)}
+                  style={({ pressed }) => [
+                    styles.entityOption,
+                    idx < displayList.length - 1 && styles.entityOptionBorder,
+                    pressed && { backgroundColor: Colors.primaryContainer },
+                  ]}
                   accessibilityRole="button"
                 >
+                  <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} />
                   <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
                     {opt.label}
                   </AppText>
-                  <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} />
                 </Pressable>
               ))}
             </View>
-          )}
+          ) : query.trim().length > 0 ? (
+            <View style={styles.noResults}>
+              <MaterialCommunityIcons name="magnify-close" size={20} color={Colors.outlineVariant} />
+              <AppText variant="caption" color="variant">
+                לא נמצאו תוצאות עבור "{query}"
+              </AppText>
+            </View>
+          ) : null}
         </>
       )}
     </>
@@ -411,46 +460,48 @@ function EntitySearchSectionView({ section }: { section: EntitySearchSection }) 
 function SortSectionView({ section }: { section: SortSection }) {
   return (
     <>
-      <AppText variant="labelSm" weight="semiBold" style={styles.sectionLabel}>
-        {section.label}
-      </AppText>
-      <View style={styles.sortRow}>
-        <View style={[styles.chipsWrap, { flex: 1 }]}>
-          {section.options.map((opt) => {
-            const active = section.sortKey === opt.key;
-            return (
-              <Pressable
-                key={opt.key}
-                onPress={() => section.onSortKeyChange(opt.key)}
-                style={[styles.chip, active && styles.chipActive]}
-                accessibilityRole="button"
-              >
-                <AppText
-                  variant="labelSm"
-                  weight={active ? 'bold' : 'regular'}
-                  style={{ color: active ? Colors.onPrimary : Colors.onSurfaceVariant }}
-                >
-                  {opt.label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
+      <View style={styles.sortHeader}>
         <Pressable
           onPress={section.onSortDirToggle}
-          style={styles.dirBtn}
+          style={({ pressed }) => [styles.dirBtn, pressed && { opacity: 0.85 }]}
           accessibilityRole="button"
           accessibilityLabel={section.sortDir === 'asc' ? 'סדר עולה' : 'סדר יורד'}
         >
           <MaterialCommunityIcons
             name={section.sortDir === 'asc' ? 'sort-ascending' : 'sort-descending'}
-            size={20}
+            size={18}
             color={Colors.primary}
           />
-          <AppText variant="caption" color="primary">
+          <AppText variant="labelSm" color="primary" weight="semiBold">
             {section.sortDir === 'asc' ? 'עולה' : 'יורד'}
           </AppText>
         </Pressable>
+        <SectionLabel label={section.label} />
+      </View>
+      <View style={styles.chipsWrap}>
+        {section.options.map((opt) => {
+          const active = section.sortKey === opt.key;
+          return (
+            <Pressable
+              key={opt.key}
+              onPress={() => section.onSortKeyChange(opt.key)}
+              style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.85 }]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active }}
+            >
+              <AppText
+                variant="labelSm"
+                weight={active ? 'bold' : 'regular'}
+                style={{ color: active ? Colors.onPrimary : Colors.onSurfaceVariant }}
+              >
+                {opt.label}
+              </AppText>
+              {active && (
+                <MaterialCommunityIcons name="check" size={13} color={Colors.onPrimary} />
+              )}
+            </Pressable>
+          );
+        })}
       </View>
     </>
   );
@@ -461,27 +512,38 @@ function SortSectionView({ section }: { section: SortSection }) {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   sheet: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    maxHeight: '82%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
     ...Shadow.lg,
   },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
   titleBar: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
   },
   resetBtn: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.errorContainer ?? '#FEE2E2',
   },
   closeBtn: {
     width: 32,
@@ -494,29 +556,49 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
     paddingBottom: Spacing['3xl'],
-    gap: Spacing.xs,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.outlineLight,
+    marginTop: Spacing.md,
   },
   section: {
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.lg,
+    gap: Spacing.sm,
   },
-  sectionLabel: {
-    textAlign: 'right',
-    color: Colors.onSurfaceVariant,
+
+  // Section label
+  sectionLabelRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
+  sectionAccent: {
+    width: 3,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  sectionLabelText: {
+    textAlign: 'right',
+    color: Colors.onBackground,
+  },
+
+  // Chips
   chipsWrap: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     gap: Spacing.sm,
   },
   chip: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.xs + 2,
     borderRadius: Radius.full,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.outlineVariant,
     backgroundColor: Colors.background,
   },
@@ -524,97 +606,110 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
+
+  // Date
   presetRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     gap: Spacing.xs,
     marginBottom: Spacing.sm,
   },
   dateRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     gap: Spacing.sm,
   },
   dateField: {
     flex: 1,
   },
   dateInputWrap: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     backgroundColor: Colors.surfaceVariant,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.outlineLight,
+    borderColor: Colors.outlineVariant,
     overflow: 'hidden',
   },
   dateInput: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.sm,
     fontFamily: FontFamily.regular,
     fontSize: 13,
     color: Colors.onBackground,
     textAlign: 'right',
   },
+
+  // Entity search
   entityInputWrap: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     backgroundColor: Colors.surfaceVariant,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.outlineLight,
-    marginBottom: Spacing.xs,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.outlineVariant,
+    marginBottom: Spacing.sm,
   },
   entityInput: {
     flex: 1,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.md,
     fontFamily: FontFamily.regular,
     fontSize: 14,
     color: Colors.onBackground,
     textAlign: 'right',
   },
   entitySelected: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     backgroundColor: Colors.primaryContainer,
-    borderRadius: Radius.md,
-    borderWidth: 1,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
     borderColor: Colors.primary,
-    marginBottom: Spacing.xs,
   },
   entityList: {
     borderWidth: 1,
     borderColor: Colors.outlineLight,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     overflow: 'hidden',
     backgroundColor: Colors.surface,
+    ...Shadow.sm,
   },
   entityOption: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
+    paddingVertical: Spacing.md,
     gap: Spacing.sm,
   },
-  sortRow: {
-    flexDirection: 'row-reverse',
+  entityOptionBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  noResults: {
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.lg,
+  },
+
+  // Sort
+  sortHeader: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
   },
   dirBtn: {
+    flexDirection: RTL_ROW,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.background,
-    minWidth: 52,
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryContainer,
   },
 });

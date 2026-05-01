@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { RTL_ROW } from '@/constants/rtl';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
@@ -283,7 +284,7 @@ export function ContactsListScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   tableHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
     backgroundColor: Colors.surfaceVariant,
@@ -292,11 +293,11 @@ const styles = StyleSheet.create({
   },
   thRow: {
     flex: 1,
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
   },
   thCell: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'flex-start',
     gap: 2,
@@ -314,13 +315,13 @@ const styles = StyleSheet.create({
     minHeight: MIN_TOUCH,
   },
   tableRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'stretch',
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
     backgroundColor: Colors.surface,
   },
-  rowTap: { flexDirection: 'row-reverse', alignItems: 'center', flex: 1, paddingVertical: Spacing.sm },
+  rowTap: { flexDirection: RTL_ROW, alignItems: 'center', flex: 1, paddingVertical: Spacing.sm },
   td: { paddingHorizontal: 4, justifyContent: 'center' },
   waBtn: { width: 48, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: Colors.outlineLight },
   fab: {

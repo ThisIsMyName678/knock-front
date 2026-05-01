@@ -1,0 +1,3 @@
+{"sessionId":"48ff2a","location":"PaymentsListScreen.tsx:useEffect","message":"screen mounted","data":{"canGoBack":true},"runId":"run1","hypothesisId":"H-B","timestamp":1777008983351}
+{"sessionId":"48ff2a","location":"PaymentsListScreen.tsx:useEffect","message":"screen mounted","data":{"canGoBack":false},"runId":"run1","hypothesisId":"H-B","timestamp":1777009035096}
+{"sessionId":"48ff2a","location":"PaymentsListScreen.tsx:useEffect","message":"screen mounted","data":{"canGoBack":false},"runId":"run1","hypothesisId":"H-B","timestamp":1777009176142}

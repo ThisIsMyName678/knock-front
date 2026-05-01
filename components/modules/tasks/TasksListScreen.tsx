@@ -18,6 +18,7 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { RTL_ROW } from '@/constants/rtl';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
   MOCK_TASKS_LIST,
@@ -250,8 +251,9 @@ export function TasksListScreen() {
         },
       },
       {
-        kind: 'conditionalChips',
-        label: scope === 'by_asset' ? 'בחר נכס' : 'בחר פרויקט',
+        kind: 'entitySearch',
+        label: scope === 'by_asset' ? 'חיפוש נכס' : 'חיפוש פרויקט',
+        placeholder: scope === 'by_asset' ? 'הקלד שם נכס...' : 'הקלד שם פרויקט...',
         options: entitiesForScope.map((e) => ({ key: e.id, label: e.name })),
         value: entityId,
         onChange: setEntityId,
@@ -418,6 +420,16 @@ export function TasksListScreen() {
         )}
       />
 
+      {/* FAB */}
+      <Pressable
+        onPress={() => router.push('/(app)/tasks/new')}
+        style={[styles.fab, { bottom: insets.bottom + Spacing.lg }]}
+        accessibilityRole="button"
+        accessibilityLabel="משימה חדשה"
+      >
+        <MaterialCommunityIcons name="plus" size={26} color={Colors.onPrimary} />
+      </Pressable>
+
       <Modal visible={!!statusModalTask} transparent animationType="fade" onRequestClose={() => setStatusModalTaskId(null)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setStatusModalTaskId(null)}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
@@ -456,7 +468,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   recentTitle: { textAlign: 'right', marginBottom: Spacing.sm },
-  recentRow: { flexDirection: 'row-reverse', gap: Spacing.sm, paddingBottom: Spacing.xs },
+  recentRow: { flexDirection: RTL_ROW, gap: Spacing.sm, paddingBottom: Spacing.xs },
   recentCard: {
     width: 160,
     padding: Spacing.md,
@@ -482,11 +494,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardInner: { flexDirection: 'row-reverse', alignItems: 'stretch' },
+  cardInner: { flexDirection: RTL_ROW, alignItems: 'stretch' },
   cardMain: { flex: 1, padding: Spacing.base },
-  taskRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: Spacing.md },
-  metaRow: { flexDirection: 'row-reverse', gap: Spacing.xs, flexWrap: 'wrap' },
-  badgeRow: { flexDirection: 'row-reverse', gap: Spacing.sm, flexWrap: 'wrap', marginTop: Spacing.xs },
+  taskRow: { flexDirection: RTL_ROW, alignItems: 'flex-start', gap: Spacing.md },
+  metaRow: { flexDirection: RTL_ROW, gap: Spacing.xs, flexWrap: 'wrap' },
+  badgeRow: { flexDirection: RTL_ROW, gap: Spacing.sm, flexWrap: 'wrap', marginTop: Spacing.xs },
   statusBtn: {
     justifyContent: 'center',
     paddingHorizontal: Spacing.sm,
@@ -514,4 +526,15 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
   modalOptionActive: { backgroundColor: Colors.primaryContainer },
+  fab: {
+    position: 'absolute',
+    left: CONTENT_HORIZONTAL_PADDING,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.md,
+  },
 });

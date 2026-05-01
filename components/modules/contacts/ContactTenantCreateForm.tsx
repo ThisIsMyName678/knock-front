@@ -29,6 +29,7 @@ import {
 } from '@/lib/mocks/contacts';
 import { ContactPermissionsEditor } from '@/components/modules/contacts/ContactPermissionsEditor';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
 
 function filterEntities(query: string): EntityLinkOption[] {
   const q = query.trim().toLowerCase();
@@ -199,7 +200,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   selectedPill: {
-    flexDirection: 'row-reverse',
+    flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     marginTop: Spacing.sm,
@@ -209,5 +210,5 @@ const styles = StyleSheet.create({
   },
   suggestBox: { borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md, marginTop: 4, overflow: 'hidden' },
   suggestRow: { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight, backgroundColor: Colors.surface },
-  switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.md },
+  switchRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md, marginTop: Spacing.md },
 });

@@ -25,6 +25,10 @@ export type AssetEntity = {
   role: UserRole;
   /** null = נכס ללא שיוך פרויקט (מוצג במסך הראשי של פרויקטים למנוי אנטרפרייז) */
   projectId: string | null;
+  /** מספר קומה (תצוגה בלבד ב-mock) */
+  floorNumber?: string;
+  /** גודל במ״ר (תצוגה בלבד ב-mock) */
+  sizeSqm?: string;
 };
 
 export type Entity = ProjectEntity | AssetEntity;
@@ -39,8 +43,8 @@ export const MOCK_PROJECTS: ProjectEntity[] = [
 ];
 
 export const MOCK_ASSETS: AssetEntity[] = [
-  { id: 'a1', kind: 'asset', name: 'דירה 4B', address: 'הרצל 10, תל אביב', occupancy: 'rented', role: { kind: 'owner' }, projectId: 'p1' },
-  { id: 'a2', kind: 'asset', name: 'דירה 7A', address: 'הרצל 10, תל אביב', occupancy: 'vacant', role: { kind: 'owner' }, projectId: 'p1' },
+  { id: 'a1', kind: 'asset', name: 'דירה 4B', address: 'הרצל 10, תל אביב', occupancy: 'rented', role: { kind: 'owner' }, projectId: 'p1', floorNumber: '4', sizeSqm: '95' },
+  { id: 'a2', kind: 'asset', name: 'דירה 7A', address: 'הרצל 10, תל אביב', occupancy: 'vacant', role: { kind: 'owner' }, projectId: 'p1', floorNumber: '7', sizeSqm: '110' },
   { id: 'a3', kind: 'asset', name: 'בית פרטי', address: 'הנרי דנאה 3, נהריה', occupancy: 'rented', role: { kind: 'tenant' }, projectId: null },
   { id: 'a4', kind: 'asset', name: 'משרד 201', address: 'ביאליק 3, ר״ג', occupancy: 'vacant', role: { kind: 'custom', label: 'מנהל נכס' }, projectId: 'p2' },
   { id: 'a5', kind: 'asset', name: 'חנות קרקע', address: 'דיזנגוף 120, ת״א', occupancy: 'rented', role: { kind: 'owner' }, projectId: null },
@@ -53,6 +57,29 @@ export function assetsStandaloneForEnterpriseList(): AssetEntity[] {
 
 export function assetsForProject(projectId: string): AssetEntity[] {
   return MOCK_ASSETS.filter((a) => a.projectId === projectId);
+}
+
+/** נכסים שאינם משויכים לאף פרויקט */
+export function getUnassignedAssets(): AssetEntity[] {
+  return MOCK_ASSETS.filter((a) => a.projectId == null);
+}
+
+/** שיוך נכס לפרויקט (mock — מוטציה ישירה) */
+export function linkAssetToProject(assetId: string, projectId: string | null): boolean {
+  const a = MOCK_ASSETS.find((x) => x.id === assetId);
+  if (!a) return false;
+  const oldPid = a.projectId;
+  a.projectId = projectId;
+  const syncProjectCount = (pid: string | null) => {
+    if (!pid) return;
+    const proj = MOCK_PROJECTS.find((p) => p.id === pid);
+    if (proj) {
+      proj.assetCount = MOCK_ASSETS.filter((x) => x.projectId === pid).length;
+    }
+  };
+  syncProjectCount(oldPid);
+  syncProjectCount(projectId);
+  return true;
 }
 
 /** מושכרים / סה״כ נכסים (mock) */
