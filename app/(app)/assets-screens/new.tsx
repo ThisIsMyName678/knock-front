@@ -9,11 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
   Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { MOCK_ASSETS, MOCK_PROJECTS } from '@/lib/mocks/assets';
+import { MOCK_PROJECTS } from '@/lib/mocks/assets';
 import { MOCK_CONTRACTS_LIST, CONTRACT_TYPE_LABELS } from '@/lib/mocks/contracts';
 import { DocumentType, DOCUMENT_TYPE_LABELS } from '@/lib/mocks/documents';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -33,6 +34,7 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
+import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,6 +164,97 @@ const DOCUMENT_TYPE_ORDER: DocumentType[] = [
   'asset_docs', 'meter_readings', 'formats', 'guarantees',
   'accounts', 'invoice_receipt', 'other',
 ];
+
+function assetKindToBackendType(kind: AssetKind): BackendPropertyType {
+  if (kind === 'apartment') return 'APARTMENT';
+  if (kind === 'house') return 'PRIVATE_HOME';
+  return 'COMMERCIAL';
+}
+
+function backendTypeToAssetKind(type: BackendPropertyType): AssetKind {
+  if (type === 'APARTMENT') return 'apartment';
+  if (type === 'HOUSE' || type === 'PRIVATE_HOME') return 'house';
+  return 'commercial';
+}
+
+function buildPropertyName(step1: Step1Data): string {
+  const address = step1.address.trim();
+  const apartment = step1.apartmentNumber.trim();
+
+  if (apartment && address) {
+    return `${address} דירה ${apartment}`;
+  }
+
+  return address || 'נכס חדש';
+}
+
+function uuidOrNull(value: string | null): string | null {
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
+}
+
+function metadataString(metadata: Record<string, unknown> | null, key: string): string {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function metadataArray<T extends string>(metadata: Record<string, unknown> | null, key: string): T[] {
+  const value = metadata?.[key];
+  return Array.isArray(value) ? value.filter((entry): entry is T => typeof entry === 'string') : [];
+}
+
+function metadataRecord<T extends Record<string, boolean>>(metadata: Record<string, unknown> | null, key: string, fallback: T): T {
+  const value = metadata?.[key];
+  return value && typeof value === 'object' && !Array.isArray(value) ? { ...fallback, ...(value as Partial<T>) } : fallback;
+}
+
+function addressSuggestionFromProperty(property: BackendProperty): AddressSuggestion | null {
+  const addressJson = property.addressJson;
+  if (!addressJson) return propertyAddressLabel(property) ? { label: propertyAddressLabel(property), street: propertyAddressLabel(property), city: '' } : null;
+
+  const label = propertyAddressLabel(property);
+  return {
+    label,
+    street: typeof addressJson.street === 'string' ? addressJson.street : label,
+    city: typeof addressJson.city === 'string' ? addressJson.city : '',
+  };
+}
+
+function step1FromProperty(property: BackendProperty): Step1Data {
+  const defaultAmenities: Record<AmenityKey, boolean> = {
+    garden: false,
+    balcony: false,
+    furnished: false,
+    elevator: false,
+    shelter: false,
+    solarWater: false,
+    parking: false,
+  };
+  const addressJson = property.addressJson;
+
+  return {
+    kind: backendTypeToAssetKind(property.propertyType),
+    address: propertyAddressLabel(property),
+    addressSuggestion: addressSuggestionFromProperty(property),
+    apartmentNumber: typeof addressJson?.apartmentNumber === 'string' ? addressJson.apartmentNumber : '',
+    floorNumber: metadataString(property.metadata, 'floorNumber'),
+    sizeSqm: metadataString(property.metadata, 'sizeSqm'),
+    linkedProjectId: property.projectId,
+    linkedProjectName: null,
+    projectSearch: '',
+    airDirections: metadataArray<AirDirection>(property.metadata, 'airDirections'),
+    amenities: metadataRecord(property.metadata, 'amenities', defaultAmenities),
+    gardenSize: metadataString(property.metadata, 'gardenSize'),
+    balconySize: metadataString(property.metadata, 'balconySize'),
+    parkingNumber: metadataString(property.metadata, 'parkingNumber'),
+    propertyCondition: metadataString(property.metadata, 'propertyCondition') as PropertyCondition || null,
+    buildingCommittee: metadataString(property.metadata, 'buildingCommittee'),
+    propertyTax: metadataString(property.metadata, 'propertyTax'),
+    assetValue: metadataString(property.metadata, 'assetValue'),
+    meters: Array.isArray(property.metadata?.meters) ? (property.metadata.meters as MeterEntry[]) : [],
+  };
+}
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
@@ -1509,10 +1602,8 @@ export default function NewAssetScreen() {
     preloadedProjectName?: string;
   }>();
 
-  const editEntity = editId
-    ? (MOCK_ASSETS.find((a) => a.id === editId) ?? MOCK_PROJECTS.find((p) => p.id === editId) ?? null)
-    : null;
-  const isEditMode = !!editEntity;
+  const isEditMode = !!editId;
+  const [editProperty, setEditProperty] = useState<BackendProperty | null>(null);
 
   const [step, setStep] = useState(1);
 
@@ -1520,11 +1611,11 @@ export default function NewAssetScreen() {
 
   const [step1, setStep1] = useState<Step1Data>(() => ({
     kind: null,
-    address: editEntity?.address ?? '',
-    addressSuggestion: editEntity ? { label: editEntity.address, street: editEntity.address, city: '' } : null,
+    address: '',
+    addressSuggestion: null,
     apartmentNumber: '',
-    floorNumber: editEntity?.kind === 'asset' ? (editEntity.floorNumber ?? '') : '',
-    sizeSqm: editEntity?.kind === 'asset' ? (editEntity.sizeSqm ?? '') : '',
+    floorNumber: '',
+    sizeSqm: '',
     linkedProjectId: null,
     linkedProjectName: null,
     projectSearch: '',
@@ -1539,6 +1630,27 @@ export default function NewAssetScreen() {
     assetValue: '',
     meters: [],
   }));
+
+  useEffect(() => {
+    if (!editId) return;
+
+    let cancelled = false;
+
+    getProperty(editId)
+      .then((property) => {
+        if (cancelled) return;
+        setEditProperty(property);
+        setStep1(step1FromProperty(property));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        Alert.alert('טעינת הנכס נכשלה', error instanceof Error ? error.message : 'נסה שוב מאוחר יותר.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editId]);
 
   useEffect(() => {
     if (isEditMode || preloadedAppliedRef.current) return;
@@ -1569,6 +1681,7 @@ export default function NewAssetScreen() {
   });
 
   const [step1Submitted, setStep1Submitted] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const step1Errors = useMemo(() => ({
     kind: !step1.kind ? 'יש לבחור סוג נכס' : '',
@@ -1580,13 +1693,63 @@ export default function NewAssetScreen() {
   /** שלבים 2–3 לא חוסמים המשך (קבצים וחוזה אופציונליים). */
   const canAdvance = step === 1 ? step1Valid : true;
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       setStep1Submitted(true);
       if (!step1Valid) return;
     }
     if (step < 3) { setStep((s) => s + 1); return; }
-    router.replace('/(app)/assets-screens');
+
+    if (!step1.kind) return;
+
+    setSaving(true);
+
+    try {
+      const payload: CreatePropertyInput = {
+        name: buildPropertyName(step1),
+        address: step1.address,
+        addressJson: {
+          label: step1.address,
+          street: step1.addressSuggestion?.street,
+          city: step1.addressSuggestion?.city,
+          apartmentNumber: step1.apartmentNumber || undefined,
+        },
+        propertyType: assetKindToBackendType(step1.kind),
+        occupancyStatus: editProperty?.occupancyStatus ?? 'VACANT',
+        projectId: uuidOrNull(step1.linkedProjectId),
+        metadata: {
+          floorNumber: step1.floorNumber,
+          sizeSqm: step1.sizeSqm,
+          airDirections: step1.airDirections,
+          amenities: step1.amenities,
+          gardenSize: step1.gardenSize,
+          balconySize: step1.balconySize,
+          parkingNumber: step1.parkingNumber,
+          propertyCondition: step1.propertyCondition,
+          buildingCommittee: step1.buildingCommittee,
+          propertyTax: step1.propertyTax,
+          assetValue: step1.assetValue,
+          meters: step1.meters,
+          files: step2.files,
+          linkedContractId: step3.linkedContractId,
+        },
+      };
+
+      if (isEditMode && editId) {
+        await updateProperty(editId, payload);
+      } else {
+        await createProperty(payload);
+      }
+
+      router.replace('/(app)/assets-screens');
+    } catch (error) {
+      Alert.alert(
+        'שמירת הנכס נכשלה',
+        error instanceof Error ? error.message : 'נסה שוב מאוחר יותר.',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleBack = () => {
@@ -1599,7 +1762,7 @@ export default function NewAssetScreen() {
       style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <AppHeader title={isEditMode ? `עריכת ${editEntity?.name ?? 'נכס'}` : 'נכס חדש'} showBack onBack={handleBack} />
+      <AppHeader title={isEditMode ? `עריכת ${editProperty?.name ?? 'נכס'}` : 'נכס חדש'} showBack onBack={handleBack} />
 
       {/* Step indicator */}
       <View style={wizardStyles.indicatorWrap}>
@@ -1629,8 +1792,8 @@ export default function NewAssetScreen() {
         )}
         <Button
           label={step === 3 ? 'סיום' : 'הבא'}
-          onPress={handleNext}
-          disabled={!canAdvance}
+          onPress={() => void handleNext()}
+          disabled={!canAdvance || saving}
           style={wizardStyles.footerPrimary}
           variant="primary"
         />
