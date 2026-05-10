@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -15,16 +16,35 @@ import { Button } from '@/components/ui/Button';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Shadow } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
+import { useAuth } from '@/lib/auth';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { signInWithPassword, backendAuthError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Placeholder: navigation only — logic stays in auth layer
-    router.replace('/(app)');
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('חסרים פרטים', 'יש להזין אימייל וסיסמה כדי להתחבר.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await signInWithPassword(email, password);
+      router.replace('/(app)');
+    } catch (error) {
+      Alert.alert(
+        'התחברות נכשלה',
+        error instanceof Error ? error.message : 'לא ניתן להתחבר כרגע.',
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -59,6 +79,12 @@ export default function LoginScreen() {
             <AppText variant="bodyMd" color="variant" align="right" style={{ marginBottom: Spacing.xl }}>
               ברוך הבא! אנא הזן את פרטיך.
             </AppText>
+
+            {backendAuthError ? (
+              <AppText variant="bodySm" align="right" style={styles.errorText}>
+                {backendAuthError}
+              </AppText>
+            ) : null}
 
             <Input
               label="כתובת אימייל"
@@ -102,6 +128,8 @@ export default function LoginScreen() {
             <Button
               label="התחברות"
               onPress={handleLogin}
+              disabled={loading}
+              loading={loading}
               fullWidth
               size="lg"
               style={{ marginTop: Spacing.lg }}
@@ -175,6 +203,10 @@ const styles = StyleSheet.create({
   forgotRow: {
     alignSelf: 'flex-start',
     paddingVertical: Spacing.xs,
+  },
+  errorText: {
+    color: Colors.error,
+    marginBottom: Spacing.md,
   },
   dividerRow: {
     flexDirection: RTL_ROW,

@@ -48,14 +48,17 @@ export function AutoReportModal({ visible, config, onClose, onSave }: Props) {
   const [draft, setDraft] = useState<AutoReportConfig>(config);
   const [emailDraft, setEmailDraft] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [prevVisible, setPrevVisible] = useState(visible);
 
-  useEffect(() => {
-    if (visible) {
-      setDraft(config);
-      setEmailDraft('');
-      setEmailError('');
-    }
-  }, [visible, config]);
+  // Sync state during render to avoid commit-phase double renders
+  if (visible && !prevVisible) {
+    setDraft(config);
+    setEmailDraft('');
+    setEmailError('');
+    setPrevVisible(true);
+  } else if (!visible && prevVisible) {
+    setPrevVisible(false);
+  }
 
   const addRecipient = () => {
     const v = emailDraft.trim();

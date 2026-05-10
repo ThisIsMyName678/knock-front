@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -53,6 +53,7 @@ import {
 import { assetsForProject } from '@/lib/mocks/assets';
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
+import { getProperty, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1404,8 +1405,31 @@ export function DetailTabsScreen({
 }: Props) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('feed');
+  const [property, setProperty] = useState<BackendProperty | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'asset' || !id) {
+      return;
+    }
+
+    let cancelled = false;
+
+    getProperty(id)
+      .then((row) => {
+        if (!cancelled) setProperty(row);
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load property');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, id]);
 
   const mainTabLabel = mode === 'project' ? 'נכסים' : 'חוזה';
+  const headerTitle = property?.name ?? name;
+  const headerAddress = property ? propertyAddressLabel(property) : address;
 
   const tabsWithLabels = TABS.map((t) =>
     t.key === 'main' ? { ...t, label: mainTabLabel } : t,
@@ -1433,12 +1457,12 @@ export function DetailTabsScreen({
   return (
     <View style={[screenStyles.screen, { paddingTop: insets.top }]}>
       <AppHeader
-        title={name}
+        title={headerTitle}
         subtitleNode={
           <View style={screenStyles.headerAddress}>
             <MaterialCommunityIcons name="map-marker-outline" size={13} color="rgba(255,255,255,0.75)" />
             <AppText variant="caption" color="onPrimary" numberOfLines={1} style={{ opacity: 0.85, textAlign: 'right' }}>
-              {address}
+              {headerAddress}
             </AppText>
           </View>
         }

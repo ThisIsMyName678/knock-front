@@ -9,7 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -27,11 +27,9 @@ import {
 
 import type { AssetEntity, Entity, OccupancyStatus, ProjectEntity, UserRole } from '@/lib/mocks/assets';
 import {
-  MOCK_ASSETS,
   MOCK_PROJECTS,
-  assetsForProject,
-  assetsStandaloneForEnterpriseList,
 } from '@/lib/mocks/assets';
+import { listProperties, propertyToAssetEntity } from '@/lib/api/properties';
 import { useSubscriptionPlan } from '@/hooks/useSubscriptionPlan';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { FilterBar } from '@/components/ui/FilterBar';
@@ -143,9 +141,8 @@ function EntityCard({ entity, onPress }: { entity: Entity; onPress: () => void }
 
         {/* Project-only: asset count + occupancy X/Y */}
         {isProject && (() => {
-          const projectAssets = assetsForProject(entity.id);
-          const total = projectAssets.length;
-          const rented = projectAssets.filter((a) => a.occupancy === 'rented').length;
+          const total = entity.assetCount;
+          const rented = entity.occupancy === 'rented' ? total : 0;
           return (
             <>
               <View style={styles.cardMeta}>
@@ -323,17 +320,35 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [backendAssets, setBackendAssets] = useState<AssetEntity[]>([]);
+
+  const loadProperties = useCallback(async () => {
+    try {
+      const rows = await listProperties({
+        projectId: scopedProjectId,
+      });
+      setBackendAssets(rows.map(propertyToAssetEntity));
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to load properties');
+    }
+  }, [scopedProjectId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadProperties();
+    }, [loadProperties, refreshNonce]),
+  );
 
   const rawData: Entity[] = useMemo(() => {
     if (scopedProjectId) {
-      return assetsForProject(scopedProjectId);
+      return backendAssets;
     }
     if (mode === 'projects') {
-      const orphans = plan === 'enterprise' ? assetsStandaloneForEnterpriseList() : [];
+      const orphans = plan === 'enterprise' ? backendAssets.filter((asset) => asset.projectId == null) : [];
       return [...MOCK_PROJECTS, ...orphans];
     }
-    return MOCK_ASSETS;
-  }, [mode, scopedProjectId, plan, refreshNonce]);
+    return backendAssets;
+  }, [mode, scopedProjectId, plan, backendAssets]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -372,7 +387,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
   );
 
   const showOrphansHint =
-    plan === 'enterprise' && mode === 'projects' && !scopedProjectId && !embedded && assetsStandaloneForEnterpriseList().length > 0;
+    plan === 'enterprise' && mode === 'projects' && !scopedProjectId && !embedded && backendAssets.some((asset) => asset.projectId == null);
 
   /** No items at all (user has nothing linked to account) */
   const hasNoData = rawData.length === 0;
@@ -534,7 +549,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
   },
-
   grid: {
     padding: CONTENT_HORIZONTAL_PADDING,
     paddingTop: Spacing.base,

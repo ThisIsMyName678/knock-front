@@ -480,6 +480,10 @@ function AddressAutocomplete({
         setLoading(false);
       }
     }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [value]);
 
   const handleSelect = (s: AddressSuggestion) => {

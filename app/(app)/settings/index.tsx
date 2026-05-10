@@ -7,6 +7,7 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
+import { useAuth } from '@/lib/auth';
 
 type SettingItem = { label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; route?: string };
 
@@ -35,10 +36,13 @@ const SECTIONS: { title: string; items: SettingItem[] }[] = [
   },
 ];
 
-const MOCK_USER = { name: 'ניר', role: 'מנהל נכסים', email: 'manager@knocknock.co.il' };
-
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { backendUser, user, signOut } = useAuth();
+  const userMetadata = backendUser?.userMetadata ?? user?.user_metadata;
+  const displayName = resolveDisplayName(userMetadata, backendUser?.email ?? user?.email);
+  const displayEmail = backendUser?.email ?? user?.email ?? 'לא הוגדר אימייל';
+  const displayRole = backendUser?.role ?? 'משתמש';
 
   const onLogout = () => {
     Alert.alert(
@@ -46,7 +50,14 @@ export default function SettingsScreen() {
       'האם אתה בטוח שברצונך להתנתק?',
       [
         { text: 'ביטול', style: 'cancel' },
-        { text: 'התנתק', style: 'destructive', onPress: () => router.replace('/(auth)/login') },
+        {
+          text: 'התנתק',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/(auth)/login');
+          },
+        },
       ],
     );
   };
@@ -61,9 +72,9 @@ export default function SettingsScreen() {
           <MaterialCommunityIcons name="account-circle" size={40} color={Colors.onPrimary} />
         </View>
         <View style={{ flex: 1 }}>
-          <AppText variant="headingSm" weight="bold" color="onPrimary">{MOCK_USER.name}</AppText>
-          <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>{MOCK_USER.role}</AppText>
-          <AppText variant="caption" color="onPrimary" style={{ opacity: 0.65 }}>{MOCK_USER.email}</AppText>
+          <AppText variant="headingSm" weight="bold" color="onPrimary">{displayName}</AppText>
+          <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>{displayRole}</AppText>
+          <AppText variant="caption" color="onPrimary" style={{ opacity: 0.65 }}>{displayEmail}</AppText>
         </View>
         <Pressable
           onPress={() => router.push('/(app)/settings/profile-edit')}
@@ -154,3 +165,20 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
 });
+
+function resolveDisplayName(
+  metadata: Record<string, unknown> | undefined,
+  email: string | undefined,
+): string {
+  const candidateKeys = ['full_name', 'name', 'display_name', 'given_name'];
+
+  for (const key of candidateKeys) {
+    const value = metadata?.[key];
+
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return email?.split('@')[0] || 'משתמש';
+}

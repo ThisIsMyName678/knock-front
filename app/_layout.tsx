@@ -11,6 +11,7 @@ import {
   Assistant_700Bold,
   Assistant_800ExtraBold,
 } from '@expo-google-fonts/assistant';
+import { AuthProvider } from '@/lib/auth';
 
 // Keep the splash screen visible while loading fonts
 SplashScreen.preventAutoHideAsync();
@@ -37,10 +38,12 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: false, animation: 'slide_from_left' }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(app)" />
-        </Stack>
+        <AuthProvider>
+          <Stack screenOptions={{ headerShown: false, animation: 'slide_from_left' }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(app)" />
+          </Stack>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

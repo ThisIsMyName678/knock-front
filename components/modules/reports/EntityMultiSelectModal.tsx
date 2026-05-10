@@ -40,14 +40,16 @@ export function EntityMultiSelectModal({
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<string[]>(selectedIds);
   const [query, setQuery] = useState('');
+  const [prevVisible, setPrevVisible] = useState(visible);
 
-  // reset draft when reopened
-  React.useEffect(() => {
-    if (visible) {
-      setDraft(selectedIds);
-      setQuery('');
-    }
-  }, [visible, selectedIds]);
+  // Sync state during render to avoid commit-phase double renders
+  if (visible && !prevVisible) {
+    setDraft(selectedIds);
+    setQuery('');
+    setPrevVisible(true);
+  } else if (!visible && prevVisible) {
+    setPrevVisible(false);
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
