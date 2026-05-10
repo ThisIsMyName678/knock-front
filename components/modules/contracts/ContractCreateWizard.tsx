@@ -479,16 +479,26 @@ export function ContractCreateWizard({
               </View>
               {reminderEnabled && (
                 <View style={styles.reminderFields}>
+                  <Pressable
+                    onPress={() => { setReminderUnit('days'); setReminderAmount('0'); }}
+                    style={[styles.unitChip, reminderUnit === 'days' && reminderAmount === '0' && styles.unitChipActive, { marginBottom: Spacing.sm }]}
+                  >
+                    <AppText variant="labelSm" weight={reminderUnit === 'days' && reminderAmount === '0' ? 'bold' : 'regular'} style={{ color: reminderUnit === 'days' && reminderAmount === '0' ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                      ביום עצמו
+                    </AppText>
+                  </Pressable>
                   <View style={styles.unitRow}>
                     {(['days', 'weeks', 'months'] as const).map((u) => (
-                      <Pressable key={u} onPress={() => setReminderUnit(u)} style={[styles.unitChip, reminderUnit === u && styles.unitChipActive]}>
-                        <AppText variant="labelSm" weight={reminderUnit === u ? 'bold' : 'regular'} style={{ color: reminderUnit === u ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                      <Pressable key={u} onPress={() => { setReminderUnit(u); if (reminderAmount === '0') setReminderAmount('1'); }} style={[styles.unitChip, reminderUnit === u && reminderAmount !== '0' && styles.unitChipActive]}>
+                        <AppText variant="labelSm" weight={reminderUnit === u && reminderAmount !== '0' ? 'bold' : 'regular'} style={{ color: reminderUnit === u && reminderAmount !== '0' ? Colors.onPrimary : Colors.onSurfaceVariant }}>
                           {u === 'days' ? 'ימים' : u === 'weeks' ? 'שבועות' : 'חודשים'}
                         </AppText>
                       </Pressable>
                     ))}
                   </View>
-                  <Input label="מספר" value={reminderAmount} onChangeText={setReminderAmount} keyboardType="numeric" containerStyle={{ marginTop: Spacing.sm }} />
+                  {!(reminderUnit === 'days' && reminderAmount === '0') && (
+                    <Input label="מספר" value={reminderAmount} onChangeText={setReminderAmount} keyboardType="numeric" containerStyle={{ marginTop: Spacing.sm }} />
+                  )}
                 </View>
               )}
             </View>

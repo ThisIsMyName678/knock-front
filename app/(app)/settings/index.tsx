@@ -14,8 +14,7 @@ const SECTIONS: { title: string; items: SettingItem[] }[] = [
   {
     title: 'חשבון',
     items: [
-      { label: 'עריכת פרופיל', icon: 'account-edit-outline' },
-      { label: 'שינוי סיסמה', icon: 'lock-reset' },
+      { label: 'עריכת פרופיל', icon: 'account-edit-outline', route: '/(app)/settings/profile-edit' },
       { label: 'מסלולי מנוי', icon: 'crown-outline', route: '/(app)/subscription' },
     ],
   },
@@ -23,8 +22,6 @@ const SECTIONS: { title: string; items: SettingItem[] }[] = [
     title: 'אפליקציה',
     items: [
       { label: 'הגדרות התראות', icon: 'bell-cog-outline', route: '/(app)/settings/notifications' },
-      { label: 'דוחות', icon: 'file-chart-outline', route: '/(app)/reports' },
-      { label: 'שפה ואזור', icon: 'translate' },
     ],
   },
   {
@@ -68,7 +65,12 @@ export default function SettingsScreen() {
           <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>{MOCK_USER.role}</AppText>
           <AppText variant="caption" color="onPrimary" style={{ opacity: 0.65 }}>{MOCK_USER.email}</AppText>
         </View>
-        <Pressable style={styles.editBtn} accessibilityRole="button" accessibilityLabel="עריכת פרופיל">
+        <Pressable
+          onPress={() => router.push('/(app)/settings/profile-edit')}
+          style={styles.editBtn}
+          accessibilityRole="button"
+          accessibilityLabel="עריכת פרופיל"
+        >
           <MaterialCommunityIcons name="pencil-outline" size={20} color={Colors.onPrimary} />
         </Pressable>
       </View>

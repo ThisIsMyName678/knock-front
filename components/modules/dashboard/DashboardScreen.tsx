@@ -250,7 +250,7 @@ export function DashboardScreen() {
   const [newTime, setNewTime] = useState('');
   const [newEventKind, setNewEventKind] = useState<EventKind | ''>('');
   const [newContactId, setNewContactId] = useState<string | null>(null);
-  const [newReminder, setNewReminder] = useState<'0' | '15' | '30' | '60' | '120' | '1440' | 'custom'>('30');
+  const [newReminder, setNewReminder] = useState<'same_day' | '0' | '15' | '30' | '60' | '120' | '1440' | 'custom'>('30');
   const [reminderCustomDate, setReminderCustomDate] = useState('');
   const [reminderCustomTime, setReminderCustomTime] = useState('');
   const [contactSearch, setContactSearch] = useState('');
@@ -333,7 +333,10 @@ export function DashboardScreen() {
     }
     let reminderLabel = 'ללא תזכורת';
     let reminderMins: number | undefined;
-    if (newReminder === 'custom') {
+    if (newReminder === 'same_day') {
+      reminderLabel = 'תזכורת ביום עצמו';
+      reminderMins = 0;
+    } else if (newReminder === 'custom') {
       const datePart = reminderCustomDate.trim();
       const timePart = reminderCustomTime.trim();
       if (datePart || timePart) {
@@ -723,6 +726,7 @@ export function DashboardScreen() {
               {(
                 [
                   { k: '0' as const, lab: 'ללא' },
+                  { k: 'same_day' as const, lab: 'ביום עצמו' },
                   { k: '15' as const, lab: '15 דק׳' },
                   { k: '30' as const, lab: '30 דק׳' },
                   { k: '60' as const, lab: 'שעה' },

@@ -23,11 +23,15 @@ import {
   TASK_KIND_LABELS,
   TASK_KIND_ICONS,
   TASK_PRIORITY_LABELS,
+  MAINTENANCE_CATEGORY_LABELS,
+  MAINTENANCE_CATEGORY_ICONS,
+  MAINTENANCE_CATEGORY_ORDER,
   MOCK_TASK_INVITE_URL,
   paymentsForTaskLink,
   type TaskKind,
   type TaskPriority,
   type WorkflowStatus,
+  type MaintenanceCategory,
 } from '@/lib/mocks/tasks';
 import {
   Colors,
@@ -40,7 +44,9 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
-const TASK_KINDS = (Object.keys(TASK_KIND_LABELS) as TaskKind[]).map((k) => ({ key: k, label: TASK_KIND_LABELS[k], icon: TASK_KIND_ICONS[k] }));
+const TASK_KINDS = (Object.keys(TASK_KIND_LABELS) as TaskKind[])
+  .filter((k) => k !== 'execution')
+  .map((k) => ({ key: k, label: TASK_KIND_LABELS[k], icon: TASK_KIND_ICONS[k] }));
 
 const PRIORITIES: TaskPriority[] = ['urgent', 'high', 'medium', 'low'];
 
@@ -74,6 +80,7 @@ export function TaskCreateForm() {
 
   const [title, setTitle] = useState('');
   const [taskKind, setTaskKind] = useState<TaskKind>('maintenance');
+  const [maintenanceCategory, setMaintenanceCategory] = useState<MaintenanceCategory>('building');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [startPreset, setStartPreset] = useState<StartPreset>('open');
   const [linkQuery, setLinkQuery] = useState('');
@@ -171,6 +178,39 @@ export function TaskCreateForm() {
                 </Pressable>
               ))}
             </View>
+
+            {taskKind === 'maintenance' && (
+              <>
+                <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
+                  סוג קריאת תחזוקה
+                </AppText>
+                <View style={styles.kindGrid}>
+                  {MAINTENANCE_CATEGORY_ORDER.map((cat) => (
+                    <Pressable
+                      key={cat}
+                      onPress={() => setMaintenanceCategory(cat)}
+                      style={[styles.kindCard, maintenanceCategory === cat && styles.kindCardActive]}
+                      accessibilityRole="button"
+                    >
+                      <MaterialCommunityIcons
+                        name={iconName(MAINTENANCE_CATEGORY_ICONS[cat])}
+                        size={20}
+                        color={maintenanceCategory === cat ? Colors.onPrimary : Colors.primary}
+                      />
+                      <AppText
+                        variant="labelSm"
+                        weight={maintenanceCategory === cat ? 'bold' : 'regular'}
+                        numberOfLines={2}
+                        align="center"
+                        style={{ color: maintenanceCategory === cat ? Colors.onPrimary : Colors.onSurfaceVariant }}
+                      >
+                        {MAINTENANCE_CATEGORY_LABELS[cat]}
+                      </AppText>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
               רמת דחיפות
