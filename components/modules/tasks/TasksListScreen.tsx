@@ -12,7 +12,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
-import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
@@ -358,17 +357,27 @@ export function TasksListScreen() {
         sections={filterSections}
       />
 
+      {sorted.length > 0 && (
+        <View style={styles.tableHeader}>
+          <View style={styles.thKind} />
+          <AppText variant="caption" weight="semiBold" style={[styles.thCell, { flex: 2 }]}>כותרת</AppText>
+          <AppText variant="caption" weight="semiBold" style={styles.thCell}>נכס / פרויקט</AppText>
+          <AppText variant="caption" weight="semiBold" style={styles.thDate}>יעד</AppText>
+          <AppText variant="caption" weight="semiBold" style={styles.thStatus}>סטטוס</AppText>
+          <View style={{ width: 36 }} />
+        </View>
+      )}
+
       <FlatList
         data={sorted}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={listHeader}
         contentContainerStyle={{
           paddingBottom: insets.bottom + Spacing['2xl'],
-          paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-          paddingTop: Spacing.sm,
+          paddingTop: Spacing.xs,
         }}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
+        ItemSeparatorComponent={() => <View style={styles.rowSeparator} />}
         ListEmptyComponent={
           <EmptyState
             title="אין משימות"
@@ -376,47 +385,70 @@ export function TasksListScreen() {
             icon={<MaterialCommunityIcons name="checkbox-outline" size={32} color={Colors.primary} />}
             actionLabel="משימה חדשה"
             onAction={() => router.push('/(app)/tasks/new')}
-            style={{ paddingTop: Spacing.xl }}
+            style={{ paddingTop: Spacing.xl, paddingHorizontal: CONTENT_HORIZONTAL_PADDING }}
           />
         }
-        renderItem={({ item }) => (
-          <Card>
-            <View style={styles.cardInner}>
-              <Pressable onPress={() => router.push(`/(app)/tasks/${item.id}`)} style={styles.cardMain} accessibilityRole="button">
-                <View style={styles.taskRow}>
-                  <View style={styles.listKindIcon}>
-                    <MaterialCommunityIcons name={iconName(item.taskKind)} size={22} color={Colors.primary} />
-                  </View>
-                  <View style={{ flex: 1, gap: 6 }}>
-                    <AppText variant="bodyMd" weight="semiBold" numberOfLines={2}>
-                      {item.title}
-                    </AppText>
-                    <View style={styles.metaRow}>
-                      <AppText variant="bodySm" color="variant">
-                        {item.linkLabel}
-                      </AppText>
-                      <AppText variant="bodySm" color="muted">
-                        ·
-                      </AppText>
-                      <AppText variant="bodySm" color="variant" numberOfLines={1}>
-                        {item.assigneeName}
-                      </AppText>
-                    </View>
-                    <AppText variant="caption" color="muted">
-                      יעד: {item.dueDate}
-                    </AppText>
-                    <View style={styles.badgeRow}>
-                      <Badge label={TASK_PRIORITY_LABELS[item.priority]} preset={priorityPreset(item.priority)} />
-                      <Badge label={WORKFLOW_STATUS_LABELS[item.workflowStatus]} preset={statusPreset(item.workflowStatus)} />
-                    </View>
-                  </View>
-                </View>
-              </Pressable>
-              <Pressable onPress={() => setStatusModalTaskId(item.id)} style={styles.statusBtn} accessibilityRole="button" accessibilityLabel="שינוי סטטוס מהיר">
-                <MaterialCommunityIcons name="swap-vertical" size={22} color={Colors.primary} />
-              </Pressable>
+        renderItem={({ item, index }) => (
+          <Pressable
+            onPress={() => router.push(`/(app)/tasks/${item.id}`)}
+            style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}
+            accessibilityRole="button"
+          >
+            {/* Kind icon */}
+            <View style={styles.tdKind}>
+              <MaterialCommunityIcons name={iconName(item.taskKind)} size={18} color={Colors.primary} />
             </View>
-          </Card>
+
+            {/* Title + priority */}
+            <View style={[styles.tdCell, { flex: 2 }]}>
+              <AppText variant="bodySm" weight="semiBold" numberOfLines={2} style={{ textAlign: 'right' }}>
+                {item.title}
+              </AppText>
+              <Badge label={TASK_PRIORITY_LABELS[item.priority]} preset={priorityPreset(item.priority)} style={{ alignSelf: 'flex-end', marginTop: 2 }} />
+            </View>
+
+            {/* Link */}
+            <View style={styles.tdCell}>
+              <View style={styles.linkBadge}>
+                <MaterialCommunityIcons
+                  name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
+                  size={11}
+                  color={Colors.primary}
+                />
+                <AppText variant="caption" numberOfLines={2} style={{ color: Colors.primary, textAlign: 'right', flex: 1 }}>
+                  {item.linkLabel}
+                </AppText>
+              </View>
+              {item.assigneeName ? (
+                <AppText variant="caption" color="muted" numberOfLines={1} style={{ textAlign: 'right', marginTop: 2 }}>
+                  {item.assigneeName}
+                </AppText>
+              ) : null}
+            </View>
+
+            {/* Due date */}
+            <View style={styles.tdDate}>
+              <AppText variant="caption" color="variant" style={{ textAlign: 'center' }}>
+                {item.dueDate}
+              </AppText>
+            </View>
+
+            {/* Status */}
+            <View style={styles.tdStatus}>
+              <Badge label={WORKFLOW_STATUS_LABELS[item.workflowStatus]} preset={statusPreset(item.workflowStatus)} />
+            </View>
+
+            {/* Quick status change */}
+            <Pressable
+              onPress={() => setStatusModalTaskId(item.id)}
+              style={styles.tdAction}
+              accessibilityRole="button"
+              accessibilityLabel="שינוי סטטוס מהיר"
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons name="swap-vertical" size={18} color={Colors.primary} />
+            </Pressable>
+          </Pressable>
         )}
       />
 
@@ -460,6 +492,11 @@ export function TasksListScreen() {
   );
 }
 
+const COL_KIND = 32;
+const COL_DATE = 72;
+const COL_STATUS = 80;
+const COL_ACTION = 36;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   recentBlock: {
@@ -486,25 +523,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'flex-end',
   },
-  listKindIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: `${Colors.info}22`,
+
+  // ── Table header ──
+  tableHeader: {
+    flexDirection: RTL_ROW,
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.xs,
+    backgroundColor: Colors.surfaceVariant,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
   },
-  cardInner: { flexDirection: RTL_ROW, alignItems: 'stretch' },
-  cardMain: { flex: 1, padding: Spacing.base },
-  taskRow: { flexDirection: RTL_ROW, alignItems: 'flex-start', gap: Spacing.md },
-  metaRow: { flexDirection: RTL_ROW, gap: Spacing.xs, flexWrap: 'wrap' },
-  badgeRow: { flexDirection: RTL_ROW, gap: Spacing.sm, flexWrap: 'wrap', marginTop: Spacing.xs },
-  statusBtn: {
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.sm,
-    borderRightWidth: 1,
-    borderRightColor: Colors.outlineLight,
+  thKind: { width: COL_KIND },
+  thCell: {
+    flex: 1,
+    textAlign: 'right',
+    color: Colors.onSurfaceVariant,
+    paddingHorizontal: 4,
   },
+  thDate: { width: COL_DATE, textAlign: 'center', color: Colors.onSurfaceVariant },
+  thStatus: { width: COL_STATUS, textAlign: 'right', color: Colors.onSurfaceVariant, paddingHorizontal: 4 },
+
+  // ── Table rows ──
+  tableRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.surface,
+    minHeight: 56,
+  },
+  tableRowAlt: { backgroundColor: Colors.surfaceVariant },
+  rowSeparator: { height: 1, backgroundColor: Colors.outlineLight },
+  linkBadge: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.primaryContainer,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    alignSelf: 'flex-end',
+  },
+
+  // ── Cells ──
+  tdKind: { width: COL_KIND, alignItems: 'center', justifyContent: 'center' },
+  tdCell: { flex: 1, paddingHorizontal: 4, alignItems: 'flex-end' },
+  tdDate: { width: COL_DATE, alignItems: 'center' },
+  tdStatus: { width: COL_STATUS, alignItems: 'flex-end', paddingHorizontal: 4 },
+  tdAction: { width: COL_ACTION, alignItems: 'center', justifyContent: 'center' },
+
+  // ── Modals ──
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -526,6 +595,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
   modalOptionActive: { backgroundColor: Colors.primaryContainer },
+
+  // ── FAB ──
   fab: {
     position: 'absolute',
     left: CONTENT_HORIZONTAL_PADDING,

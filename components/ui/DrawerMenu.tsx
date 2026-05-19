@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, Pressable, Modal, ScrollView, Alert, Dimensions } from 'react-native';
+import { View, StyleSheet, Pressable, Modal, ScrollView, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -23,15 +23,16 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'משימות', icon: 'checkbox-marked-outline', route: '/(app)/tasks' },
   { label: 'חוזים', icon: 'file-sign', route: '/(app)/contracts' },
   { label: 'תשלומים', icon: 'cash-multiple', route: '/(app)/payments' },
-  { label: 'דוחות', icon: 'file-chart-outline', route: '/(app)/reports' },
   { label: 'מסמכים', icon: 'folder-outline', route: '/(app)/documents' },
   { label: 'אנשי קשר', icon: 'contacts-outline', route: '/(app)/contacts' },
+  { label: 'דוחות', icon: 'file-chart-outline', route: '/(app)/reports' },
 ];
 
 const ACCOUNT_ITEMS: NavItem[] = [
-  { label: 'פרופיל והגדרות', icon: 'account-edit-outline', route: '/(app)/settings' },
+  { label: 'עריכת פרופיל', icon: 'camera-account', route: '/(app)/settings/profile-edit' },
+  { label: 'הגדרות התראות', icon: 'bell-cog-outline', route: '/(app)/settings/notifications' },
   { label: 'מסלולי מנוי', icon: 'crown-outline', route: '/(app)/subscription' },
-  { label: 'ייבוא נתונים', icon: 'database-import-outline', onPress: () => Alert.alert('ייבוא נתונים', 'פונקציית ייבוא נתונים בקרוב') },
+  { label: 'ייבוא נתונים', icon: 'database-import-outline', route: '/(app)/data-import' },
   { label: 'עזרה ותמיכה', icon: 'lifebuoy', route: '/(app)/settings/help' },
 ];
 

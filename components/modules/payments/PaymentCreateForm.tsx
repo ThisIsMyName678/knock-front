@@ -80,12 +80,20 @@ type InstallmentRow = {
   indexed: boolean;
 };
 
+type RecurringRow = {
+  id: string;
+  index: number;
+  dueDate: string;
+  means: string;
+};
+
 type Reminder = {
   id: string;
   offsetDays: number;
 };
 
 const REMINDER_PRESETS: { label: string; days: number }[] = [
+  { label: 'ביום עצמו', days: 0 },
   { label: 'יום לפני', days: 1 },
   { label: '3 ימים לפני', days: 3 },
   { label: 'שבוע לפני', days: 7 },
@@ -115,10 +123,22 @@ function todayDdMmYyyy(): string {
 }
 
 function reminderOffsetLabel(days: number): string {
+  if (days === 0) return 'ביום עצמו';
   if (days === 1) return 'יום אחד לפני';
   if (days === 7) return 'שבוע לפני';
   if (days === 30) return 'חודש לפני';
   return `${days} ימים לפני`;
+}
+
+function addCycleToDate(dateStr: string, cycle: 'weekly' | 'monthly' | 'yearly', count: number): string {
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return dateStr;
+  const d = new Date(parseInt(parts[2]!), parseInt(parts[1]!) - 1, parseInt(parts[0]!));
+  if (cycle === 'weekly') d.setDate(d.getDate() + count * 7);
+  else if (cycle === 'monthly') d.setMonth(d.getMonth() + count);
+  else d.setFullYear(d.getFullYear() + count);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -157,8 +177,9 @@ export function PaymentCreateForm({
   const [contractModal, setContractModal] = useState(false);
   const [recCountModal, setRecCountModal] = useState(false);
   const [paymentTypeModal, setPaymentTypeModal] = useState(false);
-  const [datePickerTarget, setDatePickerTarget] = useState<'due' | 'row' | 'guaranteeEnd' | null>(null);
+  const [datePickerTarget, setDatePickerTarget] = useState<'due' | 'row' | 'guaranteeEnd' | 'recRow' | null>(null);
   const [datePickerRowId, setDatePickerRowId] = useState<string | null>(null);
+  const [recRows, setRecRows] = useState<RecurringRow[]>([]);
 
   const [contractId, setContractId] = useState<string | null>(() => preloadedContractId ?? null);
   const [paymentType, setPaymentType] = useState<PaymentTypeKey>(() => initialData?.paymentType ?? 'rent');
@@ -217,9 +238,33 @@ export function PaymentCreateForm({
 
   const recurringPreview = useMemo(() => {
     if (paymentMode !== 'recurring' || totalAmount <= 0) return null;
-    const n = Math.min(12, Math.max(1, parseInt(recCount, 10) || 1));
+    const n = Math.min(36, Math.max(1, parseInt(recCount, 10) || 1));
     return { events: n, planned: totalAmount * n };
   }, [paymentMode, recCount, totalAmount]);
+
+  // Regenerate recurring rows when cycle/count/dueDate changes; preserve user edits by id
+  const regenerateRecRows = useCallback(() => {
+    const n = Math.min(36, Math.max(1, parseInt(recCount, 10) || 1));
+    setRecRows((prev) => {
+      const rows: RecurringRow[] = [];
+      for (let i = 0; i < n; i++) {
+        const autoDate = dueDate ? addCycleToDate(dueDate, recCycle, i) : '';
+        const existing = prev[i];
+        rows.push({
+          id: existing?.id ?? randomId(),
+          index: i,
+          dueDate: existing?.dueDate ?? autoDate,
+          means: existing?.means ?? 'bank',
+        });
+      }
+      return rows;
+    });
+  }, [recCount, recCycle, dueDate]);
+
+  useEffect(() => {
+    if (paymentMode === 'recurring') regenerateRecRows();
+    else setRecRows([]);
+  }, [paymentMode, recCount, recCycle, dueDate, regenerateRecRows]);
 
   const regenerateInstallments = useCallback(() => {
     const total = digitsToInt(instTotal);
@@ -297,6 +342,9 @@ export function PaymentCreateForm({
     if (datePickerTarget === 'row' && datePickerRowId) {
       setInstRows((prev) => prev.map((r) => (r.id === datePickerRowId ? { ...r, dueDate: dateStr } : r)));
     }
+    if (datePickerTarget === 'recRow' && datePickerRowId) {
+      setRecRows((prev) => prev.map((r) => (r.id === datePickerRowId ? { ...r, dueDate: dateStr } : r)));
+    }
     setDatePickerTarget(null);
     setDatePickerRowId(null);
   };
@@ -344,13 +392,17 @@ export function PaymentCreateForm({
       ? guaranteeEnd
       : datePickerTarget === 'row' && datePickerRowId
         ? (instRows.find((r) => r.id === datePickerRowId)?.dueDate ?? '')
-        : '';
+        : datePickerTarget === 'recRow' && datePickerRowId
+          ? (recRows.find((r) => r.id === datePickerRowId)?.dueDate ?? '')
+          : '';
 
   const datePickerTitle = datePickerTarget === 'due'
     ? 'תאריך מועד ביצוע'
     : datePickerTarget === 'guaranteeEnd'
       ? 'תאריך סיום ביטחון'
-      : 'תאריך תשלום';
+      : datePickerTarget === 'recRow'
+        ? 'תאריך תשלום מחזורי'
+        : 'תאריך תשלום';
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -449,15 +501,19 @@ export function PaymentCreateForm({
           ) : null}
 
           {/* ─── שיוך לחוזה ─── */}
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
-            שיוך לחוזה (לא חובה)
-          </AppText>
-          <Pressable onPress={() => setContractModal(true)} style={styles.dropdown}>
-            <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.onSurfaceVariant} />
-            <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-              {contractId ? contracts.find((c) => c.id === contractId)?.label ?? '—' : 'בחר חוזה'}
-            </AppText>
-          </Pressable>
+          {!preloadedContractId && (
+            <>
+              <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
+                שיוך לחוזה (לא חובה)
+              </AppText>
+              <Pressable onPress={() => setContractModal(true)} style={styles.dropdown}>
+                <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.onSurfaceVariant} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
+                  {contractId ? contracts.find((c) => c.id === contractId)?.label ?? '—' : 'בחר חוזה'}
+                </AppText>
+              </Pressable>
+            </>
+          )}
 
           {/* ─── סוג תשלום (dropdown) ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
@@ -585,17 +641,60 @@ export function PaymentCreateForm({
                   </Pressable>
                 ))}
               </View>
-              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.md, textAlign: 'right' }}>מספר חזרות (1–12)</AppText>
+              <AppText variant="labelMd" weight="semiBold" style={{ marginTop: Spacing.md, textAlign: 'right' }}>מספר חזרות (1–36)</AppText>
               <Pressable onPress={() => setRecCountModal(true)} style={[styles.dropdown, { marginTop: Spacing.xs }]}>
                 <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.primary} />
                 <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                  {Math.min(12, Math.max(1, parseInt(recCount, 10) || 1))}
+                  {Math.min(36, Math.max(1, parseInt(recCount, 10) || 1))}
                 </AppText>
               </Pressable>
               {recurringPreview && (
                 <AppText variant="bodySm" color="primary" weight="semiBold" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
                   ייווצרו {recurringPreview.events} תשלומים; סה״כ מתוכנן: ₪{formatIlsInteger(recurringPreview.planned)}
                 </AppText>
+              )}
+
+              {/* תשלומים עתידיים */}
+              {recRows.length > 0 && (
+                <View style={{ marginTop: Spacing.md }}>
+                  <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                    תשלומים עתידיים
+                  </AppText>
+                  {recRows.map((row) => (
+                    <View key={row.id} style={styles.recRowBlock}>
+                      <View style={styles.recRowHeader}>
+                        <AppText variant="labelSm" weight="bold" style={{ color: Colors.primary }}>
+                          תשלום {row.index + 1}
+                        </AppText>
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          setDatePickerTarget('recRow');
+                          setDatePickerRowId(row.id);
+                        }}
+                        style={[styles.dropdown, { marginBottom: Spacing.xs }]}
+                      >
+                        <MaterialCommunityIcons name="calendar" size={18} color={Colors.primary} />
+                        <AppText variant="bodySm" style={{ flex: 1, textAlign: 'right' }}>
+                          {row.dueDate || 'בחר תאריך'}
+                        </AppText>
+                      </Pressable>
+                      <View style={styles.rowChips}>
+                        {MEANS_OPTIONS.map((m) => (
+                          <Pressable
+                            key={m.key}
+                            onPress={() => setRecRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, means: m.key } : r)))}
+                            style={[styles.miniChip, row.means === m.key && styles.miniChipActive]}
+                          >
+                            <AppText variant="caption" style={{ color: row.means === m.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                              {m.label}
+                            </AppText>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
               )}
             </View>
           )}
@@ -929,7 +1028,7 @@ export function PaymentCreateForm({
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>מספר חזרות</AppText>
             <ScrollView style={{ maxHeight: 300 }}>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+              {Array.from({ length: 36 }, (_, i) => i + 1).map((n) => (
                 <Pressable key={n} onPress={() => { setRecCount(String(n)); setRecCountModal(false); }} style={styles.sheetRow}>
                   <AppText variant="bodyMd">{n}</AppText>
                 </Pressable>
@@ -1190,4 +1289,15 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
   },
   sheetRowActive: { backgroundColor: Colors.primaryContainer },
+  recRowBlock: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineLight,
+  },
+  recRowHeader: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
 });
