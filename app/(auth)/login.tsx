@@ -144,15 +144,16 @@ export default function LoginScreen() {
               containerStyle={{ marginBottom: Spacing.sm }}
             />
 
-            <Pressable
-              style={styles.forgotRow}
-              onPress={() => {}}
-              accessibilityRole="button"
-            >
-              <AppText variant="bodySm" color="primary" weight="semiBold">
-                שכחת סיסמה?
-              </AppText>
-            </Pressable>
+            <Link href="/(auth)/forgot-password" asChild>
+              <Pressable
+                style={styles.forgotRow}
+                accessibilityRole="button"
+              >
+                <AppText variant="bodySm" color="primary" weight="semiBold">
+                  שכחת סיסמה?
+                </AppText>
+              </Pressable>
+            </Link>
 
             <Button
               label="התחברות"

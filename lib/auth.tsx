@@ -21,6 +21,8 @@ type AuthContextValue = {
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<any>;
   resendConfirmationEmail: (email: string) => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshBackendUser: (onboardData?: { displayName: string }) => Promise<void>;
 };
@@ -154,6 +156,32 @@ export function AuthProvider({ children }: PropsWithChildren) {
     console.log('[Auth] Resend success');
   }
 
+  async function resetPasswordForEmail(email: string) {
+    console.log('[Auth] Sending password reset email to:', email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/(auth)/reset-password`,
+    });
+
+    if (error) {
+      console.error('[Auth] Password reset failed:', error);
+      throw normalizeSupabaseAuthError(error);
+    }
+    console.log('[Auth] Password reset email sent successfully');
+  }
+
+  async function updatePassword(newPassword: string) {
+    console.log('[Auth] Updating password');
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      console.error('[Auth] Password update failed:', error);
+      throw normalizeSupabaseAuthError(error);
+    }
+    console.log('[Auth] Password updated successfully');
+  }
+
   async function signOut() {
     console.log('[Auth] signOut started');
     try {
@@ -237,6 +265,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       backendAuthError,
       signInWithPassword,
       signUp,
+      resendConfirmationEmail,
+      resetPasswordForEmail,
+      updatePassword,
       signOut,
       refreshBackendUser,
     }),
