@@ -20,19 +20,39 @@ import { useAuth } from '@/lib/auth';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { signInWithPassword, resendConfirmationEmail, backendAuthError } = useAuth();
+  const { signInWithPassword, resendConfirmationEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const handleLogin = async () => {
     console.log('[Login] Button clicked');
-    if (!email.trim() || !password) {
-      Alert.alert('חסרים פרטים', 'יש להזין אימייל וסיסמה כדי להתחבר.');
-      return;
+    setEmailError(null);
+    setPasswordError(null);
+    
+    let hasError = false;
+
+    if (!email.trim()) {
+      setEmailError('יש להזין אימייל');
+      hasError = true;
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        setEmailError('פורמט האימייל אינו תקין');
+        hasError = true;
+      }
     }
+
+    if (!password) {
+      setPasswordError('יש להזין סיסמה');
+      hasError = true;
+    }
+
+    if (hasError) return;
 
     setLoading(true);
 
@@ -66,10 +86,12 @@ export default function LoginScreen() {
           ]
         );
       } else {
-        Alert.alert(
-          'התחברות נכשלה',
-          error instanceof Error ? error.message : 'לא ניתן להתחבר כרגע.',
-        );
+        const errorMessage = error instanceof Error ? error.message : 'לא ניתן להתחבר כרגע.';
+        if (errorMessage.includes('סיסמה')) {
+          setPasswordError(errorMessage);
+        } else {
+          setEmailError(errorMessage);
+        }
       }
     } finally {
       setLoading(false);
@@ -109,17 +131,15 @@ export default function LoginScreen() {
               ברוך הבא! אנא הזן את פרטיך.
             </AppText>
 
-            {backendAuthError ? (
-              <AppText variant="bodySm" align="right" style={styles.errorText}>
-                {backendAuthError}
-              </AppText>
-            ) : null}
-
             <Input
               label="כתובת אימייל"
               placeholder="you@example.com"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                setEmailError(null);
+              }}
+              error={emailError || undefined}
               keyboardType="email-address"
               autoCapitalize="none"
               textContentType="emailAddress"
@@ -130,7 +150,11 @@ export default function LoginScreen() {
               label="סיסמה"
               placeholder="הזן סיסמה"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                setPasswordError(null);
+              }}
+              error={passwordError || undefined}
               secureTextEntry={!showPassword}
               textContentType="password"
               iconRight={

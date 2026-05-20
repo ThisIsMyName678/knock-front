@@ -7,6 +7,7 @@ import React, {
   useState,
   useRef,
 } from 'react';
+import { useRouter } from 'expo-router';
 import { AuthApiError, type Session, type User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { BackendCurrentUser, getBackendCurrentUser, backendRequest } from './backend';
@@ -28,6 +29,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const router = useRouter();
   const [initialized, setInitialized] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [backendUser, setBackendUser] = useState<BackendCurrentUser | null>(
@@ -237,6 +239,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       backendAuthError,
       signInWithPassword,
       signUp,
+      resendConfirmationEmail,
       signOut,
       refreshBackendUser,
     }),
@@ -250,7 +253,9 @@ function normalizeSupabaseAuthError(error: Error): Error {
   if (error instanceof AuthApiError) {
     switch (error.code) {
       case 'invalid_credentials':
-        return new Error('האימייל או הסיסמה שגויים.');
+        return new Error('הסיסמה שגויה.');
+      case 'user_not_found':
+        return new Error('משתמש זה לא קיים במערכת.');
       case 'user_already_exists':
         return new Error('משתמש עם אימייל זה כבר קיים במערכת.');
       case 'weak_password':
@@ -259,6 +264,8 @@ function normalizeSupabaseAuthError(error: Error): Error {
         return new Error('יש לאשר את כתובת האימייל בתיבת הדואר שלך לפני ההתחברות.');
       case 'over_email_send_rate_limit':
         return new Error('נשלחו יותר מדי בקשות בזמן קצר. אנא נסה שוב בעוד מספר דקות.');
+      case 'invalid_email':
+        return new Error('כתובת האימייל לא תקינה.');
     }
   }
 
