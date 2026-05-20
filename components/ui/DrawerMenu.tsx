@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, Pressable, Modal, ScrollView, Dimensions } from 'react-native';
+import { View, StyleSheet, Pressable, Modal, ScrollView, Dimensions, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -51,8 +51,19 @@ type Props = {
 
 export function DrawerMenu({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
-  const { backendUser, user } = useAuth();
+  const { backendUser, user, signOut } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
+
+  const handleLogout = () => {
+    console.log('[DrawerMenu] Logout clicked');
+    onClose();
+    // Use a small timeout to ensure the modal closes before state changes
+    setTimeout(() => {
+      console.log('[DrawerMenu] Calling signOut');
+      signOut();
+    }, 100);
+  };
+
   const userMetadata = backendUser?.userMetadata ?? user?.user_metadata;
   const displayName = resolveDisplayName(userMetadata, backendUser?.email ?? user?.email);
   const displayEmail = backendUser?.email ?? user?.email ?? 'לא הוגדר אימייל';
@@ -166,6 +177,21 @@ export function DrawerMenu({ visible, onClose }: Props) {
                   ))}
                 </View>
               )}
+            </View>
+
+            {/* Logout */}
+            <View style={[styles.sectionCard, { marginTop: Spacing.lg, borderColor: Colors.error + '44' }]}>
+              <Pressable
+                onPress={handleLogout}
+                style={({ pressed }) => [
+                  styles.menuRow,
+                  pressed && { backgroundColor: Colors.error + '11' },
+                ]}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons name="logout" size={20} color={Colors.error} />
+                <AppText variant="bodyMd" weight="bold" style={[styles.rowLabel, { color: Colors.error }]}>התנתקות</AppText>
+              </Pressable>
             </View>
 
           </ScrollView>

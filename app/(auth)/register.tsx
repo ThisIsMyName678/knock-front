@@ -18,59 +18,48 @@ import { Colors, Spacing, Radius, Shadow } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { useAuth } from '@/lib/auth';
 
-export default function LoginScreen() {
+export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
-  const { signInWithPassword, resendConfirmationEmail, backendAuthError } = useAuth();
+  const { signUp, backendAuthError } = useAuth();
   const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
 
-  const handleLogin = async () => {
-    console.log('[Login] Button clicked');
-    if (!email.trim() || !password) {
-      Alert.alert('חסרים פרטים', 'יש להזין אימייל וסיסמה כדי להתחבר.');
+  const handleRegister = async () => {
+    if (!email.trim() || !password || !displayName.trim()) {
+      Alert.alert('חסרים פרטים', 'יש למלא את כל השדות כדי להירשם.');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('סיסמה חלשה', 'הסיסמה חייבת להכיל לפחות 6 תווים.');
       return;
     }
 
     setLoading(true);
 
     try {
-      console.log('[Login] Starting signInWithPassword for:', email);
-      await signInWithPassword(email, password);
-      console.log('[Login] signInWithPassword completed successfully');
-    } catch (error) {
-      console.error('[Login] Error during login:', error);
+      const data = await signUp(email, password, displayName);
       
-      if (error instanceof Error && error.message.includes('לאשר את כתובת האימייל')) {
-        Alert.alert(
-          'אישור אימייל נדרש',
-          error.message,
-          [
-            { text: 'ביטול', style: 'cancel' },
-            { 
-              text: 'שלח שוב מייל אישור', 
-              onPress: async () => {
-                setResending(true);
-                try {
-                  await resendConfirmationEmail(email);
-                  Alert.alert('נשלח!', 'מייל אישור חדש נשלח לכתובת שלך.');
-                } catch (e) {
-                  Alert.alert('שגיאה', 'לא ניתן לשלוח מייל אישור כרגע.');
-                } finally {
-                  setResending(false);
-                }
-              }
-            }
-          ]
-        );
+      if (data?.session) {
+        // Logged in immediately
+        // The AppLayout will handle the redirect to /(app) automatically
+        // because the session state in AuthProvider will change.
       } else {
+        // Email confirmation required
         Alert.alert(
-          'התחברות נכשלה',
-          error instanceof Error ? error.message : 'לא ניתן להתחבר כרגע.',
+          'נרשמת בהצלחה!',
+          'שלחנו לך מייל אישור לכתובת ' + email + '. אנא אשר את המייל כדי להתחבר.',
+          [{ text: 'הבנתי', onPress: () => router.replace('/(auth)/login') }]
         );
       }
+    } catch (error) {
+      Alert.alert(
+        'הרשמה נכשלה',
+        error instanceof Error ? error.message : 'לא ניתן להירשם כרגע.',
+      );
     } finally {
       setLoading(false);
     }
@@ -103,10 +92,10 @@ export default function LoginScreen() {
         >
           <View style={styles.card}>
             <AppText variant="headingLg" weight="bold" align="right" style={{ marginBottom: Spacing.xs }}>
-              התחברות
+              הרשמה
             </AppText>
             <AppText variant="bodyMd" color="variant" align="right" style={{ marginBottom: Spacing.xl }}>
-              ברוך הבא! אנא הזן את פרטיך.
+              צור חשבון חדש ב-Knock
             </AppText>
 
             {backendAuthError ? (
@@ -114,6 +103,15 @@ export default function LoginScreen() {
                 {backendAuthError}
               </AppText>
             ) : null}
+
+            <Input
+              label="שם מלא"
+              placeholder="ישראל ישראלי"
+              value={displayName}
+              onChangeText={setDisplayName}
+              autoCapitalize="words"
+              containerStyle={{ marginBottom: Spacing.md }}
+            />
 
             <Input
               label="כתובת אימייל"
@@ -128,7 +126,7 @@ export default function LoginScreen() {
 
             <Input
               label="סיסמה"
-              placeholder="הזן סיסמה"
+              placeholder="לפחות 6 תווים"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -141,54 +139,26 @@ export default function LoginScreen() {
                 />
               }
               onIconRightPress={() => setShowPassword((v) => !v)}
-              containerStyle={{ marginBottom: Spacing.sm }}
+              containerStyle={{ marginBottom: Spacing.xl }}
             />
 
-            <Pressable
-              style={styles.forgotRow}
-              onPress={() => {}}
-              accessibilityRole="button"
-            >
-              <AppText variant="bodySm" color="primary" weight="semiBold">
-                שכחת סיסמה?
-              </AppText>
-            </Pressable>
-
             <Button
-              label="התחברות"
-              onPress={handleLogin}
-              disabled={loading || resending}
-              loading={loading || resending}
+              label="הרשמה"
+              onPress={handleRegister}
+              disabled={loading}
+              loading={loading}
               fullWidth
               size="lg"
-              style={{ marginTop: Spacing.lg }}
-            />
-
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <AppText variant="caption" color="muted" align="center" style={{ paddingHorizontal: Spacing.sm }}>
-                או
-              </AppText>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <Button
-              label="המשך עם Google"
-              onPress={() => {}}
-              variant="secondary"
-              fullWidth
-              size="lg"
-              icon={<MaterialCommunityIcons name="google" size={20} color={Colors.primary} />}
             />
 
             <View style={styles.footer}>
               <AppText variant="bodySm" color="variant">
-                אין לך חשבון?{' '}
+                כבר יש לך חשבון?{' '}
               </AppText>
-              <Link href="/(auth)/register" asChild>
+              <Link href="/(auth)/login" asChild>
                 <Pressable>
                   <AppText variant="bodySm" color="primary" weight="bold">
-                    הירשם כאן
+                    התחבר כאן
                   </AppText>
                 </Pressable>
               </Link>
@@ -196,7 +166,7 @@ export default function LoginScreen() {
           </View>
 
           <AppText variant="bodySm" color="variant" align="center" style={styles.terms}>
-            בהתחברות אתה מסכים ל
+            בהרשמה אתה מסכים ל
             <AppText variant="bodySm" color="primary" weight="semiBold">
               תנאי השימוש
             </AppText>
@@ -218,17 +188,17 @@ const styles = StyleSheet.create({
   },
   brandStrip: {
     alignItems: 'center',
-    paddingVertical: Spacing['2xl'],
-    gap: Spacing.sm,
+    paddingVertical: Spacing.xl,
+    gap: Spacing.xs,
   },
   logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   cardWrapper: { flex: 1 },
   cardScroll: {
@@ -242,10 +212,6 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     ...Shadow.lg,
   },
-  forgotRow: {
-    alignSelf: 'flex-start',
-    paddingVertical: Spacing.xs,
-  },
   errorText: {
     color: Colors.error,
     marginBottom: Spacing.md,
@@ -255,16 +221,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: Spacing.xl,
-  },
-  dividerRow: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    marginVertical: Spacing.base,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.outlineLight,
   },
   terms: {
     paddingHorizontal: Spacing.xl,

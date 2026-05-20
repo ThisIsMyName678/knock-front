@@ -74,6 +74,18 @@ export type BackendCurrentUser = {
   sessionId?: string;
   appMetadata?: Record<string, unknown>;
   userMetadata?: Record<string, unknown>;
+  profile?: {
+    id: string;
+    displayName?: string;
+    avatarUrl?: string;
+    status: string;
+    settings?: {
+      language: string;
+      timezone: string;
+      dateFormat: string;
+      defaultOrganizationId?: string;
+    };
+  };
 };
 
 export function getBackendCurrentUser(): Promise<BackendCurrentUser> {
