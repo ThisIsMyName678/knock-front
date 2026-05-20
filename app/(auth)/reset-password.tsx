@@ -58,11 +58,11 @@ export default function ResetPasswordScreen() {
       await updatePassword(password);
       Alert.alert(
         'הסיסמה עודכנה',
-        'הסיסמה שלך עודכנה בהצלחה. אנא התחבר מחדש.',
-        [
-          { text: 'הבנתי', onPress: () => router.replace('/(auth)/login') }
-        ]
+        'הסיסמה שלך עודכנה בהצלחה. מעביר למסך התחברות...',
       );
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 1500);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'לא ניתן לעדכן את הסיסמה כרגע.';
       setPasswordError(errorMessage);
