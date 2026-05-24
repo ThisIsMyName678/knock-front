@@ -20,23 +20,48 @@ import { useAuth } from '@/lib/auth';
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
-  const { signUp, backendAuthError } = useAuth();
+  const { signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const handleRegister = async () => {
-    if (!email.trim() || !password || !displayName.trim()) {
-      Alert.alert('חסרים פרטים', 'יש למלא את כל השדות כדי להירשם.');
-      return;
+    setDisplayNameError(null);
+    setEmailError(null);
+    setPasswordError(null);
+    
+    let hasError = false;
+
+    if (!displayName.trim()) {
+      setDisplayNameError('יש להזין שם מלא');
+      hasError = true;
     }
 
-    if (password.length < 6) {
-      Alert.alert('סיסמה חלשה', 'הסיסמה חייבת להכיל לפחות 6 תווים.');
-      return;
+    if (!email.trim()) {
+      setEmailError('יש להזין כתובת אימייל');
+      hasError = true;
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        setEmailError('פורמט האימייל אינו תקין');
+        hasError = true;
+      }
     }
+
+    if (!password) {
+      setPasswordError('יש להזין סיסמה');
+      hasError = true;
+    } else if (password.length < 6) {
+      setPasswordError('הסיסמה חייבת להכיל לפחות 6 תווים');
+      hasError = true;
+    }
+
+    if (hasError) return;
 
     setLoading(true);
 
@@ -56,10 +81,12 @@ export default function RegisterScreen() {
         );
       }
     } catch (error) {
-      Alert.alert(
-        'הרשמה נכשלה',
-        error instanceof Error ? error.message : 'לא ניתן להירשם כרגע.',
-      );
+      const errorMessage = error instanceof Error ? error.message : 'לא ניתן להירשם כרגע.';
+      if (errorMessage.includes('כבר קיים')) {
+        setEmailError(errorMessage);
+      } else {
+        setEmailError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -98,17 +125,15 @@ export default function RegisterScreen() {
               צור חשבון חדש ב-Knock
             </AppText>
 
-            {backendAuthError ? (
-              <AppText variant="bodySm" align="right" style={styles.errorText}>
-                {backendAuthError}
-              </AppText>
-            ) : null}
-
             <Input
               label="שם מלא"
               placeholder="ישראל ישראלי"
               value={displayName}
-              onChangeText={setDisplayName}
+              onChangeText={(text) => {
+                setDisplayName(text);
+                setDisplayNameError(null);
+              }}
+              error={displayNameError || undefined}
               autoCapitalize="words"
               containerStyle={{ marginBottom: Spacing.md }}
             />
@@ -117,7 +142,11 @@ export default function RegisterScreen() {
               label="כתובת אימייל"
               placeholder="you@example.com"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                setEmailError(null);
+              }}
+              error={emailError || undefined}
               keyboardType="email-address"
               autoCapitalize="none"
               textContentType="emailAddress"
@@ -128,7 +157,11 @@ export default function RegisterScreen() {
               label="סיסמה"
               placeholder="לפחות 6 תווים"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                setPasswordError(null);
+              }}
+              error={passwordError || undefined}
               secureTextEntry={!showPassword}
               textContentType="password"
               iconRight={
