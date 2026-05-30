@@ -418,6 +418,11 @@ export function getDocumentDetailMock(id: string): DocumentListRow | null {
   return MOCK_DOCUMENTS_LIST.find((d) => d.id === id) ?? null;
 }
 
+export function updateDocumentInSnapshot(id: string, updated: Partial<DocumentListRow>): void {
+  const base = activeRowsSnapshot ?? [...MOCK_DOCUMENTS_LIST];
+  activeRowsSnapshot = base.map((r) => (r.id === id ? { ...r, ...updated, id } : r));
+}
+
 export function tasksForEntityLinkId(linkId: string) {
   return MOCK_TASKS_LIST.filter((t) => t.linkId === linkId);
 }
