@@ -4,8 +4,7 @@ import {
   StyleSheet,
   Pressable,
   FlatList,
-  Modal,
-  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -17,23 +16,19 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection, DateRangeQuickPreset } from '@/components/ui/FilterSheet';
 import { AppHeader } from '@/components/ui/AppHeader';
-import { Button } from '@/components/ui/Button';
 import { RTL_ROW } from '@/constants/rtl';
 import {
-  PAYMENT_ENTITY_OPTIONS,
+  MOCK_PAYMENTS_LIST,
   PAYMENT_TYPE_LABELS,
   PAYMENT_MODE_LABELS,
   filterPaymentRows,
   sortPaymentRows,
-  deletePaymentFromSession,
-  getActivePaymentsList,
   type PaymentListGroupFilter,
   type PaymentListRow,
   type PaymentSortKey,
   type SortDir,
   type StatusBucket,
 } from '@/lib/mocks/payments';
-import type { LinkKind } from '@/lib/mocks/contracts';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
 import {
   Colors,
@@ -41,17 +36,9 @@ import {
   Radius,
   Shadow,
   CONTENT_HORIZONTAL_PADDING,
-  MIN_TOUCH,
 } from '@/constants/tokens';
 
 type DirectionFilter = 'all' | 'inbound' | 'outbound';
-type ScopeFilter = 'all' | 'by_asset' | 'by_project';
-
-const SCOPE_OPTIONS: { key: ScopeFilter; label: string }[] = [
-  { key: 'all', label: 'הכל' },
-  { key: 'by_asset', label: 'נכס' },
-  { key: 'by_project', label: 'פרויקט' },
-];
 
 const DIRECTION_OPTIONS: { key: DirectionFilter; label: string }[] = [
   { key: 'all', label: 'הכל' },
@@ -97,14 +84,7 @@ function paramStr(v: string | string[] | undefined): string {
   return Array.isArray(v) ? (v[0] ?? '') : v;
 }
 
-function linkScopeFromScope(scope: ScopeFilter): 'all' | LinkKind {
-  if (scope === 'by_asset') return 'asset';
-  if (scope === 'by_project') return 'project';
-  return 'all';
-}
-
 export function PaymentsListScreen() {
-  const [payments, setPayments] = useState(() => getActivePaymentsList());
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     dateFrom?: string;
@@ -114,8 +94,6 @@ export function PaymentsListScreen() {
   }>();
   const [search, setSearch] = useState('');
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
-  const [scope, setScope] = useState<ScopeFilter>('all');
-  const [entityId, setEntityId] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState<PaymentListGroupFilter>('all');
   const [statusTab, setStatusTab] = useState<StatusBucket | 'all'>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -123,7 +101,6 @@ export function PaymentsListScreen() {
   const [sortKey, setSortKey] = useState<PaymentSortKey>('dueDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<PaymentListRow | null>(null);
 
   useEffect(() => {
     const df = paramStr(params.dateFrom);
@@ -137,13 +114,6 @@ export function PaymentsListScreen() {
   }, [params.dateFrom, params.dateTo, params.statusTab]);
 
   const excludeReceived = paramStr(params.excludeReceived) === '1';
-  const linkScope = linkScopeFromScope(scope);
-
-  const entitiesForScope = useMemo(() => {
-    if (scope === 'by_asset') return PAYMENT_ENTITY_OPTIONS.filter((e) => e.kind === 'asset');
-    if (scope === 'by_project') return PAYMENT_ENTITY_OPTIONS.filter((e) => e.kind === 'project');
-    return [];
-  }, [scope]);
 
   const onHeaderPress = useCallback((key: PaymentSortKey) => {
     setSortKey((prev) => {
@@ -157,10 +127,10 @@ export function PaymentsListScreen() {
   }, []);
 
   const filtered = useMemo(() => {
-    const base = filterPaymentRows(payments, {
+    const base = filterPaymentRows(MOCK_PAYMENTS_LIST, {
       search,
-      linkScope,
-      entityId,
+      linkScope: 'all',
+      entityId: null,
       groupFilter,
       statusTab,
       dateFrom,
@@ -169,7 +139,7 @@ export function PaymentsListScreen() {
     });
     if (directionFilter === 'all') return base;
     return base.filter((r) => r.direction === directionFilter);
-  }, [payments, search, directionFilter, linkScope, entityId, groupFilter, statusTab, dateFrom, dateTo, excludeReceived]);
+  }, [search, directionFilter, groupFilter, statusTab, dateFrom, dateTo, excludeReceived]);
 
   const sorted = useMemo(() => sortPaymentRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
 
@@ -190,33 +160,27 @@ export function PaymentsListScreen() {
   }, [directionFilter]);
 
   const onRowDuplicate = useCallback((r: PaymentListRow) => {
-    router.push({ pathname: '/(app)/payments/new', params: { duplicateFromId: r.id } });
+    Alert.alert('שכפול', `ייווצר עותק טיוטה של "${r.displayName}" בהמשך.`, [{ text: 'אישור' }]);
   }, []);
 
   const onRowEdit = useCallback((r: PaymentListRow) => {
-    router.push(`/(app)/payments/edit/${r.id}`);
+    Alert.alert('עריכה', `מסך עריכה לתשלום "${r.displayName}" יתחבר ל-API בהמשך.`, [{ text: 'אישור' }]);
   }, []);
 
   const onRowDelete = useCallback((r: PaymentListRow) => {
-    // דחייה קצרה — מונעת סגירה מיידית של ה-Modal באותה לחיצה (בעיקר ב-Web)
-    setTimeout(() => setDeleteTarget(r), 50);
+    Alert.alert('מחיקה', `למחוק את "${r.displayName}"?`, [
+      { text: 'ביטול', style: 'cancel' },
+      { text: 'מחק', style: 'destructive', onPress: () => {} },
+    ]);
   }, []);
-
-  const confirmDelete = useCallback(() => {
-    if (!deleteTarget) return;
-    deletePaymentFromSession(deleteTarget.id);
-    setPayments(getActivePaymentsList());
-    setDeleteTarget(null);
-  }, [deleteTarget]);
 
   const activeSecondaryCount = useMemo(() => {
     let count = 0;
     if (directionFilter !== 'all') count++;
-    if (scope !== 'all') count++;
     if (groupFilter !== 'all') count++;
     if (dateFrom || dateTo) count++;
     return count;
-  }, [directionFilter, scope, groupFilter, dateFrom, dateTo]);
+  }, [directionFilter, groupFilter, dateFrom, dateTo]);
 
   const filterSections: FilterSection[] = useMemo(
     () => [
@@ -235,25 +199,6 @@ export function PaymentsListScreen() {
         onChange: (k) => setGroupFilter(k as PaymentListGroupFilter),
       },
       {
-        kind: 'chips',
-        label: 'שיוך לפי',
-        options: SCOPE_OPTIONS.map((o) => ({ key: o.key, label: o.label })),
-        value: scope,
-        onChange: (k) => {
-          setScope(k as ScopeFilter);
-          setEntityId(null);
-        },
-      },
-      {
-        kind: 'entitySearch',
-        label: scope === 'by_asset' ? 'חיפוש נכס' : 'חיפוש פרויקט',
-        placeholder: scope === 'by_asset' ? 'הקלד שם נכס או כתובת...' : 'הקלד שם פרויקט...',
-        options: entitiesForScope.map((e) => ({ key: e.id, label: e.name })),
-        value: entityId,
-        onChange: setEntityId,
-        visible: scope !== 'all',
-      },
-      {
         kind: 'dateRange',
         label: 'טווח תאריכים (מועד ביצוע)',
         from: dateFrom,
@@ -263,13 +208,11 @@ export function PaymentsListScreen() {
         quickPresets: DATE_QUICK_PRESETS,
       },
     ],
-    [directionFilter, groupFilter, scope, entityId, entitiesForScope, dateFrom, dateTo],
+    [directionFilter, groupFilter, dateFrom, dateTo],
   );
 
   const resetSecondaryFilters = useCallback(() => {
     setDirectionFilter('all');
-    setScope('all');
-    setEntityId(null);
     setGroupFilter('all');
     setDateFrom('');
     setDateTo('');
@@ -347,7 +290,7 @@ export function PaymentsListScreen() {
         <FlatList
           data={sorted}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.sm, paddingBottom: insets.bottom + 88, gap: Spacing.sm }}
+          contentContainerStyle={{ paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.sm, paddingBottom: insets.bottom + Spacing['2xl'], gap: Spacing.sm }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const inbound = item.direction === 'inbound';
@@ -404,38 +347,17 @@ export function PaymentsListScreen() {
                     </AppText>
                   </View>
                 </Pressable>
-                {/* Quick actions — delete first in DOM so it sits away from the FAB on the left */}
-                <View style={styles.cardActions} collapsable={false}>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => onRowDelete(item)}
-                    style={[styles.actionBtn, styles.actionBtnDanger]}
-                    accessibilityRole="button"
-                    accessibilityLabel="מחיקה"
-                  >
-                    <MaterialCommunityIcons name="delete-outline" size={18} color={Colors.error} />
-                    <AppText variant="caption" weight="semiBold" style={{ color: Colors.error }}>מחק</AppText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => onRowEdit(item)}
-                    style={styles.actionBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="עריכה"
-                  >
-                    <MaterialCommunityIcons name="pencil-outline" size={18} color={Colors.primary} />
-                    <AppText variant="caption" weight="semiBold" color="primary">ערוך</AppText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => onRowDuplicate(item)}
-                    style={styles.actionBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="שכפול"
-                  >
-                    <MaterialCommunityIcons name="content-copy" size={18} color={Colors.primary} />
-                    <AppText variant="caption" weight="semiBold" color="primary">שכפל</AppText>
-                  </TouchableOpacity>
+                {/* Quick actions — no share/download */}
+                <View style={styles.cardActions}>
+                  <Pressable onPress={() => onRowDuplicate(item)} style={styles.actionBtn} accessibilityLabel="שכפול">
+                    <MaterialCommunityIcons name="content-copy" size={17} color={Colors.primary} />
+                  </Pressable>
+                  <Pressable onPress={() => onRowEdit(item)} style={styles.actionBtn} accessibilityLabel="עריכה">
+                    <MaterialCommunityIcons name="pencil-outline" size={17} color={Colors.primary} />
+                  </Pressable>
+                  <Pressable onPress={() => onRowDelete(item)} style={styles.actionBtn} accessibilityLabel="מחיקה">
+                    <MaterialCommunityIcons name="delete-outline" size={17} color={Colors.error} />
+                  </Pressable>
                 </View>
               </View>
             );
@@ -452,44 +374,6 @@ export function PaymentsListScreen() {
       >
         <MaterialCommunityIcons name="plus" size={26} color={Colors.onPrimary} />
       </Pressable>
-
-      <Modal
-        visible={deleteTarget !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDeleteTarget(null)}
-      >
-        <View style={styles.deleteBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setDeleteTarget(null)} />
-          <View style={styles.deleteSheet}>
-            <View style={styles.deleteIconWrap}>
-              <MaterialCommunityIcons name="delete-outline" size={28} color={Colors.error} />
-            </View>
-            <AppText variant="headingSm" weight="bold" align="center" style={{ marginBottom: Spacing.sm }}>
-              מחיקת תשלום
-            </AppText>
-            <AppText variant="bodyMd" color="variant" align="center" style={{ marginBottom: Spacing.lg }}>
-              {deleteTarget
-                ? `האם למחוק את "${deleteTarget.displayName}"?\nלא ניתן לשחזר פעולה זו.`
-                : ''}
-            </AppText>
-            <View style={styles.deleteActions}>
-              <Button
-                label="ביטול"
-                variant="secondary"
-                onPress={() => setDeleteTarget(null)}
-                style={{ flex: 1 }}
-              />
-              <Button
-                label="מחק"
-                variant="danger"
-                onPress={confirmDelete}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -514,11 +398,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.outlineLight,
     borderRightWidth: 4,
+    overflow: 'hidden',
     ...Shadow.sm,
   },
   cardBody: {
     padding: Spacing.md,
-    overflow: 'hidden',
   },
   cardRow: {
     flexDirection: RTL_ROW,
@@ -548,61 +432,20 @@ const styles = StyleSheet.create({
   cardActions: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
-    justifyContent: 'flex-end',
     borderTopWidth: 1,
     borderTopColor: Colors.outlineLight,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    gap: Spacing.xs,
     backgroundColor: Colors.surfaceVariant,
-    zIndex: 2,
-    elevation: 3,
   },
   actionBtn: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: 4,
-    minHeight: MIN_TOUCH,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.outlineLight,
-  },
-  actionBtnDanger: {
-    borderColor: `${Colors.error}44`,
-    backgroundColor: Colors.errorContainer ?? '#FEE2E2',
-  },
-  deleteBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  deleteSheet: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing.xl,
-    maxWidth: 400,
-    width: '100%',
-    zIndex: 10,
-    ...Shadow.lg,
-  },
-  deleteIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.errorContainer ?? '#FEE2E2',
+    width: 34,
+    height: 34,
+    borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: Spacing.md,
-  },
-  deleteActions: {
-    flexDirection: RTL_ROW,
-    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
   },
   fab: {
     position: 'absolute',

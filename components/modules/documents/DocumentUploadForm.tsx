@@ -23,7 +23,6 @@ import {
   DOCUMENT_ACCESS_LABELS,
   DOCUMENT_UPLOAD_TYPE_ORDER,
   queueNewDocument,
-  updateDocumentInSnapshot,
   tasksForEntityLinkId,
   type DocumentType,
   type DocumentAccessLevel,
@@ -59,7 +58,7 @@ function randomDocId() {
   return `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export function DocumentUploadForm({ initialData, editId }: { initialData?: DocumentListRow; editId?: string } = {}) {
+export function DocumentUploadForm({ initialData }: { initialData?: DocumentListRow } = {}) {
   const insets = useSafeAreaInsets();
   const [fileName, setFileName] = useState(() => initialData?.displayName ?? '');
   const [documentType, setDocumentType] = useState<DocumentType>(() => initialData?.documentType ?? 'other');
@@ -125,27 +124,14 @@ export function DocumentUploadForm({ initialData, editId }: { initialData?: Docu
   const onSave = () => {
     setSubmitted(true);
     if (errors.fileName) return;
-    if (editId) {
-      updateDocumentInSnapshot(editId, {
-        displayName: fileName.trim(),
-        documentType,
-        accessLevel,
-        linkKind: linkSelected?.kind ?? initialData?.linkKind ?? 'asset',
-        linkId: linkSelected?.id ?? initialData?.linkId ?? '',
-        linkLabel: linkSelected ? linkSelected.name : (initialData?.linkLabel ?? 'ללא שיוך'),
-        linkedTaskId: linkedTaskId ?? undefined,
-        fileKind,
-      });
-    } else {
-      queueNewDocument(buildRow());
-    }
+    queueNewDocument(buildRow());
     router.back();
   };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <AppHeader title={editId ? 'עריכת מסמך' : (initialData ? 'עריכת מסמך' : 'העלאת מסמך')} showBack />
+        <AppHeader title={initialData ? 'עריכת מסמך' : 'העלאת מסמך'} showBack />
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Pressable
@@ -265,7 +251,7 @@ export function DocumentUploadForm({ initialData, editId }: { initialData?: Docu
             </View>
           </View>
 
-          <Button label={editId ? 'שמור שינויים' : 'שמור והעלה'} onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
+          <Button label="שמור והעלה" onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
         </ScrollView>
 
         <Modal visible={pickSourceOpen} transparent animationType="slide" onRequestClose={() => setPickSourceOpen(false)}>
