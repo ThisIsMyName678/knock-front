@@ -1,35 +1,35 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { AppText } from '@/components/ui/Text';
-import { AppHeader } from '@/components/ui/AppHeader';
 import { DocumentUploadForm } from '@/components/modules/documents/DocumentUploadForm';
 import { getDocumentDetailMock } from '@/lib/mocks/documents';
-import { Colors, CONTENT_HORIZONTAL_PADDING, Spacing } from '@/constants/tokens';
+import { Colors, Spacing, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 
-export default function DocumentEditScreen() {
-  const insets = useSafeAreaInsets();
+export default function EditDocumentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const initialData = getDocumentDetailMock(id ?? '');
+  const doc = useMemo(() => getDocumentDetailMock(String(id ?? '')), [id]);
 
-  if (!initialData) {
+  if (!doc) {
     return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <AppHeader title="עריכת מסמך" showBack />
-        <View style={styles.empty}>
-          <AppText variant="bodyMd" color="variant" align="center">
-            לא נמצא מסמך לעריכה
-          </AppText>
-        </View>
+      <View style={styles.notFound}>
+        <AppText variant="bodyMd" align="center" color="variant">
+          לא נמצא מסמך
+        </AppText>
       </View>
     );
   }
 
-  return <DocumentUploadForm initialData={initialData} />;
+  return <DocumentUploadForm initialData={doc} editId={doc.id} />;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
-  empty: { flex: 1, justifyContent: 'center', padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.lg },
+  notFound: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    padding: CONTENT_HORIZONTAL_PADDING,
+    paddingTop: Spacing.xl,
+  },
 });

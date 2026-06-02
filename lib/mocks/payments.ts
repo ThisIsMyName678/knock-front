@@ -248,6 +248,17 @@ export const MOCK_PAYMENTS_LIST: PaymentListRow[] = [
   },
 ];
 
+const deletedPaymentIds = new Set<string>();
+
+/** מחיקה מקומית לתצוגה (ללא backend) — נשמרת במהלך הסשן. */
+export function deletePaymentFromSession(id: string): void {
+  deletedPaymentIds.add(id);
+}
+
+export function getActivePaymentsList(): PaymentListRow[] {
+  return MOCK_PAYMENTS_LIST.filter((p) => !deletedPaymentIds.has(p.id));
+}
+
 export type PaymentSortKey =
   | 'displayName'
   | 'paymentType'

@@ -1,13 +1,11 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
-  ScrollView,
   StyleSheet,
   Pressable,
-  Share,
   FlatList,
-  Alert,
   Modal,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -17,7 +15,6 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { RTL_ROW } from '@/constants/rtl';
 import { Badge } from '@/components/ui/Badge';
-import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FilterBar } from '@/components/ui/FilterBar';
@@ -28,7 +25,6 @@ import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
   MOCK_DOCUMENTS_LIST,
   DOCUMENT_TYPE_LABELS,
-  DOCUMENT_ACCESS_LABELS,
   DOCUMENT_CATEGORY_LABELS,
   filterDocumentRows,
   sortDocumentRows,
@@ -40,7 +36,6 @@ import {
   type DocumentCategoryFilter,
   type DocumentSortKey,
   type DocumentType,
-  type DocumentAccessLevel,
   type SortDir,
 } from '@/lib/mocks/documents';
 import {
@@ -48,8 +43,6 @@ import {
   Spacing,
   Radius,
   Shadow,
-  FontFamily,
-  FontSize,
   CONTENT_HORIZONTAL_PADDING,
   MIN_TOUCH,
 } from '@/constants/tokens';
@@ -65,14 +58,6 @@ const SCOPE_OPTIONS: { key: ScopeFilter; label: string }[] = [
 const CATEGORY_OPTIONS: { key: DocumentCategoryFilter; label: string }[] = (
   Object.keys(DOCUMENT_CATEGORY_LABELS) as DocumentCategoryFilter[]
 ).map((key) => ({ key, label: DOCUMENT_CATEGORY_LABELS[key] }));
-
-const SORT_COLUMNS: { key: DocumentSortKey; label: string; flex: number }[] = [
-  { key: 'displayName', label: 'שם', flex: 1.15 },
-  { key: 'documentType', label: 'סוג', flex: 0.72 },
-  { key: 'linkLabel', label: 'שיוך', flex: 0.72 },
-  { key: 'uploadedAt', label: 'תאריך', flex: 0.58 },
-  { key: 'accessLevel', label: 'הרשאות', flex: 0.62 },
-];
 
 function linkScopeFromScope(scope: ScopeFilter): 'all' | LinkKind {
   if (scope === 'by_asset') return 'asset';
@@ -98,6 +83,18 @@ function randomDocId() {
   return `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function fileIconName(kind: DocumentListRow['fileKind']): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (kind === 'pdf') return 'file-pdf-box';
+  if (kind === 'image') return 'file-image-outline';
+  return 'file-outline';
+}
+
+function fileIconColor(kind: DocumentListRow['fileKind']): string {
+  if (kind === 'pdf') return '#e53935';
+  if (kind === 'image') return Colors.info;
+  return Colors.onSurfaceVariant;
+}
+
 export function DocumentsListScreen() {
   const insets = useSafeAreaInsets();
   const [rows, setRows] = useState<DocumentListRow[]>(() => [...MOCK_DOCUMENTS_LIST]);
@@ -108,11 +105,8 @@ export function DocumentsListScreen() {
   const [sortKey, setSortKey] = useState<DocumentSortKey>('uploadedAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-  const [editRow, setEditRow] = useState<DocumentListRow | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editType, setEditType] = useState<DocumentType>('other');
-  const [editAccess, setEditAccess] = useState<DocumentAccessLevel>('owner_only');
   const [menuRow, setMenuRow] = useState<DocumentListRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentListRow | null>(null);
 
   const linkScope = linkScopeFromScope(scope);
 
@@ -148,51 +142,11 @@ export function DocumentsListScreen() {
 
   const sorted = useMemo(() => sortDocumentRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
 
-  const onHeaderPress = useCallback((key: DocumentSortKey) => {
-    setSortKey((prev) => {
-      if (prev === key) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-        return prev;
-      }
-      setSortDir('asc');
-      return key;
-    });
-  }, []);
-
-  const exportData = useCallback(async () => {
-    const header = 'שם,סוג,שיוך,תאריך,הרשאות\n';
-    const lines = sorted.map((r) =>
-      [`"${r.displayName}"`, DOCUMENT_TYPE_LABELS[r.documentType], `"${r.linkLabel}"`, r.uploadedAt, DOCUMENT_ACCESS_LABELS[r.accessLevel]].join(','),
-    );
-    try {
-      await Share.share({ message: header + lines.join('\n'), title: 'ייצוא מסמכים' });
-    } catch {
-      /* ignore */
-    }
-  }, [sorted]);
-
   const entitiesForScope = useMemo(() => {
     if (scope === 'by_asset') return MOCK_ENTITY_LINKS.filter((e) => e.kind === 'asset');
     if (scope === 'by_project') return MOCK_ENTITY_LINKS.filter((e) => e.kind === 'project');
     return [];
   }, [scope]);
-
-  const openEdit = useCallback((row: DocumentListRow) => {
-    setEditRow(row);
-    setEditName(row.displayName);
-    setEditType(row.documentType);
-    setEditAccess(row.accessLevel);
-  }, []);
-
-  const saveEdit = useCallback(() => {
-    if (!editRow) return;
-    const name = editName.trim();
-    if (!name) return;
-    setRows((prev) =>
-      prev.map((r) => (r.id === editRow.id ? { ...r, displayName: name, documentType: editType, accessLevel: editAccess } : r)),
-    );
-    setEditRow(null);
-  }, [editRow, editName, editType, editAccess]);
 
   const duplicateRow = useCallback((row: DocumentListRow) => {
     const copy: DocumentListRow = {
@@ -204,26 +158,14 @@ export function DocumentsListScreen() {
   }, []);
 
   const deleteRow = useCallback((row: DocumentListRow) => {
-    Alert.alert('מחיקת מסמך', `למחוק את "${row.displayName}"?`, [
-      { text: 'ביטול', style: 'cancel' },
-      {
-        text: 'מחק',
-        style: 'destructive',
-        onPress: () => setRows((prev) => prev.filter((r) => r.id !== row.id)),
-      },
-    ]);
+    setTimeout(() => setDeleteTarget(row), 50);
   }, []);
 
-  const downloadMock = useCallback((row: DocumentListRow) => {
-    Share.share({
-      message: `הורדה (דמה)\n${row.displayName}\nhttps://files.example.mock/${row.id}`,
-      title: row.displayName,
-    }).catch(() => {});
-  }, []);
-
-  const shareRow = useCallback((row: DocumentListRow) => {
-    Share.share({ message: row.displayName, title: 'שיתוף מסמך' }).catch(() => {});
-  }, []);
+  const confirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+    setDeleteTarget(null);
+  }, [deleteTarget]);
 
   const activeSecondaryCount = useMemo(() => {
     let count = 0;
@@ -261,34 +203,6 @@ export function DocumentsListScreen() {
     setEntityId(null);
   }, []);
 
-  const listHeader = (
-    <>
-      <View style={styles.tableHeader}>
-        {SORT_COLUMNS.map((col) => {
-          const active = sortKey === col.key;
-          return (
-            <Pressable
-              key={col.key}
-              onPress={() => onHeaderPress(col.key)}
-              style={[styles.thCell, { flex: col.flex }]}
-              accessibilityRole="button"
-            >
-              <AppText variant="labelSm" weight="bold" color="primary" numberOfLines={2} align="right">
-                {col.label}
-              </AppText>
-              {active && <MaterialCommunityIcons name={sortDir === 'asc' ? 'arrow-up' : 'arrow-down'} size={14} color={Colors.primary} />}
-            </Pressable>
-          );
-        })}
-        <View style={[styles.thCell, { width: 128, flex: undefined }]}>
-          <AppText variant="labelSm" weight="bold" color="primary" align="right">
-            פעולות
-          </AppText>
-        </View>
-      </View>
-    </>
-  );
-
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <AppHeader title="מסמכים וקבצים" showMenu />
@@ -313,8 +227,12 @@ export function DocumentsListScreen() {
       <FlatList
         data={sorted}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={listHeader}
-        contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['2xl'] }}
+        contentContainerStyle={{
+          paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+          paddingTop: Spacing.sm,
+          paddingBottom: insets.bottom + 88,
+          gap: Spacing.sm,
+        }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <EmptyState
@@ -327,42 +245,69 @@ export function DocumentsListScreen() {
           />
         }
         renderItem={({ item }) => (
-          <View style={styles.tableRow}>
+          <View style={styles.card}>
             <Pressable
               onPress={() => router.push(`/(app)/documents/${item.id}`)}
-              style={({ pressed }) => [styles.rowMain, pressed && { opacity: 0.92 }]}
+              style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.88 }]}
               accessibilityRole="button"
             >
-              <View style={[styles.td, { flex: 1.15 }]}>
-                <AppText variant="bodySm" weight="semiBold" numberOfLines={2}>
+              {/* Row 1: file icon + name + menu button */}
+              <View style={styles.cardRow}>
+                <TouchableOpacity
+                  onPress={() => setTimeout(() => setMenuRow(item), 30)}
+                  style={styles.menuBtn}
+                  accessibilityLabel="פעולות"
+                  hitSlop={8}
+                >
+                  <MaterialCommunityIcons name="dots-vertical" size={22} color={Colors.onSurfaceVariant} />
+                </TouchableOpacity>
+                <AppText
+                  variant="bodyMd"
+                  weight="semiBold"
+                  numberOfLines={2}
+                  style={{ flex: 1, textAlign: 'right' }}
+                >
                   {item.displayName}
                 </AppText>
+                <View style={[styles.fileIconWrap, { backgroundColor: `${fileIconColor(item.fileKind)}18` }]}>
+                  <MaterialCommunityIcons
+                    name={fileIconName(item.fileKind)}
+                    size={22}
+                    color={fileIconColor(item.fileKind)}
+                  />
+                </View>
               </View>
-              <View style={[styles.td, { flex: 0.72 }]}>
-                <AppText variant="caption" color="variant" numberOfLines={2}>
-                  {DOCUMENT_TYPE_LABELS[item.documentType]}
-                </AppText>
+
+              {/* Row 2: type tag + date */}
+              <View style={[styles.cardRow, { marginTop: Spacing.sm }]}>
+                <View style={styles.metaGroup}>
+                  <MaterialCommunityIcons name="calendar-outline" size={13} color={Colors.onSurfaceMuted} />
+                  <AppText variant="caption" color="muted">{item.uploadedAt}</AppText>
+                </View>
+                <View style={styles.typeTag}>
+                  <AppText variant="caption" color="variant" numberOfLines={1}>
+                    {DOCUMENT_TYPE_LABELS[item.documentType]}
+                  </AppText>
+                </View>
               </View>
-              <View style={[styles.td, { flex: 0.72 }]}>
-                <AppText variant="caption" numberOfLines={1}>
-                  {item.linkLabel}
-                </AppText>
+
+              {/* Row 3: access badge + size + link */}
+              <View style={[styles.cardRow, { marginTop: Spacing.xs }]}>
+                <View style={styles.metaGroup}>
+                  <Badge label={accessShort(item.accessLevel)} preset={accessPreset(item.accessLevel)} />
+                  <AppText variant="caption" color="muted">{item.sizeLabel}</AppText>
+                </View>
+                <View style={styles.linkBadge}>
+                  <MaterialCommunityIcons
+                    name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
+                    size={12}
+                    color={Colors.primary}
+                  />
+                  <AppText variant="caption" numberOfLines={1} style={{ color: Colors.primary, maxWidth: 160 }}>
+                    {item.linkLabel}
+                  </AppText>
+                </View>
               </View>
-              <View style={[styles.td, { flex: 0.58 }]}>
-                <AppText variant="caption" color="muted">
-                  {item.uploadedAt}
-                </AppText>
-              </View>
-              <View style={[styles.td, { flex: 0.62, alignItems: 'flex-end' }]}>
-                <Badge label={accessShort(item.accessLevel)} preset={accessPreset(item.accessLevel)} />
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={() => setMenuRow(item)}
-              style={styles.menuBtn}
-              accessibilityLabel="פעולות"
-            >
-              <MaterialCommunityIcons name="dots-vertical" size={22} color={Colors.onSurfaceVariant} />
             </Pressable>
           </View>
         )}
@@ -370,72 +315,89 @@ export function DocumentsListScreen() {
 
       {/* ─── Action menu sheet ─── */}
       <Modal visible={!!menuRow} transparent animationType="slide" onRequestClose={() => setMenuRow(null)}>
-        <Pressable style={styles.sheetBackdrop} onPress={() => setMenuRow(null)}>
-          <Pressable style={styles.actionSheet} onPress={(e) => e.stopPropagation()}>
+        <View style={styles.sheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setMenuRow(null)} />
+          <View style={styles.actionSheet}>
             <View style={styles.sheetHandle} />
             {menuRow && (
-              <AppText variant="labelMd" weight="bold" numberOfLines={1} style={styles.sheetTitle}>
-                {menuRow.displayName}
-              </AppText>
+              <View style={styles.sheetTitleRow}>
+                <View style={[styles.fileIconWrap, { backgroundColor: `${fileIconColor(menuRow.fileKind)}18` }]}>
+                  <MaterialCommunityIcons
+                    name={fileIconName(menuRow.fileKind)}
+                    size={20}
+                    color={fileIconColor(menuRow.fileKind)}
+                  />
+                </View>
+                <AppText variant="labelMd" weight="bold" numberOfLines={2} style={styles.sheetTitle}>
+                  {menuRow.displayName}
+                </AppText>
+              </View>
             )}
-            {[
-              { icon: 'download-outline' as const, label: 'הורדה', color: Colors.primary, onPress: () => { downloadMock(menuRow!); setMenuRow(null); } },
-              { icon: 'share-variant-outline' as const, label: 'שיתוף', color: Colors.primary, onPress: () => { shareRow(menuRow!); setMenuRow(null); } },
+            {([
+              { icon: 'open-in-new' as const, label: 'פתח', color: Colors.primary, onPress: () => { router.push(`/(app)/documents/${menuRow!.id}`); setMenuRow(null); } },
+              { icon: 'pencil-outline' as const, label: 'עריכה', color: Colors.onBackground, onPress: () => { router.push(`/(app)/documents/edit/${menuRow!.id}`); setMenuRow(null); } },
               { icon: 'content-copy' as const, label: 'שכפול', color: Colors.onBackground, onPress: () => { duplicateRow(menuRow!); setMenuRow(null); } },
-              { icon: 'pencil-outline' as const, label: 'עריכה', color: Colors.onBackground, onPress: () => { openEdit(menuRow!); setMenuRow(null); } },
               { icon: 'delete-outline' as const, label: 'מחיקה', color: Colors.error, onPress: () => { deleteRow(menuRow!); setMenuRow(null); } },
-            ].map((action) => (
-              <Pressable key={action.label} onPress={action.onPress} style={({ pressed }) => [styles.sheetAction, pressed && { opacity: 0.7 }]}>
+            ] as const).map((action) => (
+              <TouchableOpacity
+                key={action.label}
+                activeOpacity={0.7}
+                onPress={action.onPress}
+                style={styles.sheetAction}
+              >
                 <MaterialCommunityIcons name={action.icon} size={22} color={action.color} />
                 <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: action.color }}>
                   {action.label}
                 </AppText>
-              </Pressable>
+                <MaterialCommunityIcons name="chevron-left" size={18} color={action.color} style={{ opacity: 0.5 }} />
+              </TouchableOpacity>
             ))}
-            <Pressable onPress={() => setMenuRow(null)} style={[styles.sheetAction, { marginTop: Spacing.sm, justifyContent: 'center' }]}>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => setMenuRow(null)} style={styles.sheetCancel}>
               <AppText variant="bodyMd" color="variant" align="center">ביטול</AppText>
-            </Pressable>
-          </Pressable>
-        </Pressable>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
-      <Modal visible={!!editRow} transparent animationType="fade" onRequestClose={() => setEditRow(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setEditRow(null)}>
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>
-              עריכת מסמך
-            </AppText>
-            <Input label="שם" value={editName} onChangeText={setEditName} containerStyle={{ marginBottom: Spacing.md }} />
-            <AppText variant="labelMd" weight="semiBold" style={{ marginBottom: Spacing.sm, textAlign: 'right' }}>
-              סוג מסמך
-            </AppText>
-            <View style={styles.typeGrid}>
-              {DOCUMENT_UPLOAD_TYPE_ORDER.map((t) => (
-                <Pressable key={t} onPress={() => setEditType(t)} style={[styles.typeChip, editType === t && styles.typeChipActive]}>
-                  <AppText variant="caption" numberOfLines={2} weight={editType === t ? 'bold' : 'regular'} style={{ color: editType === t ? Colors.onPrimary : Colors.onSurfaceVariant, textAlign: 'center' }}>
-                    {DOCUMENT_TYPE_LABELS[t]}
-                  </AppText>
-                </Pressable>
-              ))}
+      {/* ─── Edit modal ─── */}
+
+      {/* ─── Delete confirmation modal ─── */}
+      <Modal
+        visible={deleteTarget !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteTarget(null)}
+      >
+        <View style={styles.deleteBackdrop}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setDeleteTarget(null)} />
+          <View style={styles.deleteSheet}>
+            <View style={styles.deleteIconWrap}>
+              <MaterialCommunityIcons name="delete-outline" size={28} color={Colors.error} />
             </View>
-            <AppText variant="labelMd" weight="semiBold" style={{ marginBottom: Spacing.sm, textAlign: 'right' }}>
-              הרשאות
+            <AppText variant="headingSm" weight="bold" align="center" style={{ marginBottom: Spacing.sm }}>
+              מחיקת מסמך
             </AppText>
-            <View style={{ flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.lg }}>
-              {(['owner_only', 'tenant', 'employee', 'public'] as DocumentAccessLevel[]).map((a) => (
-                <Pressable key={a} onPress={() => setEditAccess(a)} style={[styles.typeChip, editAccess === a && styles.typeChipActive]}>
-                  <AppText variant="caption" weight={editAccess === a ? 'bold' : 'regular'} style={{ color: editAccess === a ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                    {DOCUMENT_ACCESS_LABELS[a]}
-                  </AppText>
-                </Pressable>
-              ))}
+            <AppText variant="bodyMd" color="variant" align="center" style={{ marginBottom: Spacing.lg }}>
+              {deleteTarget
+                ? `האם למחוק את "${deleteTarget.displayName}"?\nלא ניתן לשחזר פעולה זו.`
+                : ''}
+            </AppText>
+            <View style={styles.deleteActions}>
+              <Button
+                label="ביטול"
+                variant="secondary"
+                onPress={() => setDeleteTarget(null)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="מחק"
+                variant="danger"
+                onPress={confirmDelete}
+                style={{ flex: 1 }}
+              />
             </View>
-            <View style={{ flexDirection: RTL_ROW, gap: Spacing.sm }}>
-              <Button label="ביטול" variant="secondary" onPress={() => setEditRow(null)} style={{ flex: 1 }} />
-              <Button label="שמור" onPress={saveEdit} style={{ flex: 1 }} disabled={!editName.trim()} />
-            </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
 
       {/* FAB */}
@@ -453,50 +415,76 @@ export function DocumentsListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  tableHeader: {
+
+  // ── Card ──
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    ...Shadow.sm,
+  },
+  cardBody: {
+    padding: Spacing.md,
+  },
+  cardRow: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    backgroundColor: Colors.surfaceVariant,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
   },
-  thCell: {
+  metaGroup: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: 4,
-    justifyContent: 'flex-end',
-    paddingHorizontal: 2,
-    minHeight: MIN_TOUCH,
   },
-  tableRow: {
-    flexDirection: RTL_ROW,
-    alignItems: 'stretch',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
-    backgroundColor: Colors.surface,
-  },
-  rowMain: { flexDirection: RTL_ROW, alignItems: 'center', flex: 1, paddingVertical: Spacing.sm, paddingLeft: Spacing.xs },
-  td: { paddingHorizontal: 4, justifyContent: 'center' },
-  menuBtn: {
-    width: MIN_TOUCH,
+  fileIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRightWidth: 1,
-    borderRightColor: Colors.outlineLight,
+    flexShrink: 0,
+  },
+  typeTag: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  linkBadge: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primaryContainer,
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    flexShrink: 1,
+  },
+  menuBtn: {
+    width: MIN_TOUCH,
+    height: MIN_TOUCH,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.surfaceVariant,
+    flexShrink: 0,
+  },
+
+  // ── Action sheet ──
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
   },
   actionSheet: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.xl,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     ...Shadow.lg,
   },
   sheetHandle: {
@@ -507,12 +495,18 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: Spacing.md,
   },
-  sheetTitle: {
-    textAlign: 'right',
-    marginBottom: Spacing.sm,
-    paddingBottom: Spacing.sm,
+  sheetTitleRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingBottom: Spacing.md,
+    marginBottom: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
+  },
+  sheetTitle: {
+    flex: 1,
+    textAlign: 'right',
   },
   sheetAction: {
     flexDirection: RTL_ROW,
@@ -521,17 +515,57 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
+    minHeight: MIN_TOUCH,
   },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: Spacing.lg },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  modalSheet: {
+  sheetCancel: {
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+    alignItems: 'center',
+  },
+
+  // ── Edit sheet ──
+  editBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  editSheet: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing.base,
-    maxWidth: 440,
-    width: '100%',
-    alignSelf: 'center',
-    maxHeight: '85%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '88%',
+    paddingBottom: Spacing.xl,
+    ...Shadow.lg,
+  },
+  editHeader: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  editCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editSaveBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.md,
+  },
+  editSectionLabel: {
+    textAlign: 'right',
+    marginBottom: Spacing.sm,
+    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
+    color: Colors.onSurfaceVariant,
   },
   typeChip: {
     paddingHorizontal: Spacing.sm,
@@ -542,7 +576,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   typeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  typeGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.xs, marginBottom: Spacing.md },
+  typeGrid: {
+    flexDirection: RTL_ROW,
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+  },
+
+  // ── FAB ──
   fab: {
     position: 'absolute',
     left: CONTENT_HORIZONTAL_PADDING,
@@ -553,5 +595,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadow.md,
+  },
+
+  // ── Delete confirmation modal ──
+  deleteBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  deleteSheet: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+    maxWidth: 400,
+    width: '100%',
+    zIndex: 10,
+    ...Shadow.lg,
+  },
+  deleteIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.errorContainer ?? '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  deleteActions: {
+    flexDirection: RTL_ROW,
+    gap: Spacing.sm,
   },
 });
