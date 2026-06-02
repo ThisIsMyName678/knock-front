@@ -1,35 +1,35 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/ui/Text';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { DocumentUploadForm } from '@/components/modules/documents/DocumentUploadForm';
 import { getDocumentDetailMock } from '@/lib/mocks/documents';
-import { Colors, Spacing, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { Colors, CONTENT_HORIZONTAL_PADDING, Spacing } from '@/constants/tokens';
 
-export default function EditDocumentScreen() {
+export default function DocumentEditScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const doc = useMemo(() => getDocumentDetailMock(String(id ?? '')), [id]);
+  const initialData = getDocumentDetailMock(id ?? '');
 
-  if (!doc) {
+  if (!initialData) {
     return (
-      <View style={styles.notFound}>
-        <AppText variant="bodyMd" align="center" color="variant">
-          לא נמצא מסמך
-        </AppText>
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="עריכת מסמך" showBack />
+        <View style={styles.empty}>
+          <AppText variant="bodyMd" color="variant" align="center">
+            לא נמצא מסמך לעריכה
+          </AppText>
+        </View>
       </View>
     );
   }
 
-  return <DocumentUploadForm initialData={doc} editId={doc.id} />;
+  return <DocumentUploadForm initialData={initialData} />;
 }
 
 const styles = StyleSheet.create({
-  notFound: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    padding: CONTENT_HORIZONTAL_PADDING,
-    paddingTop: Spacing.xl,
-  },
+  screen: { flex: 1, backgroundColor: Colors.background },
+  empty: { flex: 1, justifyContent: 'center', padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.lg },
 });

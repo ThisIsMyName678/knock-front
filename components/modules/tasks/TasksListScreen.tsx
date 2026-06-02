@@ -44,6 +44,8 @@ import {
   Spacing,
   Radius,
   Shadow,
+  FontFamily,
+  FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
 
@@ -355,17 +357,27 @@ export function TasksListScreen() {
         sections={filterSections}
       />
 
+      {sorted.length > 0 && (
+        <View style={styles.tableHeader}>
+          <View style={styles.thKind} />
+          <AppText variant="caption" weight="semiBold" style={[styles.thCell, { flex: 2 }]}>כותרת</AppText>
+          <AppText variant="caption" weight="semiBold" style={styles.thCell}>נכס / פרויקט</AppText>
+          <AppText variant="caption" weight="semiBold" style={styles.thDate}>יעד</AppText>
+          <AppText variant="caption" weight="semiBold" style={styles.thStatus}>סטטוס</AppText>
+          <View style={{ width: 36 }} />
+        </View>
+      )}
+
       <FlatList
         data={sorted}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={listHeader}
         contentContainerStyle={{
-          paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
           paddingBottom: insets.bottom + Spacing['2xl'],
-          paddingTop: Spacing.sm,
-          gap: Spacing.sm,
+          paddingTop: Spacing.xs,
         }}
         showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={styles.rowSeparator} />}
         ListEmptyComponent={
           <EmptyState
             title="אין משימות"
@@ -373,85 +385,71 @@ export function TasksListScreen() {
             icon={<MaterialCommunityIcons name="checkbox-outline" size={32} color={Colors.primary} />}
             actionLabel="משימה חדשה"
             onAction={() => router.push('/(app)/tasks/new')}
-            style={{ paddingTop: Spacing.xl }}
+            style={{ paddingTop: Spacing.xl, paddingHorizontal: CONTENT_HORIZONTAL_PADDING }}
           />
         }
-        renderItem={({ item }) => {
-          const priorityColor = PRIORITY_COLORS[item.priority];
-          return (
-            <View style={[styles.card, { borderRightColor: priorityColor }]}>
-              <Pressable
-                onPress={() => router.push(`/(app)/tasks/${item.id}`)}
-                style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.88 }]}
-                accessibilityRole="button"
-              >
-                {/* Row 1: kind icon + title + status badge */}
-                <View style={styles.cardRow}>
-                  <Badge
-                    label={WORKFLOW_STATUS_LABELS[item.workflowStatus]}
-                    preset={statusPreset(item.workflowStatus)}
-                  />
-                  <View style={styles.cardTitleWrap}>
-                    <AppText variant="bodyMd" weight="semiBold" numberOfLines={2} style={{ textAlign: 'right', flex: 1 }}>
-                      {item.title}
-                    </AppText>
-                    <View style={styles.kindIconWrap}>
-                      <MaterialCommunityIcons name={iconName(item.taskKind)} size={16} color={Colors.primary} />
-                    </View>
-                  </View>
-                </View>
-
-                {/* Row 2: priority + due date */}
-                <View style={[styles.cardRow, { marginTop: Spacing.sm }]}>
-                  <View style={styles.cardRowLeft}>
-                    <MaterialCommunityIcons name="calendar-outline" size={13} color={Colors.onSurfaceMuted} />
-                    <AppText variant="caption" color="muted">{item.dueDate}</AppText>
-                  </View>
-                  <View style={styles.cardRowRight}>
-                    <Badge
-                      label={TASK_PRIORITY_LABELS[item.priority]}
-                      preset={priorityPreset(item.priority)}
-                    />
-                    <AppText variant="caption" color="variant" style={{ marginRight: Spacing.xs }}>
-                      {TASK_KIND_LABELS[item.taskKind]}
-                    </AppText>
-                  </View>
-                </View>
-
-                {/* Row 3: link badge + assignee */}
-                <View style={[styles.cardRow, { marginTop: Spacing.xs }]}>
-                  {item.assigneeName ? (
-                    <View style={styles.assigneeWrap}>
-                      <MaterialCommunityIcons name="account-outline" size={13} color={Colors.onSurfaceMuted} />
-                      <AppText variant="caption" color="muted" numberOfLines={1}>{item.assigneeName}</AppText>
-                    </View>
-                  ) : <View />}
-                  <View style={styles.linkBadge}>
-                    <MaterialCommunityIcons
-                      name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
-                      size={12}
-                      color={Colors.primary}
-                    />
-                    <AppText variant="caption" numberOfLines={1} style={{ color: Colors.primary, maxWidth: 160 }}>
-                      {item.linkLabel}
-                    </AppText>
-                  </View>
-                </View>
-              </Pressable>
-
-              {/* Quick status change footer */}
-              <Pressable
-                onPress={() => setStatusModalTaskId(item.id)}
-                style={styles.cardFooter}
-                accessibilityRole="button"
-                accessibilityLabel="שינוי סטטוס מהיר"
-              >
-                <MaterialCommunityIcons name="swap-vertical" size={15} color={Colors.primary} />
-                <AppText variant="caption" color="primary" weight="semiBold">שינוי סטטוס</AppText>
-              </Pressable>
+        renderItem={({ item, index }) => (
+          <Pressable
+            onPress={() => router.push(`/(app)/tasks/${item.id}`)}
+            style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}
+            accessibilityRole="button"
+          >
+            {/* Kind icon */}
+            <View style={styles.tdKind}>
+              <MaterialCommunityIcons name={iconName(item.taskKind)} size={18} color={Colors.primary} />
             </View>
-          );
-        }}
+
+            {/* Title + priority */}
+            <View style={[styles.tdCell, { flex: 2 }]}>
+              <AppText variant="bodySm" weight="semiBold" numberOfLines={2} style={{ textAlign: 'right' }}>
+                {item.title}
+              </AppText>
+              <Badge label={TASK_PRIORITY_LABELS[item.priority]} preset={priorityPreset(item.priority)} style={{ alignSelf: 'flex-end', marginTop: 2 }} />
+            </View>
+
+            {/* Link */}
+            <View style={styles.tdCell}>
+              <View style={styles.linkBadge}>
+                <MaterialCommunityIcons
+                  name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
+                  size={11}
+                  color={Colors.primary}
+                />
+                <AppText variant="caption" numberOfLines={2} style={{ color: Colors.primary, textAlign: 'right', flex: 1 }}>
+                  {item.linkLabel}
+                </AppText>
+              </View>
+              {item.assigneeName ? (
+                <AppText variant="caption" color="muted" numberOfLines={1} style={{ textAlign: 'right', marginTop: 2 }}>
+                  {item.assigneeName}
+                </AppText>
+              ) : null}
+            </View>
+
+            {/* Due date */}
+            <View style={styles.tdDate}>
+              <AppText variant="caption" color="variant" style={{ textAlign: 'center' }}>
+                {item.dueDate}
+              </AppText>
+            </View>
+
+            {/* Status */}
+            <View style={styles.tdStatus}>
+              <Badge label={WORKFLOW_STATUS_LABELS[item.workflowStatus]} preset={statusPreset(item.workflowStatus)} />
+            </View>
+
+            {/* Quick status change */}
+            <Pressable
+              onPress={() => setStatusModalTaskId(item.id)}
+              style={styles.tdAction}
+              accessibilityRole="button"
+              accessibilityLabel="שינוי סטטוס מהיר"
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons name="swap-vertical" size={18} color={Colors.primary} />
+            </Pressable>
+          </Pressable>
+        )}
       />
 
       {/* FAB */}
@@ -494,17 +492,13 @@ export function TasksListScreen() {
   );
 }
 
-const PRIORITY_COLORS: Record<TaskListRow['priority'], string> = {
-  urgent: Colors.error,
-  high: Colors.warning,
-  medium: Colors.primary,
-  low: Colors.outlineVariant,
-};
+const COL_KIND = 32;
+const COL_DATE = 72;
+const COL_STATUS = 80;
+const COL_ACTION = 36;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-
-  // ── Recent tasks strip ──
   recentBlock: {
     paddingVertical: Spacing.md,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
@@ -513,94 +507,71 @@ const styles = StyleSheet.create({
   recentTitle: { textAlign: 'right', marginBottom: Spacing.sm },
   recentRow: { flexDirection: RTL_ROW, gap: Spacing.sm, paddingBottom: Spacing.xs },
   recentCard: {
-    width: 148,
+    width: 160,
     padding: Spacing.md,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
     backgroundColor: Colors.surface,
-    ...Shadow.sm,
   },
   recentIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: `${Colors.primary}18`,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'flex-end',
   },
 
-  // ── Task card ──
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.outlineLight,
-    borderRightWidth: 4,
-    overflow: 'hidden',
-    ...Shadow.sm,
-  },
-  cardBody: {
-    padding: Spacing.md,
-    gap: 0,
-  },
-  cardRow: {
+  // ── Table header ──
+  tableHeader: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.xs,
+    backgroundColor: Colors.surfaceVariant,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
   },
-  cardTitleWrap: {
-    flexDirection: RTL_ROW,
-    alignItems: 'flex-start',
+  thKind: { width: COL_KIND },
+  thCell: {
     flex: 1,
-    gap: Spacing.sm,
+    textAlign: 'right',
+    color: Colors.onSurfaceVariant,
+    paddingHorizontal: 4,
   },
-  kindIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: `${Colors.primary}14`,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  cardRowLeft: {
+  thDate: { width: COL_DATE, textAlign: 'center', color: Colors.onSurfaceVariant },
+  thStatus: { width: COL_STATUS, textAlign: 'right', color: Colors.onSurfaceVariant, paddingHorizontal: 4 },
+
+  // ── Table rows ──
+  tableRow: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
-    gap: 4,
+    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.surface,
+    minHeight: 56,
   },
-  cardRowRight: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
+  tableRowAlt: { backgroundColor: Colors.surfaceVariant },
+  rowSeparator: { height: 1, backgroundColor: Colors.outlineLight },
   linkBadge: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    flexShrink: 1,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    alignSelf: 'flex-end',
   },
-  assigneeWrap: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: 4,
-  },
-  cardFooter: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: Colors.outlineLight,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surfaceVariant,
-  },
+
+  // ── Cells ──
+  tdKind: { width: COL_KIND, alignItems: 'center', justifyContent: 'center' },
+  tdCell: { flex: 1, paddingHorizontal: 4, alignItems: 'flex-end' },
+  tdDate: { width: COL_DATE, alignItems: 'center' },
+  tdStatus: { width: COL_STATUS, alignItems: 'flex-end', paddingHorizontal: 4 },
+  tdAction: { width: COL_ACTION, alignItems: 'center', justifyContent: 'center' },
 
   // ── Modals ──
   modalBackdrop: {

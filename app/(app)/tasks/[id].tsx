@@ -71,39 +71,24 @@ export default function TaskDetailRoute() {
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
 
-  // Local display state (reflects saves from edit modal)
-  const [localTitle, setLocalTitle] = useState(base?.title ?? '');
-  const [localAssignee, setLocalAssignee] = useState(base?.assigneeName ?? '');
-  const [localDueDate, setLocalDueDate] = useState(base?.dueDate ?? '');
-  const [localStartDate, setLocalStartDate] = useState(base?.startDate ?? '');
-  const [localPriority, setLocalPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>(base?.priority ?? 'medium');
-  const [localTaskKind, setLocalTaskKind] = useState<TaskKind>(base?.taskKind ?? 'execution');
-  const [localEndDate, setLocalEndDate] = useState(base?.endDate ?? '');
-  const [localCostNotes, setLocalCostNotes] = useState(base?.costNotes ?? '');
-  const [localTimeNotes, setLocalTimeNotes] = useState(base?.timeNotes ?? '');
-
-  // Edit modal draft state
+  // Edit mode
   const [editOpen, setEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState(base?.title ?? '');
   const [editAssignee, setEditAssignee] = useState(base?.assigneeName ?? '');
   const [editDueDate, setEditDueDate] = useState(base?.dueDate ?? '');
   const [editStartDate, setEditStartDate] = useState(base?.startDate ?? '');
   const [editPriority, setEditPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>(base?.priority ?? 'medium');
-  const [editTaskKind, setEditTaskKind] = useState<TaskKind>(base?.taskKind ?? 'execution');
-  const [editEndDate, setEditEndDate] = useState(base?.endDate ?? '');
-  const [editCostNotes, setEditCostNotes] = useState(base?.costNotes ?? '');
-  const [editTimeNotes, setEditTimeNotes] = useState(base?.timeNotes ?? '');
+  const [localTitle, setLocalTitle] = useState(base?.title ?? '');
+  const [localAssignee, setLocalAssignee] = useState(base?.assigneeName ?? '');
+  const [localDueDate, setLocalDueDate] = useState(base?.dueDate ?? '');
 
   const openEdit = () => {
+    const t = base;
     setEditTitle(localTitle);
     setEditAssignee(localAssignee);
     setEditDueDate(localDueDate);
-    setEditStartDate(localStartDate);
-    setEditPriority(localPriority);
-    setEditTaskKind(localTaskKind);
-    setEditEndDate(localEndDate);
-    setEditCostNotes(localCostNotes);
-    setEditTimeNotes(localTimeNotes);
+    setEditStartDate(t?.startDate ?? '');
+    setEditPriority(t?.priority ?? 'medium');
     setEditOpen(true);
   };
 
@@ -111,12 +96,6 @@ export default function TaskDetailRoute() {
     setLocalTitle(editTitle.trim() || (base?.title ?? ''));
     setLocalAssignee(editAssignee.trim() || (base?.assigneeName ?? ''));
     setLocalDueDate(editDueDate.trim() || (base?.dueDate ?? ''));
-    setLocalStartDate(editStartDate.trim() || (base?.startDate ?? ''));
-    setLocalPriority(editPriority);
-    setLocalTaskKind(editTaskKind);
-    setLocalEndDate(editEndDate.trim());
-    setLocalCostNotes(editCostNotes.trim());
-    setLocalTimeNotes(editTimeNotes.trim());
     setEditOpen(false);
   };
 
@@ -130,8 +109,6 @@ export default function TaskDetailRoute() {
 
   const task = base;
   const effectiveStatus = workflowStatus ?? task?.workflowStatus ?? 'open';
-  const effectiveTaskKind = localTaskKind;
-  const effectivePriority = localPriority;
 
   const lastFive = useMemo(() => lastMessages(messages, 5), [messages]);
 
@@ -165,7 +142,7 @@ export default function TaskDetailRoute() {
     );
   }
 
-  const isMaintenance = effectiveTaskKind === 'maintenance';
+  const isMaintenance = task.taskKind === 'maintenance';
   const chatTitle = isMaintenance ? 'עדכוני קריאת תחזוקה' : 'עדכונים והערות';
 
   return (
@@ -222,16 +199,16 @@ export default function TaskDetailRoute() {
 
           <Card>
             <View style={styles.titleRow}>
-              <MaterialCommunityIcons name={iconName(effectiveTaskKind)} size={28} color={Colors.primary} />
+              <MaterialCommunityIcons name={iconName(task.taskKind)} size={28} color={Colors.primary} />
               <View style={{ flex: 1, gap: Spacing.sm }}>
                 <AppText variant="caption" color="variant">
-                  {TASK_KIND_LABELS[effectiveTaskKind]}
+                  {TASK_KIND_LABELS[task.taskKind]}
                 </AppText>
                 <AppText variant="headingSm" weight="bold">
                   {localTitle || task.title}
                 </AppText>
                 <View style={styles.badgeRow}>
-                  <Badge label={TASK_PRIORITY_LABELS[effectivePriority]} preset={priorityPreset(effectivePriority)} />
+                  <Badge label={TASK_PRIORITY_LABELS[task.priority]} preset={priorityPreset(task.priority)} />
                   <Pressable onPress={() => setStatusMenuOpen(true)} accessibilityRole="button">
                     <Badge label={WORKFLOW_STATUS_LABELS[effectiveStatus]} preset={statusPreset(effectiveStatus)} />
                   </Pressable>
@@ -251,9 +228,9 @@ export default function TaskDetailRoute() {
               { label: 'שיוך', value: `${task.linkKind === 'asset' ? 'נכס' : 'פרויקט'}: ${task.linkLabel}` },
               { label: 'אחראי', value: localAssignee || task.assigneeName },
               { label: 'נוצר על ידי', value: task.createdBy },
-              { label: 'תאריך התחלה', value: localStartDate || task.startDate },
+              { label: 'תאריך התחלה', value: task.startDate },
               { label: 'תאריך יעד', value: localDueDate || task.dueDate },
-              ...((localEndDate || task.endDate) ? [{ label: 'תאריך סיום', value: localEndDate || task.endDate! }] : []),
+              ...(task.endDate ? [{ label: 'תאריך סיום', value: task.endDate }] : []),
             ].map((row) => (
               <View key={row.label} style={styles.detailRow}>
                 <AppText variant="bodyMd" color="variant">
@@ -282,25 +259,25 @@ export default function TaskDetailRoute() {
                 </AppText>
               </View>
             )}
-            {(localCostNotes || localTimeNotes || task.costNotes || task.timeNotes) && (
+            {(task.costNotes || task.timeNotes) && (
               <>
-                {(localCostNotes || task.costNotes) ? (
+                {task.costNotes ? (
                   <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
                     <AppText variant="bodyMd" color="variant">
                       עלות
                     </AppText>
                     <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                      {localCostNotes || task.costNotes}
+                      {task.costNotes}
                     </AppText>
                   </View>
                 ) : null}
-                {(localTimeNotes || task.timeNotes) ? (
+                {task.timeNotes ? (
                   <View style={styles.detailRow}>
                     <AppText variant="bodyMd" color="variant">
                       זמן
                     </AppText>
                     <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                      {localTimeNotes || task.timeNotes}
+                      {task.timeNotes}
                     </AppText>
                   </View>
                 ) : null}
@@ -467,105 +444,46 @@ export default function TaskDetailRoute() {
 
         {/* ─── Edit modal ─── */}
         <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <Pressable style={styles.editBackdrop} onPress={() => setEditOpen(false)}>
-              <Pressable style={[styles.editSheet, { paddingBottom: insets.bottom + Spacing.lg }]} onPress={(e) => e.stopPropagation()}>
-                {/* Drag handle */}
-                <View style={styles.dragHandle} />
+          <Pressable style={styles.modalBackdrop} onPress={() => setEditOpen(false)}>
+            <Pressable style={[styles.composeSheet, { paddingBottom: insets.bottom + Spacing.lg }]} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.editModalHeader}>
+                <Pressable onPress={() => setEditOpen(false)} style={styles.iconBtnDark} accessibilityRole="button">
+                  <MaterialCommunityIcons name="close" size={22} color={Colors.onBackground} />
+                </Pressable>
+                <AppText variant="headingSm" weight="bold" style={{ flex: 1, textAlign: 'right' }}>
+                  עריכת משימה
+                </AppText>
+                <Pressable onPress={saveEdit} style={styles.saveBtn} accessibilityRole="button">
+                  <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>שמור</AppText>
+                </Pressable>
+              </View>
 
-                {/* Header */}
-                <View style={styles.editModalHeader}>
-                  <Pressable onPress={() => setEditOpen(false)} style={styles.iconBtnDark} accessibilityRole="button">
-                    <MaterialCommunityIcons name="close" size={22} color={Colors.onBackground} />
-                  </Pressable>
-                  <AppText variant="headingSm" weight="bold" style={{ flex: 1, textAlign: 'right' }}>
-                    עריכת משימה
-                  </AppText>
-                  <Pressable onPress={saveEdit} style={styles.saveBtn} accessibilityRole="button">
-                    <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>שמור</AppText>
-                  </Pressable>
+              <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View style={{ padding: Spacing.base, gap: Spacing.md }}>
+                  <Input label="כותרת" value={editTitle} onChangeText={setEditTitle} />
+                  <Input label="אחראי" value={editAssignee} onChangeText={setEditAssignee} />
+                  <Input label="תאריך יעד (DD/MM/YYYY)" value={editDueDate} onChangeText={setEditDueDate} keyboardType="numeric" />
+                  <Input label="תאריך התחלה (DD/MM/YYYY)" value={editStartDate} onChangeText={setEditStartDate} keyboardType="numeric" />
+
+                  <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right' }}>עדיפות</AppText>
+                  <View style={{ flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm }}>
+                    {(['urgent', 'high', 'medium', 'low'] as const).map((p) => (
+                      <Pressable
+                        key={p}
+                        onPress={() => setEditPriority(p)}
+                        style={[styles.editChip, editPriority === p && styles.editChipActive]}
+                        accessibilityRole="button"
+                      >
+                        <AppText variant="caption" weight={editPriority === p ? 'bold' : 'regular'} style={{ color: editPriority === p ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                          {TASK_PRIORITY_LABELS[p]}
+                        </AppText>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
-
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editContent}>
-
-                  {/* סוג משימה */}
-                  <View style={styles.editSection}>
-                    <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>סוג משימה</AppText>
-                    <View style={styles.editChipsWrap}>
-                      {(Object.keys(TASK_KIND_LABELS) as TaskKind[]).map((k) => (
-                        <Pressable
-                          key={k}
-                          onPress={() => setEditTaskKind(k)}
-                          style={[styles.editChip, editTaskKind === k && styles.editChipActive]}
-                          accessibilityRole="button"
-                        >
-                          <MaterialCommunityIcons
-                            name={iconName(k)}
-                            size={13}
-                            color={editTaskKind === k ? Colors.onPrimary : Colors.primary}
-                          />
-                          <AppText variant="caption" weight={editTaskKind === k ? 'bold' : 'regular'} style={{ color: editTaskKind === k ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                            {TASK_KIND_LABELS[k]}
-                          </AppText>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* עדיפות */}
-                  <View style={styles.editSection}>
-                    <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>עדיפות</AppText>
-                    <View style={styles.editChipsWrap}>
-                      {(['urgent', 'high', 'medium', 'low'] as const).map((p) => (
-                        <Pressable
-                          key={p}
-                          onPress={() => setEditPriority(p)}
-                          style={[styles.editChip, editPriority === p && styles.editChipActive]}
-                          accessibilityRole="button"
-                        >
-                          <AppText variant="caption" weight={editPriority === p ? 'bold' : 'regular'} style={{ color: editPriority === p ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                            {TASK_PRIORITY_LABELS[p]}
-                          </AppText>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* כותרת */}
-                  <View style={styles.editSection}>
-                    <Input label="כותרת המשימה" value={editTitle} onChangeText={setEditTitle} />
-                  </View>
-
-                  {/* אחראי */}
-                  <View style={styles.editSection}>
-                    <Input label="אחראי / מבצע" value={editAssignee} onChangeText={setEditAssignee} />
-                  </View>
-
-                  {/* תאריכים */}
-                  <View style={styles.editSection}>
-                    <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>תאריכים</AppText>
-                    <Input label="תאריך התחלה (DD/MM/YYYY)" value={editStartDate} onChangeText={setEditStartDate} keyboardType="numeric" />
-                    <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="תאריך יעד (DD/MM/YYYY)" value={editDueDate} onChangeText={setEditDueDate} keyboardType="numeric" />
-                    </View>
-                    <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="תאריך סיום בפועל (DD/MM/YYYY)" value={editEndDate} onChangeText={setEditEndDate} keyboardType="numeric" />
-                    </View>
-                  </View>
-
-                  {/* עלות וזמן */}
-                  <View style={styles.editSection}>
-                    <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>עלות וזמן</AppText>
-                    <Input label="הערות עלות" value={editCostNotes} onChangeText={setEditCostNotes} />
-                    <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="הערות זמן" value={editTimeNotes} onChangeText={setEditTimeNotes} />
-                    </View>
-                  </View>
-
-                </ScrollView>
-              </Pressable>
+              </ScrollView>
             </Pressable>
-          </KeyboardAvoidingView>
+          </Pressable>
         </Modal>
       </View>
     </KeyboardAvoidingView>
@@ -713,9 +631,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
   },
   editChip: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: 5,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: Radius.full,
@@ -724,48 +639,4 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant,
   },
   editChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-
-  // Edit bottom sheet
-  editBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  editSheet: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '92%',
-    width: '100%',
-    ...Shadow.lg,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.outlineVariant,
-    alignSelf: 'center',
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  editContent: {
-    padding: CONTENT_HORIZONTAL_PADDING,
-    gap: 0,
-    paddingBottom: Spacing.xl,
-  },
-  editSection: {
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
-  },
-  editSectionTitle: {
-    textAlign: 'right',
-    marginBottom: Spacing.sm,
-    color: Colors.onSurfaceVariant,
-  },
-  editChipsWrap: {
-    flexDirection: RTL_ROW,
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
 });
