@@ -10,6 +10,29 @@ import React, {
 import { AuthApiError, type Session, type User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { BackendCurrentUser, getBackendCurrentUser, backendRequest } from './backend';
+import { isAuthDisabled } from './auth-config';
+import { router } from 'expo-router';
+
+const AUTH_DISABLED = isAuthDisabled();
+
+const MOCK_BACKEND_USER: BackendCurrentUser = {
+  id: 'dev-preview-user',
+  email: 'preview@knock.local',
+  role: 'מנהל',
+  userMetadata: { full_name: 'משתמש תצוגה' },
+};
+
+const MOCK_SESSION = {
+  access_token: 'dev-preview-token',
+  refresh_token: 'dev-preview-refresh',
+  expires_in: 3600,
+  token_type: 'bearer',
+  user: {
+    id: MOCK_BACKEND_USER.id,
+    email: MOCK_BACKEND_USER.email,
+    user_metadata: MOCK_BACKEND_USER.userMetadata,
+  },
+} as Session;
 
 type AuthContextValue = {
   initialized: boolean;
@@ -28,16 +51,22 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [initialized, setInitialized] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
+  const [initialized, setInitialized] = useState(AUTH_DISABLED);
+  const [session, setSession] = useState<Session | null>(
+    AUTH_DISABLED ? MOCK_SESSION : null,
+  );
   const [backendUser, setBackendUser] = useState<BackendCurrentUser | null>(
-    null,
+    AUTH_DISABLED ? MOCK_BACKEND_USER : null,
   );
   const [backendUserLoading, setBackendUserLoading] = useState(false);
   const [backendAuthError, setBackendAuthError] = useState<string | null>(null);
   const refreshPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
+    if (AUTH_DISABLED) {
+      return;
+    }
+
     let mounted = true;
 
     supabase.auth.getSession().then(({ data }) => {
@@ -66,7 +95,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    if (!session) {
+    if (AUTH_DISABLED || !session) {
+      if (AUTH_DISABLED) {
+        return;
+      }
+
       setBackendUser(null);
       setBackendAuthError(null);
       return;
@@ -76,6 +109,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [session?.access_token]);
 
   async function signInWithPassword(email: string, password: string) {
+    if (AUTH_DISABLED) {
+      setSession(MOCK_SESSION);
+      setBackendUser(MOCK_BACKEND_USER);
+      setBackendAuthError(null);
+      return;
+    }
     console.log('[Auth] Supabase signIn started for:', email);
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -155,6 +194,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   async function signOut() {
+    if (AUTH_DISABLED) {
+      return;
+    }
     console.log('[Auth] signOut started');
     try {
       // 1. Clear state IMMEDIATELY and synchronously
@@ -173,6 +215,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   async function refreshBackendUser(onboardData?: { displayName: string }) {
+    if (AUTH_DISABLED) {
+      setBackendUser(MOCK_BACKEND_USER);
+      setBackendAuthError(null);
+      return;
+    }
+
     if (refreshPromiseRef.current) {
       console.log('[Auth] refreshBackendUser already in progress, returning existing promise');
       return refreshPromiseRef.current;
