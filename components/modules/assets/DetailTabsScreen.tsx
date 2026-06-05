@@ -54,6 +54,7 @@ import { assetsForProject } from '@/lib/mocks/assets';
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
 import { getProperty, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
+import { getProject, type BackendProject } from '@/lib/api/projects';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -632,16 +633,15 @@ function FeedTab() {
 
 // ─── Tab: Main (asset = contracts / project = assets list) ────────────────────
 
-function ProjectMainAssetsTab({ entityId }: { entityId: string }) {
+function ProjectMainAssetsTab({ entityId, projectName }: { entityId: string; projectName: string }) {
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const project = MOCK_PROJECTS.find((p) => p.id === entityId);
-  const projectName = project?.name ?? '';
   return (
     <View style={{ flex: 1 }}>
       <EntityListScreen
         mode="assets"
         embedded
         scopedProjectId={entityId}
+        scopedProjectName={projectName}
         refreshNonce={refreshNonce}
       />
       <AddAssetToProjectActions
@@ -654,9 +654,9 @@ function ProjectMainAssetsTab({ entityId }: { entityId: string }) {
   );
 }
 
-function MainTab({ mode, entityId }: { mode: DetailMode; entityId: string }) {
+function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: string; projectName?: string }) {
   if (mode === 'project') {
-    return <ProjectMainAssetsTab entityId={entityId} />;
+    return <ProjectMainAssetsTab entityId={entityId} projectName={projectName ?? ''} />;
   }
 
   // Asset mode: contract details
@@ -1406,29 +1406,28 @@ export function DetailTabsScreen({
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('feed');
   const [property, setProperty] = useState<BackendProperty | null>(null);
+  const [project, setProject] = useState<BackendProject | null>(null);
 
   useEffect(() => {
-    if (mode !== 'asset' || !id) {
-      return;
-    }
-
+    if (mode !== 'asset' || !id) return;
     let cancelled = false;
-
     getProperty(id)
-      .then((row) => {
-        if (!cancelled) setProperty(row);
-      })
-      .catch((error) => {
-        console.warn(error instanceof Error ? error.message : 'Failed to load property');
-      });
+      .then((row) => { if (!cancelled) setProperty(row); })
+      .catch((error) => { console.warn(error instanceof Error ? error.message : 'Failed to load property'); });
+    return () => { cancelled = true; };
+  }, [mode, id]);
 
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    if (mode !== 'project' || !id) return;
+    let cancelled = false;
+    getProject(id)
+      .then((row) => { if (!cancelled) setProject(row); })
+      .catch((error) => { console.warn(error instanceof Error ? error.message : 'Failed to load project'); });
+    return () => { cancelled = true; };
   }, [mode, id]);
 
   const mainTabLabel = mode === 'project' ? 'נכסים' : 'חוזה';
-  const headerTitle = property?.name ?? name;
+  const headerTitle = (mode === 'project' ? project?.name : property?.name) ?? name;
   const headerAddress = property ? propertyAddressLabel(property) : address;
 
   const tabsWithLabels = TABS.map((t) =>
@@ -1440,7 +1439,7 @@ export function DetailTabsScreen({
       case 'feed':
         return <FeedTab />;
       case 'main':
-        return <MainTab mode={mode} entityId={id} />;
+        return <MainTab mode={mode} entityId={id} projectName={project?.name} />;
       case 'tasks':
         return <TasksTab entityId={id} mode={mode} />;
       case 'documents':

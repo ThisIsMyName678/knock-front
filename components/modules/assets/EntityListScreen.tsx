@@ -28,6 +28,7 @@ import {
 import type { AssetEntity, Entity, OccupancyStatus, ProjectEntity, UserRole } from '@/lib/mocks/assets';
 import { listProperties, propertyToAssetEntity } from '@/lib/api/properties';
 import { listProjects, projectToProjectEntity } from '@/lib/api/projects';
+import { setPreloadedProject } from '@/lib/navigation-state';
 import { useSubscriptionPlan } from '@/hooks/useSubscriptionPlan';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { FilterBar } from '@/components/ui/FilterBar';
@@ -301,6 +302,8 @@ type Props = {
   embedded?: boolean;
   /** הצגת נכסים השייכים לפרויקט זה בלבד */
   scopedProjectId?: string;
+  /** שם הפרויקט המשויך — מועבר ל-new asset כדי לשמור projectId */
+  scopedProjectName?: string;
   /** העלאה מזהה מחדש של רשימה אחרי שינוי mock (למשל שיוך נכס) */
   refreshNonce?: number;
 };
@@ -312,7 +315,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'construction', label: 'בבנייה' },
 ];
 
-export function EntityListScreen({ mode, embedded = false, scopedProjectId, refreshNonce = 0 }: Props) {
+export function EntityListScreen({ mode, embedded = false, scopedProjectId, scopedProjectName, refreshNonce = 0 }: Props) {
   const insets = useSafeAreaInsets();
   const plan = useSubscriptionPlan();
   const [search, setSearch] = useState('');
@@ -402,14 +405,22 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
   /** No items at all (user has nothing linked to account) */
   const hasNoData = rawData.length === 0;
 
+  /** ניווט ל-new asset; אם אנחנו בתוך פרויקט (scoped) — שומר את ה-context קודם */
+  const goToNewAsset = useCallback(() => {
+    if (scopedProjectId) {
+      setPreloadedProject(scopedProjectId, scopedProjectName ?? '');
+    }
+    router.push('/(app)/assets-screens/new');
+  }, [scopedProjectId, scopedProjectName]);
+
   /** FAB handler: non-enterprise goes straight to new asset; enterprise opens choice sheet */
   const handleFabPress = useCallback(() => {
     if (plan !== 'enterprise') {
-      router.push('/(app)/assets-screens/new');
+      goToNewAsset();
     } else {
       setSheetVisible(true);
     }
-  }, [plan]);
+  }, [plan, goToNewAsset]);
 
   const body = (
     <>
@@ -453,8 +464,8 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
           actionLabel={mode === 'projects' && plan === 'enterprise' ? 'צור פרויקט חדש' : 'הוסף נכס'}
           onAction={
             embedded
-              ? () => router.push('/(app)/assets-screens/new')
-              : () => (plan === 'enterprise' ? setSheetVisible(true) : router.push('/(app)/assets-screens/new'))
+              ? goToNewAsset
+              : () => (plan === 'enterprise' ? setSheetVisible(true) : goToNewAsset())
           }
           style={{ flex: 1 }}
         />
@@ -473,7 +484,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
           }
           onAction={
             embedded
-              ? () => router.push('/(app)/assets-screens/new')
+              ? goToNewAsset
               : () => setSheetVisible(true)
           }
           style={{ flex: 1 }}

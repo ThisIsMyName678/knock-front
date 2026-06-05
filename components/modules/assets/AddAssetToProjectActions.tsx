@@ -22,6 +22,7 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import type { AssetEntity } from '@/lib/mocks/assets';
 import { getUnassignedAssets, linkAssetToProject } from '@/lib/mocks/assets';
+import { setPreloadedProject } from '@/lib/navigation-state';
 
 type Props = {
   projectId: string;
@@ -53,14 +54,9 @@ export function AddAssetToProjectActions({
   }, [closeMenu]);
 
   const handleNewAsset = useCallback(() => {
+    setPreloadedProject(projectId, projectName);
     closeMenu();
-    router.push({
-      pathname: '/(app)/assets-screens/new',
-      params: {
-        preloadedProjectId: projectId,
-        preloadedProjectName: projectName,
-      },
-    });
+    router.push('/(app)/assets-screens/new' as never);
   }, [closeMenu, projectId, projectName]);
 
   const handleLinkAsset = useCallback(

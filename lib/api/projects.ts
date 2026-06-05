@@ -23,6 +23,10 @@ export function listProjects(): Promise<BackendProject[]> {
   return backendRequest<BackendProject[]>('/projects');
 }
 
+export function getProject(id: string): Promise<BackendProject> {
+  return backendRequest<BackendProject>(`/projects/${id}`);
+}
+
 export function createProject(input: CreateProjectInput): Promise<BackendProject> {
   return backendRequest<BackendProject>('/projects', {
     method: 'POST',
