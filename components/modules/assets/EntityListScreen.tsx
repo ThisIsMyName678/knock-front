@@ -358,7 +358,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
       return [...backendProjects, ...orphans];
     }
     return backendAssets;
-  }, [mode, scopedProjectId, plan, backendAssets]);
+  }, [mode, scopedProjectId, plan, backendAssets, backendProjects]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
