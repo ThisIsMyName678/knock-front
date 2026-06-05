@@ -26,10 +26,8 @@ import {
 } from '@/constants/tokens';
 
 import type { AssetEntity, Entity, OccupancyStatus, ProjectEntity, UserRole } from '@/lib/mocks/assets';
-import {
-  MOCK_PROJECTS,
-} from '@/lib/mocks/assets';
 import { listProperties, propertyToAssetEntity } from '@/lib/api/properties';
+import { listProjects, projectToProjectEntity } from '@/lib/api/projects';
 import { useSubscriptionPlan } from '@/hooks/useSubscriptionPlan';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { FilterBar } from '@/components/ui/FilterBar';
@@ -321,6 +319,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
   const [filter, setFilter] = useState<FilterKey>('all');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [backendAssets, setBackendAssets] = useState<AssetEntity[]>([]);
+  const [backendProjects, setBackendProjects] = useState<ProjectEntity[]>([]);
 
   const loadProperties = useCallback(async () => {
     try {
@@ -333,10 +332,21 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
     }
   }, [scopedProjectId]);
 
+  const loadProjects = useCallback(async () => {
+    if (mode !== 'projects' || scopedProjectId) return;
+    try {
+      const rows = await listProjects();
+      setBackendProjects(rows.map(projectToProjectEntity));
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to load projects');
+    }
+  }, [mode, scopedProjectId]);
+
   useFocusEffect(
     useCallback(() => {
       void loadProperties();
-    }, [loadProperties, refreshNonce]),
+      void loadProjects();
+    }, [loadProperties, loadProjects, refreshNonce]),
   );
 
   const rawData: Entity[] = useMemo(() => {
@@ -345,7 +355,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, refr
     }
     if (mode === 'projects') {
       const orphans = plan === 'enterprise' ? backendAssets.filter((asset) => asset.projectId == null) : [];
-      return [...MOCK_PROJECTS, ...orphans];
+      return [...backendProjects, ...orphans];
     }
     return backendAssets;
   }, [mode, scopedProjectId, plan, backendAssets]);
