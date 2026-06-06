@@ -1400,8 +1400,8 @@ type Props = {
 export function DetailTabsScreen({
   mode,
   id,
-  name = mode === 'project' ? 'מגדלי הים' : 'דירה 4B',
-  address = 'הרצל 10, תל אביב',
+  name,
+  address,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>('feed');
@@ -1427,8 +1427,8 @@ export function DetailTabsScreen({
   }, [mode, id]);
 
   const mainTabLabel = mode === 'project' ? 'נכסים' : 'חוזה';
-  const headerTitle = (mode === 'project' ? project?.name : property?.name) ?? name;
-  const headerAddress = property ? propertyAddressLabel(property) : address;
+  const headerTitle = (mode === 'project' ? project?.name : property?.name) ?? name ?? '';
+  const headerAddress = property ? propertyAddressLabel(property) : (address ?? '');
 
   const tabsWithLabels = TABS.map((t) =>
     t.key === 'main' ? { ...t, label: mainTabLabel } : t,
