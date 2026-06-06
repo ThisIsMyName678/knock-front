@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -24,15 +24,12 @@ import { Badge } from '@/components/ui/Badge';
 import {
   CONTRACT_TYPE_LABELS,
   CONTRACT_ACCESS_LABELS,
-  MOCK_ENTITY_LINKS,
-  filterEntitiesByQuery,
-  type ContractTypeKey,
-  type ContractListRow,
-  type ContractDetailMock,
   type EntityLinkOption,
-  type ContractAccessLevel,
 } from '@/lib/mocks/contracts';
+import { searchEntityLinks } from '@/lib/api/entity-links';
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
+import { createContract, updateContract } from '@/lib/api/contracts';
+import type { ContractType, ContractAccessLevel, ContractDetail, CreateContractInput } from '@/lib/api/contracts';
 import {
   Colors,
   Spacing,
@@ -47,13 +44,13 @@ import { RTL_ROW } from '@/constants/rtl';
 
 const STEPS = ['פרטי חוזה', 'מחיר', 'תיעוד תשלום', 'תיעוד מונים', 'העלאת קבצים'] as const;
 
-const CONTRACT_TYPES: ContractTypeKey[] = ['rent', 'purchase', 'supplier_work', 'other'];
+const CONTRACT_TYPES: ContractType[] = ['RENT', 'PURCHASE', 'SUPPLIER_WORK', 'OTHER'];
 
 const METER_KINDS = [
-  { key: 'electric', label: 'חשמל' },
-  { key: 'water', label: 'מים' },
-  { key: 'gas', label: 'גז' },
-  { key: 'other', label: 'אחר' },
+  { key: 'ELECTRIC', label: 'חשמל' },
+  { key: 'WATER', label: 'מים' },
+  { key: 'GAS', label: 'גז' },
+  { key: 'OTHER', label: 'אחר' },
 ] as const;
 
 type MeterKind = (typeof METER_KINDS)[number]['key'];
@@ -78,11 +75,11 @@ const FILE_CATEGORIES = [
 
 type FileCategory = (typeof FILE_CATEGORIES)[number];
 
-const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['owner_only', 'tenant_only', 'employee_only', 'public'];
+const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['OWNER_ONLY', 'TENANT_ONLY', 'EMPLOYEE_ONLY', 'PUBLIC'];
 
 type PaymentDraft = {
   id: string;
-  direction: 'in' | 'out';
+  direction: 'IN' | 'OUT';
   amount: string;
   notes: string;
 };
@@ -112,11 +109,26 @@ function randomId() {
   return `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function isoToDdMmYyyy(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function ddMmYyyyToIso(s: string): string | null {
+  const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  return `${m[3]}-${pad2(parseInt(m[2]!, 10))}-${pad2(parseInt(m[1]!, 10))}`;
+}
+
 export function ContractCreateWizard({
   initialData,
+  contractId,
   preloadedLink,
 }: {
-  initialData?: ContractListRow | ContractDetailMock;
+  initialData?: ContractDetail;
+  contractId?: string;
   preloadedLink?: EntityLinkOption;
 } = {}) {
   const insets = useSafeAreaInsets();
@@ -124,33 +136,44 @@ export function ContractCreateWizard({
 
   // Step 1
   const [contractName, setContractName] = useState(() => initialData?.contractName ?? '');
-  const [contractType, setContractType] = useState<ContractTypeKey | ''>(() => initialData?.contractType ?? '');
+  const [contractType, setContractType] = useState<ContractType | ''>(() => initialData?.contractType ?? '');
   const [linkQuery, setLinkQuery] = useState(() => {
     if (preloadedLink) return `${preloadedLink.name}, ${preloadedLink.address}`;
     return initialData?.linkLabel ?? '';
   });
   const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() => {
     if (preloadedLink) return preloadedLink;
-    return initialData ? (MOCK_ENTITY_LINKS.find((e) => e.id === initialData.linkId) ?? null) : null;
+    if (initialData) {
+      return {
+        id: initialData.linkId,
+        kind: initialData.linkKind === 'PROJECT' ? 'project' : 'asset',
+        name: initialData.linkLabel,
+        address: '',
+      };
+    }
+    return null;
   });
   const [showEntitySuggest, setShowEntitySuggest] = useState(false);
   const [counterpartyName, setCounterpartyName] = useState(() => initialData?.counterpartyName ?? '');
-  const [serviceType, setServiceType] = useState('');
-  const [idNumber, setIdNumber] = useState(() => (initialData as ContractDetailMock | undefined)?.idNumber ?? '');
-  const [phone, setPhone] = useState(() => (initialData as ContractDetailMock | undefined)?.phone ?? '');
-  const [email, setEmail] = useState(() => (initialData as ContractDetailMock | undefined)?.email ?? '');
-  const [contactName, setContactName] = useState(() => (initialData as ContractDetailMock | undefined)?.contactName ?? '');
-  const [agreementDate, setAgreementDate] = useState(() => initialData?.agreementDate ?? '');
-  const [expiryDate, setExpiryDate] = useState(() => (initialData as ContractDetailMock | undefined)?.endDate ?? '');
+  const [serviceType, setServiceType] = useState(() => initialData?.serviceType ?? '');
+  const [idNumber, setIdNumber] = useState(() => initialData?.counterpartyId ?? '');
+  const [phone, setPhone] = useState(() => initialData?.counterpartyPhone ?? '');
+  const [email, setEmail] = useState(() => initialData?.counterpartyEmail ?? '');
+  const [contactName, setContactName] = useState(() => initialData?.contactName ?? '');
+  const [agreementDate, setAgreementDate] = useState(() => isoToDdMmYyyy(initialData?.agreementDate));
+  const [expiryDate, setExpiryDate] = useState(() => isoToDdMmYyyy(initialData?.endDate));
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderUnit, setReminderUnit] = useState<'days' | 'weeks' | 'months'>('days');
   const [reminderAmount, setReminderAmount] = useState('30');
-  const [contractAccess, setContractAccess] = useState<ContractAccessLevel>('owner_only');
+  const [contractAccess, setContractAccess] = useState<ContractAccessLevel>(() => initialData?.accessLevel ?? 'OWNER_ONLY');
   const [datePickerTarget, setDatePickerTarget] = useState<'agreement' | 'expiry' | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   // Step 1 – מחיר
   const [payments, setPayments] = useState<PaymentDraft[]>([]);
-  const [payDirection, setPayDirection] = useState<'in' | 'out'>('in');
+  const [payDirection, setPayDirection] = useState<'IN' | 'OUT'>('IN');
   const [payAmount, setPayAmount] = useState('');
   const [payNotes, setPayNotes] = useState('');
 
@@ -163,11 +186,25 @@ export function ContractCreateWizard({
   // Step 4
   const [fileCategory, setFileCategory] = useState<FileCategory>('צילום חוזה');
   const [fileName, setFileName] = useState('');
-  const [defaultFileVisibility, setDefaultFileVisibility] = useState<ContractAccessLevel>('owner_only');
+  const [defaultFileVisibility, setDefaultFileVisibility] = useState<ContractAccessLevel>('OWNER_ONLY');
   const [files, setFiles] = useState<FileDraft[]>([]);
   const [categoryModal, setCategoryModal] = useState(false);
 
-  const entitySuggestions = useMemo(() => filterEntitiesByQuery(linkQuery), [linkQuery]);
+  const [entitySuggestions, setEntitySuggestions] = useState<EntityLinkOption[]>([]);
+
+  useEffect(() => {
+    if (linkSelected) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchEntityLinks(linkQuery);
+        if (!cancelled) setEntitySuggestions(results);
+      } catch {
+        // ignore search errors
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [linkQuery, linkSelected]);
 
   const onAgreementDateChange = useCallback(
     (t: string) => {
@@ -187,7 +224,7 @@ export function ContractCreateWizard({
     contractType: contractType === '' ? 'יש לבחור סוג חוזה' : '',
     linkSelected: !linkSelected ? 'יש לבחור נכס או פרויקט' : '',
     counterpartyName: counterpartyName.trim().length === 0 ? 'שדה חובה' : '',
-    serviceType: contractType === 'supplier_work' && serviceType.trim().length === 0 ? 'שדה חובה' : '',
+    serviceType: contractType === 'SUPPLIER_WORK' && serviceType.trim().length === 0 ? 'שדה חובה' : '',
     agreementDate: agreementDate.trim().length === 0 ? 'שדה חובה' : '',
   }), [contractName, contractType, linkSelected, counterpartyName, serviceType, agreementDate]);
 
@@ -213,7 +250,7 @@ export function ContractCreateWizard({
       ...prev,
       {
         id: randomId(),
-        kind: 'electric',
+        kind: 'ELECTRIC',
         name: '',
         identifier: '',
         value: '',
@@ -260,7 +297,7 @@ export function ContractCreateWizard({
     ]);
   };
 
-  const goNext = () => {
+  const goNext = async () => {
     if (step === 0) {
       setStep1Submitted(true);
       if (!step1Valid) return;
@@ -269,8 +306,46 @@ export function ContractCreateWizard({
     if (step === 1 && payAmount.trim()) {
       appendPayment();
     }
-    if (step < STEPS.length - 1) setStep((s) => s + 1);
-    else router.back();
+    if (step < STEPS.length - 1) {
+      setStep((s) => s + 1);
+      return;
+    }
+
+    // שלב אחרון — שליחה לשרת
+    if (!linkSelected || contractType === '') return;
+    const linkKind = linkSelected.kind === 'project' ? 'PROJECT' as const : 'PROPERTY' as const;
+    const dto: CreateContractInput = {
+      contractName: contractName.trim(),
+      contractType,
+      linkKind,
+      projectId: linkKind === 'PROJECT' ? linkSelected.id : null,
+      propertyId: linkKind === 'PROPERTY' ? linkSelected.id : null,
+      counterpartyName: counterpartyName.trim(),
+      counterpartyId: idNumber.trim() || null,
+      counterpartyPhone: phone.trim() || null,
+      counterpartyEmail: email.trim() || null,
+      serviceType: contractType === 'SUPPLIER_WORK' ? serviceType.trim() || null : null,
+      contactName: contactName.trim() || null,
+      agreementDate: ddMmYyyyToIso(agreementDate),
+      endDate: ddMmYyyyToIso(expiryDate) || null,
+      accessLevel: contractAccess,
+      notes: null,
+    };
+
+    setSubmitting(true);
+    setServerError(null);
+    try {
+      const result = contractId
+        ? await updateContract(contractId, dto)
+        : await createContract(dto);
+      router.replace(`/(app)/contracts/${result.id}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'שגיאה בשמירת החוזה';
+      setServerError(msg);
+      Alert.alert('שגיאה', msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const goBack = () => {
@@ -353,7 +428,7 @@ export function ContractCreateWizard({
                     accessibilityState={{ selected: contractType === t }}
                   >
                     <AppText variant="bodySm" weight={contractType === t ? 'bold' : 'regular'} color={contractType === t ? 'primary' : 'variant'} align="center">
-                      {CONTRACT_TYPE_LABELS[t]}
+                      {CONTRACT_TYPE_LABELS[t as keyof typeof CONTRACT_TYPE_LABELS]}
                     </AppText>
                   </Pressable>
                 ))}
@@ -421,7 +496,7 @@ export function ContractCreateWizard({
                 error={step1Submitted ? step1Errors.counterpartyName : ''}
                 containerStyle={{ marginTop: Spacing.md }}
               />
-              {contractType === 'supplier_work' && (
+              {contractType === 'SUPPLIER_WORK' && (
                 <Input label="סוג השירות" required placeholder="לדוגמה: ניקיון" value={serviceType} onChangeText={setServiceType} error={step1Submitted ? step1Errors.serviceType : ''} containerStyle={{ marginTop: Spacing.md }} />
               )}
 
@@ -518,7 +593,7 @@ export function ContractCreateWizard({
                   {payments.map((p) => (
                     <View key={p.id} style={styles.paymentChip}>
                       <AppText variant="bodySm" style={{ flex: 1 }}>
-                        {p.direction === 'in' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪
+                        {p.direction === 'IN' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪
                       </AppText>
                       <Pressable onPress={() => setPayments((prev) => prev.filter((x) => x.id !== p.id))}>
                         <MaterialCommunityIcons name="close" size={16} color={Colors.onSurfaceVariant} />
@@ -529,21 +604,21 @@ export function ContractCreateWizard({
               )}
 
               <View style={styles.directionRow}>
-                {(['in', 'out'] as const).map((d) => (
+                {(['IN', 'OUT'] as const).map((d) => (
                   <Pressable
                     key={d}
                     onPress={() => setPayDirection(d)}
                     style={[
                       styles.dirBtn,
                       payDirection === d && {
-                        borderColor: d === 'in' ? Colors.inbound : Colors.outbound,
-                        backgroundColor: d === 'in' ? Colors.inboundBg : Colors.outboundBg,
+                        borderColor: d === 'IN' ? Colors.inbound : Colors.outbound,
+                        backgroundColor: d === 'IN' ? Colors.inboundBg : Colors.outboundBg,
                       },
                     ]}
                   >
-                    <MaterialCommunityIcons name={d === 'in' ? 'arrow-down' : 'arrow-up'} size={22} color={d === 'in' ? Colors.inbound : Colors.outbound} />
-                    <AppText variant="bodyMd" weight="bold" style={{ color: d === 'in' ? Colors.inbound : Colors.outbound }}>
-                      {d === 'in' ? 'הכנסה' : 'הוצאה'}
+                    <MaterialCommunityIcons name={d === 'IN' ? 'arrow-down' : 'arrow-up'} size={22} color={d === 'IN' ? Colors.inbound : Colors.outbound} />
+                    <AppText variant="bodyMd" weight="bold" style={{ color: d === 'IN' ? Colors.inbound : Colors.outbound }}>
+                      {d === 'IN' ? 'הכנסה' : 'הוצאה'}
                     </AppText>
                   </Pressable>
                 ))}
@@ -822,9 +897,9 @@ export function ContractCreateWizard({
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
           <Button
-            label={step === STEPS.length - 1 ? 'סיום' : 'הבא'}
+            label={step === STEPS.length - 1 ? (contractId ? 'שמור שינויים' : 'סיום') : 'הבא'}
             onPress={goNext}
-            disabled={false}
+            disabled={submitting}
             fullWidth
             size="lg"
           />

@@ -32,7 +32,8 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AddAssetToProjectActions } from '@/components/modules/assets/AddAssetToProjectActions';
-import { MOCK_PROJECTS, assetsForProject, type ProjectEntity } from '@/lib/mocks/assets';
+import { assetsForProject } from '@/lib/mocks/assets';
+import { createProject } from '@/lib/api/projects';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,20 +102,6 @@ const DOCUMENT_TYPE_ORDER: DocumentType[] = [
 
 const STEP_TITLES = ['פרטי הפרויקט', 'הוספת קבצים', 'הוספת נכסים'];
 
-function createDraftProjectFromStep1(s: Step1Data): string {
-  const id = `p_new_${Date.now()}`;
-  const row: ProjectEntity = {
-    id,
-    kind: 'project',
-    name: s.name.trim() || 'פרויקט חדש',
-    address: s.address.trim() || '',
-    assetCount: 0,
-    occupancy: 'construction',
-    role: { kind: 'owner' },
-  };
-  MOCK_PROJECTS.push(row);
-  return id;
-}
 
 function Step3ProjectAssets({
   draftProjectId,
@@ -1052,6 +1039,7 @@ export default function NewProjectScreen() {
 
   const [draftProjectId, setDraftProjectId] = useState<string | null>(null);
   const [step3Refresh, setStep3Refresh] = useState(0);
+  const [isCreating, setIsCreating] = useState(false);
 
   const [step1Submitted, setStep1Submitted] = useState(false);
 
@@ -1073,7 +1061,7 @@ export default function NewProjectScreen() {
     }, [step, bumpStep3List]),
   );
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       setStep1Submitted(true);
       if (!step1Valid) return;
@@ -1081,13 +1069,32 @@ export default function NewProjectScreen() {
       return;
     }
     if (step === 2) {
-      const id = draftProjectId ?? createDraftProjectFromStep1(step1);
-      setDraftProjectId(id);
-      setStep(3);
+      if (draftProjectId) {
+        setStep(3);
+        return;
+      }
+      setIsCreating(true);
+      try {
+        const addressJson = step1.addressSuggestion
+          ? { label: step1.addressSuggestion.label, street: step1.addressSuggestion.street, city: step1.addressSuggestion.city }
+          : step1.address.trim()
+            ? { label: step1.address.trim() }
+            : undefined;
+        const project = await createProject({
+          name: step1.name.trim() || 'פרויקט חדש',
+          addressJson,
+        });
+        setDraftProjectId(project.id);
+        setStep(3);
+      } catch (error) {
+        console.warn(error instanceof Error ? error.message : 'Failed to create project');
+      } finally {
+        setIsCreating(false);
+      }
       return;
     }
     if (step === 3) {
-      router.back();
+      router.replace(`/(app)/projects/${draftProjectId}`);
     }
   };
 
@@ -1152,10 +1159,11 @@ export default function NewProjectScreen() {
           </Pressable>
         )}
         <Button
-          label={step === 3 ? 'סיום' : 'הבא'}
+          label={isCreating ? 'יוצר פרויקט...' : step === 3 ? 'סיום' : 'הבא'}
           onPress={handleNext}
           style={wizardStyles.footerPrimary}
           variant="primary"
+          disabled={isCreating}
         />
       </View>
     </KeyboardAvoidingView>

@@ -250,7 +250,7 @@ function eventsFromContracts(): DashboardCalendarEvent[] {
         title: c.contractName,
         dateKey: dk,
         sortOrder: 100 + i,
-        statusLabel: c.status === 'active' ? 'פעיל' : c.status === 'draft' ? 'טיוטה' : 'פג תוקף',
+        statusLabel: c.status === 'ACTIVE' ? 'פעיל' : c.status === 'DRAFT' ? 'טיוטה' : 'פג תוקף',
         detail: c.counterpartyName,
         href: `/(app)/contracts/${c.id}`,
       });
@@ -266,7 +266,7 @@ function eventsFromContracts(): DashboardCalendarEvent[] {
           title: `חידוש נדרש: ${c.contractName}`,
           dateKey: renewDk,
           sortOrder: 150 + i,
-          statusLabel: c.status === 'expired' ? 'פג תוקף' : 'חידוש קרוב',
+          statusLabel: c.status === 'EXPIRED' ? 'פג תוקף' : 'חידוש קרוב',
           detail: `${c.counterpartyName} · תוקף פג`,
           href: `/(app)/contracts/${c.id}`,
         });

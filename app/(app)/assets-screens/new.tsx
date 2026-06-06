@@ -13,7 +13,7 @@ import {
   Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MOCK_PROJECTS } from '@/lib/mocks/assets';
 import { MOCK_CONTRACTS_LIST, CONTRACT_TYPE_LABELS } from '@/lib/mocks/contracts';
 import { DocumentType, DOCUMENT_TYPE_LABELS } from '@/lib/mocks/documents';
@@ -35,6 +35,7 @@ import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
 import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
+import { consumePreloadedProject } from '@/lib/navigation-state';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1596,20 +1597,14 @@ const STEP_TITLES = ['פרטי הנכס', 'הוספת קבצים', 'חוזה'];
 
 export default function NewAssetScreen() {
   const insets = useSafeAreaInsets();
-  const { editId, preloadedProjectId, preloadedProjectName } = useLocalSearchParams<{
-    editId?: string;
-    preloadedProjectId?: string;
-    preloadedProjectName?: string;
-  }>();
+  const { editId } = useLocalSearchParams<{ editId?: string }>();
 
   const isEditMode = !!editId;
   const [editProperty, setEditProperty] = useState<BackendProperty | null>(null);
 
   const [step, setStep] = useState(1);
 
-  const preloadedAppliedRef = useRef(false);
-
-  const [step1, setStep1] = useState<Step1Data>(() => ({
+  const [step1, setStep1] = useState<Step1Data>({
     kind: null,
     address: '',
     addressSuggestion: null,
@@ -1629,7 +1624,20 @@ export default function NewAssetScreen() {
     propertyTax: '',
     assetValue: '',
     meters: [],
-  }));
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isEditMode) return;
+      const ctx = consumePreloadedProject();
+      if (!ctx) return;
+      setStep1((prev) => ({
+        ...prev,
+        linkedProjectId: ctx.projectId,
+        linkedProjectName: ctx.projectName,
+      }));
+    }, [isEditMode]),
+  );
 
   useEffect(() => {
     if (!editId) return;
@@ -1651,20 +1659,6 @@ export default function NewAssetScreen() {
       cancelled = true;
     };
   }, [editId]);
-
-  useEffect(() => {
-    if (isEditMode || preloadedAppliedRef.current) return;
-    const pid = typeof preloadedProjectId === 'string' ? preloadedProjectId : undefined;
-    if (!pid) return;
-    preloadedAppliedRef.current = true;
-    const nameFromParam =
-      typeof preloadedProjectName === 'string' ? preloadedProjectName : MOCK_PROJECTS.find((p) => p.id === pid)?.name;
-    setStep1((prev) => ({
-      ...prev,
-      linkedProjectId: pid,
-      linkedProjectName: nameFromParam ?? null,
-    }));
-  }, [isEditMode, preloadedProjectId, preloadedProjectName]);
 
   const [step2, setStep2] = useState<Step2Data>({
     files: [],

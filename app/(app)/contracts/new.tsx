@@ -16,7 +16,7 @@ export default function NewContractScreen() {
         id: preloadId,
         name: preloadName ?? '',
         address: preloadAddress ?? '',
-        kind: (preloadKind as LinkKind) ?? 'asset',
+        kind: (preloadKind as LinkKind) ?? 'PROPERTY',
       }
     : undefined;
 

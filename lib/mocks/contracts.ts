@@ -1,32 +1,36 @@
 /** Mock data + types for Contracts module UI (no backend). */
 
+/** ערך כללי לשיוך ישות — משותף לכל מודולי המוק */
 export type LinkKind = 'asset' | 'project';
 
-export type ContractTypeKey = 'rent' | 'purchase' | 'supplier_work' | 'other';
+/** ערך שיוך ספציפי לחוזים — תואם לבקאנד */
+export type ContractLinkKind = 'PROJECT' | 'PROPERTY';
+
+export type ContractTypeKey = 'RENT' | 'PURCHASE' | 'SUPPLIER_WORK' | 'OTHER';
 
 export const CONTRACT_TYPE_LABELS: Record<ContractTypeKey, string> = {
-  rent: 'שכירות',
-  purchase: 'רכישה',
-  supplier_work: 'הסכם עבודה עם ספק',
-  other: 'אחר',
+  RENT: 'שכירות',
+  PURCHASE: 'רכישה',
+  SUPPLIER_WORK: 'הסכם עבודה עם ספק',
+  OTHER: 'אחר',
 };
 
 /** הרשאות גישה לחוזה / לקבצים בהעלאה (אותו מפתח לשני השימושים ב־UI) */
-export type ContractAccessLevel = 'owner_only' | 'tenant_only' | 'employee_only' | 'public';
+export type ContractAccessLevel = 'OWNER_ONLY' | 'TENANT_ONLY' | 'EMPLOYEE_ONLY' | 'PUBLIC';
 
 export const CONTRACT_ACCESS_LABELS: Record<ContractAccessLevel, string> = {
-  owner_only: 'פרטי (בעל הנכס בלבד)',
-  tenant_only: 'שוכר בלבד (שוכר ובעל הנכס)',
-  employee_only: 'עובד בלבד (עובד ובעל הנכס)',
-  public: 'ציבורי',
+  OWNER_ONLY: 'פרטי (בעל הנכס בלבד)',
+  TENANT_ONLY: 'שוכר בלבד (שוכר ובעל הנכס)',
+  EMPLOYEE_ONLY: 'עובד בלבד (עובד ובעל הנכס)',
+  PUBLIC: 'ציבורי',
 };
 
-export type ContractStatusKey = 'active' | 'expired' | 'draft';
+export type ContractStatusKey = 'ACTIVE' | 'EXPIRED' | 'DRAFT';
 
 export const CONTRACT_STATUS_LABELS: Record<ContractStatusKey, string> = {
-  active: 'פעיל',
-  expired: 'פג תוקף',
-  draft: 'טיוטה',
+  ACTIVE: 'פעיל',
+  EXPIRED: 'פג תוקף',
+  DRAFT: 'טיוטה',
 };
 
 /** שורה ברשימת החוזים */
@@ -34,7 +38,7 @@ export type ContractListRow = {
   id: string;
   contractName: string;
   contractType: ContractTypeKey;
-  linkKind: LinkKind;
+  linkKind: ContractLinkKind;
   linkId: string;
   linkLabel: string;
   counterpartyName: string;
@@ -68,72 +72,72 @@ export const MOCK_CONTRACTS_LIST: ContractListRow[] = [
   {
     id: 'c1',
     contractName: 'חוזה שכירות — דירה 4B',
-    contractType: 'rent',
-    linkKind: 'asset',
+    contractType: 'RENT',
+    linkKind: 'PROPERTY',
     linkId: 'a1',
     linkLabel: 'דירה 4B',
     counterpartyName: 'יוסי כהן',
     agreementDate: '01/01/2024',
-    status: 'active',
+    status: 'ACTIVE',
   },
   {
     id: 'c2',
     contractName: 'חוזה משרד 201',
-    contractType: 'rent',
-    linkKind: 'asset',
+    contractType: 'RENT',
+    linkKind: 'PROPERTY',
     linkId: 'a3',
     linkLabel: 'משרד 201',
     counterpartyName: 'מיכל לוי',
     agreementDate: '01/03/2024',
-    status: 'active',
+    status: 'ACTIVE',
   },
   {
     id: 'c3',
     contractName: 'רכישת מערכת מיזוג',
-    contractType: 'purchase',
-    linkKind: 'project',
+    contractType: 'PURCHASE',
+    linkKind: 'PROJECT',
     linkId: 'p1',
     linkLabel: 'מגדלי הים',
     counterpartyName: 'חברת קור בע"מ',
     agreementDate: '15/06/2025',
-    status: 'draft',
+    status: 'DRAFT',
   },
   {
     id: 'c4',
     contractName: 'הסכם תחזוקה שוטפת',
-    contractType: 'supplier_work',
-    linkKind: 'project',
+    contractType: 'SUPPLIER_WORK',
+    linkKind: 'PROJECT',
     linkId: 'p2',
     linkLabel: 'גני הדר',
     counterpartyName: 'אינסטלציה דן',
     agreementDate: '01/01/2025',
-    status: 'active',
+    status: 'ACTIVE',
   },
   {
     id: 'c5',
     contractName: 'הסכם כללי — בית פרטי',
-    contractType: 'other',
-    linkKind: 'asset',
+    contractType: 'OTHER',
+    linkKind: 'PROPERTY',
     linkId: 'a4',
     linkLabel: 'בית פרטי',
     counterpartyName: 'דוד גל',
     agreementDate: '01/06/2023',
-    status: 'expired',
+    status: 'EXPIRED',
   },
   {
     id: 'c6',
     contractName: 'שכירות חנות',
-    contractType: 'rent',
-    linkKind: 'asset',
+    contractType: 'RENT',
+    linkKind: 'PROPERTY',
     linkId: 'a5',
     linkLabel: 'חנות קרקע',
     counterpartyName: 'שירותים לוגיסטיים בע"מ',
     agreementDate: '10/02/2024',
-    status: 'active',
+    status: 'ACTIVE',
   },
 ];
 
-export type LinkScopeFilter = 'all' | 'asset' | 'project';
+export type LinkScopeFilter = 'all' | 'PROPERTY' | 'PROJECT';
 
 export type ContractTypeFilter = 'all' | ContractTypeKey;
 
@@ -178,8 +182,8 @@ export function filterContractRows(
   const from = opts.dateFrom ?? '';
   const to = opts.dateTo ?? '';
   return rows.filter((r) => {
-    if (opts.linkScope === 'asset' && r.linkKind !== 'asset') return false;
-    if (opts.linkScope === 'project' && r.linkKind !== 'project') return false;
+    if (opts.linkScope === 'PROPERTY' && r.linkKind !== 'PROPERTY') return false;
+    if (opts.linkScope === 'PROJECT' && r.linkKind !== 'PROJECT') return false;
     if (opts.typeFilter !== 'all' && r.contractType !== opts.typeFilter) return false;
     if (opts.entityId && r.linkId !== opts.entityId) return false;
     if (!agreementDateInRange(r.agreementDate, from, to)) return false;
@@ -248,7 +252,7 @@ export function sortContractRows(
 /** פירוט חוזה למסך פרטים (mock לפי id) */
 export type ContractPaymentMock = {
   id: string;
-  direction: 'in' | 'out';
+  direction: 'IN' | 'OUT';
   categoryLabel: string;
   amount: string;
   date: string;
@@ -257,7 +261,7 @@ export type ContractPaymentMock = {
 
 export type ContractMeterMock = {
   id: string;
-  kind: 'electric' | 'water' | 'gas' | 'other';
+  kind: 'ELECTRIC' | 'WATER' | 'GAS' | 'OTHER';
   name: string;
   identifier: string;
   value: string;
@@ -272,17 +276,17 @@ export type ContractFileMock = {
 };
 
 export const METER_KIND_LABELS: Record<ContractMeterMock['kind'], string> = {
-  electric: 'חשמל',
-  water: 'מים',
-  gas: 'גז',
-  other: 'אחר',
+  ELECTRIC: 'חשמל',
+  WATER: 'מים',
+  GAS: 'גז',
+  OTHER: 'אחר',
 };
 
 export const METER_KIND_ICONS: Record<ContractMeterMock['kind'], string> = {
-  electric: 'lightning-bolt',
-  water: 'water',
-  gas: 'fire',
-  other: 'gauge',
+  ELECTRIC: 'lightning-bolt',
+  WATER: 'water',
+  GAS: 'fire',
+  OTHER: 'gauge',
 };
 
 export type ContractDetailMock = ContractListRow & {
@@ -320,15 +324,15 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
           email: 'yossi@example.com',
           contactName: 'יוסי כהן',
           endDate: '31/12/2025',
-          accessLevel: 'tenant_only',
+          accessLevel: 'TENANT_ONLY',
           payments: [
-            { id: 'p1', direction: 'in', categoryLabel: 'שכירות', amount: '₪7,200', date: '01/01/2025', notes: 'ינואר 2025' },
-            { id: 'p2', direction: 'in', categoryLabel: 'שכירות', amount: '₪7,200', date: '01/02/2025', notes: 'פברואר 2025' },
-            { id: 'p3', direction: 'out', categoryLabel: 'תחזוקה', amount: '₪450', date: '15/01/2025', notes: 'תיקון מזגן' },
+            { id: 'p1', direction: 'IN', categoryLabel: 'שכירות', amount: '₪7,200', date: '01/01/2025', notes: 'ינואר 2025' },
+            { id: 'p2', direction: 'IN', categoryLabel: 'שכירות', amount: '₪7,200', date: '01/02/2025', notes: 'פברואר 2025' },
+            { id: 'p3', direction: 'OUT', categoryLabel: 'תחזוקה', amount: '₪450', date: '15/01/2025', notes: 'תיקון מזגן' },
           ],
           meters: [
-            { id: 'm1', kind: 'electric', name: 'חשמל ראשי', identifier: '12345678', value: '1,234 קוט"ש' },
-            { id: 'm2', kind: 'water', name: 'מים', identifier: '87654321', value: '98 מ"ק' },
+            { id: 'm1', kind: 'ELECTRIC', name: 'חשמל ראשי', identifier: '12345678', value: '1,234 קוט"ש' },
+            { id: 'm2', kind: 'WATER', name: 'מים', identifier: '87654321', value: '98 מ"ק' },
           ],
           files: [
             ...baseFiles,
@@ -345,13 +349,13 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
             email: 'michal@example.com',
             contactName: 'מיכל לוי',
             endDate: '28/02/2026',
-            accessLevel: 'owner_only',
+            accessLevel: 'OWNER_ONLY',
             payments: [
-              { id: 'p1', direction: 'in', categoryLabel: 'שכירות', amount: '₪12,000', date: '01/03/2025', notes: 'מרץ 2025' },
-              { id: 'p2', direction: 'out', categoryLabel: 'ניהול', amount: '₪800', date: '01/03/2025', notes: 'דמי ניהול' },
+              { id: 'p1', direction: 'IN', categoryLabel: 'שכירות', amount: '₪12,000', date: '01/03/2025', notes: 'מרץ 2025' },
+              { id: 'p2', direction: 'OUT', categoryLabel: 'ניהול', amount: '₪800', date: '01/03/2025', notes: 'דמי ניהול' },
             ],
             meters: [
-              { id: 'm1', kind: 'electric', name: 'חשמל', identifier: '22334455', value: '2,100 קוט"ש' },
+              { id: 'm1', kind: 'ELECTRIC', name: 'חשמל', identifier: '22334455', value: '2,100 קוט"ש' },
             ],
             files: [
               ...baseFiles,
@@ -365,7 +369,7 @@ export function getContractDetailMock(id: string): ContractDetailMock | null {
             email: '—',
             contactName: row.counterpartyName,
             endDate: '—',
-            accessLevel: 'public',
+            accessLevel: 'PUBLIC',
             payments: [],
             meters: [],
             files: baseFiles,
