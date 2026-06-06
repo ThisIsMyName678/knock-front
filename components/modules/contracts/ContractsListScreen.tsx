@@ -19,7 +19,6 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import {
-  MOCK_ENTITY_LINKS,
   CONTRACT_TYPE_LABELS,
   CONTRACT_STATUS_LABELS,
   type ContractSortKey,
@@ -28,6 +27,8 @@ import {
   type ContractTypeFilter,
 } from '@/lib/mocks/contracts';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
+import { listProjects } from '@/lib/api/projects';
+import { listProperties } from '@/lib/api/properties';
 import {
   Colors,
   Spacing,
@@ -160,6 +161,7 @@ export function ContractsListScreen() {
   const [agreementDateTo, setAgreementDateTo] = useState('');
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [entityLinks, setEntityLinks] = useState<Array<{ id: string; kind: 'asset' | 'project'; name: string }>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,6 +179,17 @@ export function ContractsListScreen() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo]);
+
+  useEffect(() => {
+    Promise.all([listProjects(), listProperties()])
+      .then(([projects, properties]) => {
+        setEntityLinks([
+          ...projects.map((p) => ({ id: p.id, kind: 'project' as const, name: p.name })),
+          ...properties.map((p) => ({ id: p.id, kind: 'asset' as const, name: p.name })),
+        ]);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Fixed sort handler: no nested setState ──
   const handleSortKeyChange = useCallback((key: string) => {
@@ -225,14 +238,13 @@ export function ContractsListScreen() {
 
   const entityOptionsForScope = useMemo(
     () =>
-      MOCK_ENTITY_LINKS.filter((e) => {
-        if (linkScope === 'all') return true;
-        return e.kind === (linkScope === 'PROPERTY' ? 'asset' : 'project');
-      }).map((e) => ({
-        key: e.id,
-        label: e.name,
-      })),
-    [linkScope],
+      entityLinks
+        .filter((e) => {
+          if (linkScope === 'all') return true;
+          return e.kind === (linkScope === 'PROPERTY' ? 'asset' : 'project');
+        })
+        .map((e) => ({ key: e.id, label: e.name })),
+    [linkScope, entityLinks],
   );
 
   // ── Count: scope + entity (typeFilter is visible in tabs, not counted here) ──

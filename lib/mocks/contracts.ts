@@ -68,7 +68,7 @@ export const MOCK_ENTITY_LINKS: EntityLinkOption[] = [
   { id: 'a5', kind: 'asset', name: 'חנות קרקע', address: 'דיזנגוף 120, תל אביב' },
 ];
 
-export const MOCK_CONTRACTS_LIST: ContractListRow[] = [
+const MOCK_CONTRACTS_LIST: ContractListRow[] = [
   {
     id: 'c1',
     contractName: 'חוזה שכירות — דירה 4B',
@@ -302,7 +302,7 @@ export type ContractDetailMock = ContractListRow & {
   files: ContractFileMock[];
 };
 
-export function getContractDetailMock(id: string): ContractDetailMock | null {
+function getContractDetailMock(id: string): ContractDetailMock | null {
   const row = MOCK_CONTRACTS_LIST.find((r) => r.id === id);
   if (!row) return null;
 

@@ -15,7 +15,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MOCK_PROJECTS } from '@/lib/mocks/assets';
-import { MOCK_CONTRACTS_LIST, CONTRACT_TYPE_LABELS } from '@/lib/mocks/contracts';
+import { CONTRACT_TYPE_LABELS } from '@/lib/mocks/contracts';
+import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import { DocumentType, DOCUMENT_TYPE_LABELS } from '@/lib/mocks/documents';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
@@ -1408,11 +1409,19 @@ function Step3({
   const update = <K extends keyof Step3Data>(key: K, val: Step3Data[K]) =>
     setData((prev) => ({ ...prev, [key]: val }));
 
-  const filteredContracts = MOCK_CONTRACTS_LIST.filter((c) => {
-    const q = data.contractSearch.trim().toLowerCase();
-    if (!q) return true;
-    return `${c.contractName} ${c.linkLabel} ${c.counterpartyName}`.toLowerCase().includes(q);
-  });
+  const [searchResults, setSearchResults] = useState<ContractListItem[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (data.choice !== 'link') return;
+    let cancelled = false;
+    setSearching(true);
+    fetchContracts(data.contractSearch.trim() ? { search: data.contractSearch.trim() } : {})
+      .then((results) => { if (!cancelled) setSearchResults(results); })
+      .catch(() => { if (!cancelled) setSearchResults([]); })
+      .finally(() => { if (!cancelled) setSearching(false); });
+    return () => { cancelled = true; };
+  }, [data.contractSearch, data.choice]);
 
   const handleCreateNew = () => {
     router.push({
@@ -1516,10 +1525,12 @@ function Step3({
               </View>
 
               {/* Results */}
-              {filteredContracts.length === 0 ? (
+              {searching ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ alignSelf: 'center' }} />
+              ) : searchResults.length === 0 ? (
                 <AppText variant="bodySm" color="variant" style={{ textAlign: 'right' }}>לא נמצאו חוזים תואמים.</AppText>
               ) : (
-                filteredContracts.map((c) => (
+                searchResults.map((c) => (
                   <Pressable
                     key={c.id}
                     onPress={() => setData((prev) => ({ ...prev, linkedContractId: c.id, linkedContractName: c.contractName, contractSearch: '' }))}
@@ -1532,7 +1543,7 @@ function Step3({
                         {c.counterpartyName} · {c.linkLabel}
                       </AppText>
                     </View>
-                    <Badge label={CONTRACT_TYPE_LABELS[c.contractType]} preset="neutral" />
+                    <Badge label={CONTRACT_TYPE_LABELS[c.contractType as keyof typeof CONTRACT_TYPE_LABELS] ?? c.contractType} preset="neutral" />
                   </Pressable>
                 ))
               )}
