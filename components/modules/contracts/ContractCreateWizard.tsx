@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -24,9 +24,10 @@ import { Badge } from '@/components/ui/Badge';
 import {
   CONTRACT_TYPE_LABELS,
   CONTRACT_ACCESS_LABELS,
-  filterEntitiesByQuery,
   type EntityLinkOption,
 } from '@/lib/mocks/contracts';
+import { listProjects, projectAddressLabel } from '@/lib/api/projects';
+import { listProperties, propertyAddressLabel } from '@/lib/api/properties';
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { createContract, updateContract } from '@/lib/api/contracts';
 import type { ContractType, ContractAccessLevel, ContractDetail, CreateContractInput } from '@/lib/api/contracts';
@@ -190,7 +191,29 @@ export function ContractCreateWizard({
   const [files, setFiles] = useState<FileDraft[]>([]);
   const [categoryModal, setCategoryModal] = useState(false);
 
-  const entitySuggestions = useMemo(() => filterEntitiesByQuery(linkQuery), [linkQuery]);
+  const [entitySuggestions, setEntitySuggestions] = useState<EntityLinkOption[]>([]);
+
+  useEffect(() => {
+    if (linkSelected) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const [projects, properties] = await Promise.all([
+          listProjects({ search: linkQuery }),
+          listProperties({ search: linkQuery }),
+        ]);
+        if (!cancelled) {
+          setEntitySuggestions([
+            ...projects.map((p) => ({ id: p.id, kind: 'project' as const, name: p.name, address: projectAddressLabel(p) })),
+            ...properties.map((p) => ({ id: p.id, kind: 'asset' as const, name: p.name, address: propertyAddressLabel(p) })),
+          ]);
+        }
+      } catch {
+        // ignore search errors
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [linkQuery, linkSelected]);
 
   const onAgreementDateChange = useCallback(
     (t: string) => {

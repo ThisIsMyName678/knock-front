@@ -17,6 +17,7 @@ import {
 import { fetchContractById, archiveContract } from '@/lib/api/contracts';
 import type { ContractDetail, ContractPayment, ContractMeter, ContractFile, MeterKind } from '@/lib/api/contracts';
 import { fetchPayments, createPayment, deletePayment } from '@/lib/api/contract-payments';
+import { fetchMeters, createMeter, updateMeter, deleteMeter } from '@/lib/api/contract-meters';
 import { Input } from '@/components/ui/Input';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH, FontSize, FontFamily } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
@@ -148,29 +149,43 @@ function PaymentsSection({
 
 // ─── Meters Section ───────────────────────────────────────────────────────────
 
-function MetersSection({ meters }: { meters: ContractMeter[] }) {
+const METER_KIND_COLORS: Record<MeterKind, string> = {
+  ELECTRIC: '#F59E0B',
+  WATER: '#3B82F6',
+  GAS: Colors.error,
+  OTHER: Colors.onSurfaceVariant,
+};
+
+function MetersSection({
+  meters,
+  onAdd,
+  onEdit,
+  onDelete,
+}: {
+  meters: ContractMeter[];
+  onAdd: () => void;
+  onEdit: (m: ContractMeter) => void;
+  onDelete: (id: string) => void;
+}) {
   if (meters.length === 0) {
     return (
       <View style={sec.wrap}>
         <SectionHeader title="מונים" count={0} />
         <AppText variant="bodySm" color="muted">לא תועדו מונים לחוזה זה</AppText>
+        <Pressable onPress={onAdd} style={sec.addBtn} accessibilityRole="button">
+          <MaterialCommunityIcons name="plus" size={16} color={Colors.primary} />
+          <AppText variant="bodySm" weight="semiBold" color="primary">הוסף מונה</AppText>
+        </Pressable>
       </View>
     );
   }
-
-  const kindColor: Record<MeterKind, string> = {
-    ELECTRIC: Colors.warning ?? '#F59E0B',
-    WATER: Colors.info ?? '#3B82F6',
-    GAS: Colors.error,
-    OTHER: Colors.onSurfaceVariant,
-  };
 
   return (
     <View style={sec.wrap}>
       <SectionHeader title="מונים" count={meters.length} />
       <View style={sec.metersGrid}>
         {meters.map((m) => {
-          const color = kindColor[m.kind];
+          const color = METER_KIND_COLORS[m.kind];
           return (
             <Card key={m.id} style={sec.meterCard}>
               <View style={[sec.meterIconWrap, { backgroundColor: `${color}18` }]}>
@@ -186,10 +201,22 @@ function MetersSection({ meters }: { meters: ContractMeter[] }) {
                 <AppText variant="bodyMd" weight="bold">{m.currentValue ?? '—'}</AppText>
               </View>
               <AppText variant="caption" color="muted" style={{ textAlign: 'center' }}>מזהה: {m.identifier}</AppText>
+              <View style={sec.meterActions}>
+                <Pressable onPress={() => onEdit(m)} hitSlop={8} accessibilityRole="button" accessibilityLabel="ערוך מונה">
+                  <MaterialCommunityIcons name="pencil-outline" size={16} color={Colors.primary} />
+                </Pressable>
+                <Pressable onPress={() => onDelete(m.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="מחק מונה">
+                  <MaterialCommunityIcons name="delete-outline" size={16} color={Colors.error} />
+                </Pressable>
+              </View>
             </Card>
           );
         })}
       </View>
+      <Pressable onPress={onAdd} style={sec.addBtn} accessibilityRole="button">
+        <MaterialCommunityIcons name="plus" size={16} color={Colors.primary} />
+        <AppText variant="bodySm" weight="semiBold" color="primary">הוסף מונה</AppText>
+      </Pressable>
     </View>
   );
 }
@@ -288,6 +315,15 @@ const sec = StyleSheet.create({
     paddingTop: Spacing.xs,
     marginTop: Spacing.xs,
   },
+  meterActions: {
+    flexDirection: RTL_ROW,
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: Spacing.xs,
+    paddingTop: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineLight,
+  },
   addBtn: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
@@ -340,6 +376,15 @@ export default function ContractDetailScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [payments, setPayments] = useState<ContractPayment[]>([]);
+  const [meters, setMeters] = useState<ContractMeter[]>([]);
+  const [meterModalVisible, setMeterModalVisible] = useState(false);
+  const [meterModalMode, setMeterModalMode] = useState<'add' | 'edit'>('add');
+  const [meterEditId, setMeterEditId] = useState<string | null>(null);
+  const [meterKind, setMeterKind] = useState<MeterKind>('ELECTRIC');
+  const [meterName, setMeterName] = useState('');
+  const [meterIdentifier, setMeterIdentifier] = useState('');
+  const [meterValue, setMeterValue] = useState('');
+  const [meterSaving, setMeterSaving] = useState(false);
   const [addPaymentVisible, setAddPaymentVisible] = useState(false);
   const [payDirection, setPayDirection] = useState<'IN' | 'OUT'>('IN');
   const [payCategory, setPayCategory] = useState('');
@@ -360,6 +405,10 @@ export default function ContractDetailScreen() {
 
   useEffect(() => {
     if (detail) setPayments(detail.payments);
+  }, [detail]);
+
+  useEffect(() => {
+    if (detail) setMeters(detail.meters);
   }, [detail]);
 
   const refreshPayments = useCallback(async () => {
@@ -400,6 +449,72 @@ export default function ContractDetailScreen() {
       setPaySaving(false);
     }
   }, [id, payDirection, payCategory, payAmount, payDate, payNotes, refreshPayments]);
+
+  const refreshMeters = useCallback(async () => {
+    if (!id) return;
+    try {
+      const updated = await fetchMeters(id);
+      setMeters(updated);
+    } catch { /* silent */ }
+  }, [id]);
+
+  const openAddMeter = useCallback(() => {
+    setMeterModalMode('add');
+    setMeterEditId(null);
+    setMeterKind('ELECTRIC');
+    setMeterName('');
+    setMeterIdentifier('');
+    setMeterValue('');
+    setMeterModalVisible(true);
+  }, []);
+
+  const openEditMeter = useCallback((m: ContractMeter) => {
+    setMeterModalMode('edit');
+    setMeterEditId(m.id);
+    setMeterKind(m.kind);
+    setMeterName(m.name);
+    setMeterIdentifier(m.identifier);
+    setMeterValue(m.currentValue ?? '');
+    setMeterModalVisible(true);
+  }, []);
+
+  const handleSaveMeter = useCallback(async () => {
+    if (!id || !meterName.trim() || !meterIdentifier.trim()) return;
+    setMeterSaving(true);
+    try {
+      const dto = { kind: meterKind, name: meterName.trim(), identifier: meterIdentifier.trim(), currentValue: meterValue.trim() || null };
+      if (meterModalMode === 'add') {
+        await createMeter(id, dto);
+      } else if (meterEditId) {
+        await updateMeter(id, meterEditId, dto);
+      }
+      setMeterModalVisible(false);
+      await refreshMeters();
+    } catch {
+      Alert.alert('שגיאה', 'לא ניתן לשמור את המונה');
+    } finally {
+      setMeterSaving(false);
+    }
+  }, [id, meterModalMode, meterEditId, meterKind, meterName, meterIdentifier, meterValue, refreshMeters]);
+
+  const handleDeleteMeter = useCallback((meterId: string) => {
+    if (!id) return;
+    Alert.alert('מחיקת מונה', 'האם למחוק את המונה?', [
+      { text: 'ביטול', style: 'cancel' },
+      {
+        text: 'מחק',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteMeter(id, meterId);
+            await refreshMeters();
+          } catch {
+            Alert.alert('שגיאה', 'לא ניתן למחוק את המונה');
+          }
+        },
+      },
+    ]);
+  }, [id, refreshMeters]);
 
   const handleDeletePayment = useCallback((paymentId: string) => {
     if (!id) return;
@@ -570,7 +685,7 @@ export default function ContractDetailScreen() {
         <PaymentsSection payments={payments} onAdd={openAddPayment} onDelete={handleDeletePayment} />
 
         {/* ─── Meters ─── */}
-        <MetersSection meters={detail.meters} />
+        <MetersSection meters={meters} onAdd={openAddMeter} onEdit={openEditMeter} onDelete={handleDeleteMeter} />
 
         {/* ─── Files / Images ─── */}
         <FilesSection files={detail.files} />
@@ -590,6 +705,64 @@ export default function ContractDetailScreen() {
           style={{ marginTop: Spacing.sm }}
         />
       </ScrollView>
+
+      {/* ─── Add / Edit Meter Modal ─── */}
+      <Modal
+        visible={meterModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMeterModalVisible(false)}
+      >
+        <Pressable style={modal.backdrop} onPress={() => setMeterModalVisible(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <Pressable style={modal.sheet} onPress={(e) => e.stopPropagation()}>
+              <View style={modal.handle} />
+              <AppText variant="labelLg" weight="bold" style={{ marginBottom: Spacing.md }}>
+                {meterModalMode === 'add' ? 'הוספת מונה' : 'עריכת מונה'}
+              </AppText>
+
+              <AppText variant="bodySm" color="muted" style={{ marginBottom: Spacing.xs }}>סוג מונה</AppText>
+              <View style={modal.kindGrid}>
+                {(['ELECTRIC', 'WATER', 'GAS', 'OTHER'] as const).map((k) => {
+                  const kColor = METER_KIND_COLORS[k];
+                  const selected = meterKind === k;
+                  return (
+                    <Pressable
+                      key={k}
+                      onPress={() => setMeterKind(k)}
+                      style={[modal.kindBtn, selected && { borderColor: kColor, backgroundColor: `${kColor}18` }]}
+                      accessibilityRole="button"
+                    >
+                      <MaterialCommunityIcons
+                        name={METER_KIND_ICONS[k] as React.ComponentProps<typeof MaterialCommunityIcons>['name']}
+                        size={16}
+                        color={selected ? kColor : Colors.onSurfaceVariant}
+                      />
+                      <AppText variant="caption" weight="semiBold" style={{ color: selected ? kColor : Colors.onSurfaceVariant }}>
+                        {METER_KIND_LABELS[k]}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Input label="שם מונה" value={meterName} onChangeText={setMeterName} containerStyle={{ marginTop: Spacing.md }} />
+              <Input label="מזהה / מספר מונה" value={meterIdentifier} onChangeText={setMeterIdentifier} containerStyle={{ marginTop: Spacing.md }} />
+              <Input label="ערך נוכחי (אופציונלי)" value={meterValue} onChangeText={setMeterValue} keyboardType="numeric" containerStyle={{ marginTop: Spacing.md }} />
+
+              <View style={modal.actions}>
+                <Button label="ביטול" variant="secondary" onPress={() => setMeterModalVisible(false)} style={{ flex: 1 }} />
+                <Button
+                  label={meterSaving ? 'שומר...' : meterModalMode === 'add' ? 'הוסף' : 'שמור'}
+                  onPress={handleSaveMeter}
+                  disabled={meterSaving || !meterName.trim() || !meterIdentifier.trim()}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
 
       {/* ─── Add Payment Modal ─── */}
       <Modal
@@ -719,4 +892,16 @@ const modal = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   actions: { flexDirection: RTL_ROW, gap: Spacing.sm, marginTop: Spacing.lg },
+  kindGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
+  kindBtn: {
+    width: '47%',
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
 });

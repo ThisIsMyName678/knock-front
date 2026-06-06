@@ -19,8 +19,19 @@ export type CreateProjectInput = {
   status?: BackendProject['status'];
 };
 
-export function listProjects(): Promise<BackendProject[]> {
-  return backendRequest<BackendProject[]>('/projects');
+export type ListProjectsParams = {
+  search?: string;
+};
+
+export function listProjects(params: ListProjectsParams = {}): Promise<BackendProject[]> {
+  const query = new URLSearchParams();
+  if (params.search?.trim()) query.set('search', params.search.trim());
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return backendRequest<BackendProject[]>(`/projects${suffix}`);
+}
+
+export function projectAddressLabel(project: BackendProject): string {
+  return addressJsonToLabel(project.addressJson);
 }
 
 export function getProject(id: string): Promise<BackendProject> {
