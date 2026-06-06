@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, Share, Alert, Image } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,11 +13,9 @@ import {
   CONTRACT_ACCESS_LABELS,
   METER_KIND_LABELS,
   METER_KIND_ICONS,
-  getContractDetailMock,
-  type ContractPaymentMock,
-  type ContractMeterMock,
-  type ContractFileMock,
 } from '@/lib/mocks/contracts';
+import { fetchContractById } from '@/lib/api/contracts';
+import type { ContractDetail, ContractPayment, ContractMeter, ContractFile, MeterKind } from '@/lib/api/contracts';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH, FontSize, FontFamily } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -55,7 +53,7 @@ const sh = StyleSheet.create({
 
 // ─── Payments Section ─────────────────────────────────────────────────────────
 
-function PaymentsSection({ payments }: { payments: ContractPaymentMock[] }) {
+function PaymentsSection({ payments }: { payments: ContractPayment[] }) {
   if (payments.length === 0) {
     return (
       <View style={sec.wrap}>
@@ -117,7 +115,7 @@ function PaymentsSection({ payments }: { payments: ContractPaymentMock[] }) {
 
 // ─── Meters Section ───────────────────────────────────────────────────────────
 
-function MetersSection({ meters }: { meters: ContractMeterMock[] }) {
+function MetersSection({ meters }: { meters: ContractMeter[] }) {
   if (meters.length === 0) {
     return (
       <View style={sec.wrap}>
@@ -127,7 +125,7 @@ function MetersSection({ meters }: { meters: ContractMeterMock[] }) {
     );
   }
 
-  const kindColor: Record<ContractMeterMock['kind'], string> = {
+  const kindColor: Record<MeterKind, string> = {
     ELECTRIC: Colors.warning ?? '#F59E0B',
     WATER: Colors.info ?? '#3B82F6',
     GAS: Colors.error,
@@ -152,7 +150,7 @@ function MetersSection({ meters }: { meters: ContractMeterMock[] }) {
               <AppText variant="labelMd" weight="bold" style={{ textAlign: 'center' }}>{m.name}</AppText>
               <AppText variant="bodySm" color="muted" style={{ textAlign: 'center' }}>{METER_KIND_LABELS[m.kind]}</AppText>
               <View style={sec.meterValueRow}>
-                <AppText variant="bodyMd" weight="bold">{m.value}</AppText>
+                <AppText variant="bodyMd" weight="bold">{m.currentValue ?? '—'}</AppText>
               </View>
               <AppText variant="caption" color="muted" style={{ textAlign: 'center' }}>מזהה: {m.identifier}</AppText>
             </Card>
@@ -165,7 +163,7 @@ function MetersSection({ meters }: { meters: ContractMeterMock[] }) {
 
 // ─── Files Section ────────────────────────────────────────────────────────────
 
-function FilesSection({ files }: { files: ContractFileMock[] }) {
+function FilesSection({ files }: { files: ContractFile[] }) {
   if (files.length === 0) {
     return (
       <View style={sec.wrap}>
@@ -187,19 +185,13 @@ function FilesSection({ files }: { files: ContractFileMock[] }) {
             accessibilityRole="button"
             accessibilityLabel={`פתח ${f.displayName}`}
           >
-            {f.type === 'image' && f.previewUri ? (
-              <Image
-                source={{ uri: f.previewUri }}
-                style={sec.fileThumb}
-                resizeMode="cover"
-              />
+            {f.fileType === 'image' ? (
+              <View style={[sec.fileThumb, sec.fileImgThumb]}>
+                <MaterialCommunityIcons name="image-outline" size={36} color={Colors.primary} />
+              </View>
             ) : (
               <View style={[sec.fileThumb, sec.filePdfThumb]}>
-                <MaterialCommunityIcons
-                  name="file-pdf-box"
-                  size={36}
-                  color={Colors.error}
-                />
+                <MaterialCommunityIcons name="file-pdf-box" size={36} color={Colors.error} />
               </View>
             )}
             <View style={sec.fileInfo}>
@@ -282,6 +274,11 @@ const sec = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  fileImgThumb: {
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   fileInfo: {
     padding: Spacing.sm,
     gap: 2,
@@ -293,7 +290,19 @@ const sec = StyleSheet.create({
 export default function ContractDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const detail = getContractDetailMock(id ?? '');
+  const [detail, setDetail] = useState<ContractDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    fetchContractById(id)
+      .then(setDetail)
+      .catch(() => setError('שגיאה בטעינת פרטי החוזה'))
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const onShare = useCallback(async () => {
     if (!detail) return;
@@ -322,13 +331,24 @@ export default function ContractDetailScreen() {
     ]);
   }, []);
 
-  if (!detail) {
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="פרטי חוזה" showBack />
+        <View style={styles.emptyWrap}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  if (error || !detail) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <AppHeader title="חוזה" showBack />
         <View style={styles.emptyWrap}>
           <AppText variant="bodyMd" color="variant" align="center">
-            לא נמצא חוזה
+            {error ?? 'לא נמצא חוזה'}
           </AppText>
           <Button label="חזרה" onPress={() => router.back()} style={{ marginTop: Spacing.lg }} />
         </View>
@@ -346,12 +366,11 @@ export default function ContractDetailScreen() {
       : []),
     { label: 'שיוך', value: `${detail.linkKind === 'PROJECT' ? 'פרויקט' : 'נכס'}: ${detail.linkLabel}` },
     { label: 'שם השוכר / רוכש / נותן שירות', value: detail.counterpartyName },
-    { label: 'תאריך הסכם', value: detail.agreementDate },
+    { label: 'תאריך הסכם', value: detail.agreementDate ?? '—' },
     { label: 'תוקף', value: detail.endDate ?? '—' },
     { label: 'שכירות / סכום', value: detail.monthlyAmount ?? '—' },
-    { label: 'ת.ז / ח.פ', value: detail.idNumber ?? '—' },
-    { label: 'טלפון', value: detail.phone ?? '—' },
-    { label: 'אימייל', value: detail.email ?? '—' },
+    { label: 'טלפון', value: detail.counterpartyPhone ?? '—' },
+    { label: 'אימייל', value: detail.counterpartyEmail ?? '—' },
     { label: 'איש קשר', value: detail.contactName ?? '—' },
   ];
 
