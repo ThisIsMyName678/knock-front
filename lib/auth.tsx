@@ -69,16 +69,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) {
-        return;
-      }
-
-      setSession(data.session);
-      setInitialized(true);
-    });
-
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
       console.log('[Auth] onAuthStateChange:', _event, 'hasSession:', !!nextSession);
       setSession(nextSession);
       setInitialized(true);
