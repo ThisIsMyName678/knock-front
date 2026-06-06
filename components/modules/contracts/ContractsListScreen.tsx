@@ -1,11 +1,11 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
-  ScrollView,
   StyleSheet,
   Pressable,
   Share,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -19,18 +19,15 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import {
-  MOCK_CONTRACTS_LIST,
   MOCK_ENTITY_LINKS,
   CONTRACT_TYPE_LABELS,
   CONTRACT_STATUS_LABELS,
-  filterContractRows,
-  sortContractRows,
   type ContractSortKey,
   type SortDir,
   type LinkScopeFilter,
   type ContractTypeFilter,
-  type ContractListRow,
 } from '@/lib/mocks/contracts';
+import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import {
   Colors,
   Spacing,
@@ -68,7 +65,7 @@ const SORT_OPTIONS: { key: ContractSortKey; label: string }[] = [
 
 // ─── Status helpers ────────────────────────────────────────────────────────────
 
-function statusPreset(s: ContractListRow['status']): React.ComponentProps<typeof Badge>['preset'] {
+function statusPreset(s: ContractListItem['status']): React.ComponentProps<typeof Badge>['preset'] {
   if (s === 'ACTIVE') return 'success';
   if (s === 'EXPIRED') return 'neutral';
   return 'warning';
@@ -76,7 +73,7 @@ function statusPreset(s: ContractListRow['status']): React.ComponentProps<typeof
 
 // ─── Contract card ─────────────────────────────────────────────────────────────
 
-function ContractCard({ item, onPress }: { item: ContractListRow; onPress: () => void }) {
+function ContractCard({ item, onPress }: { item: ContractListItem; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -85,7 +82,7 @@ function ContractCard({ item, onPress }: { item: ContractListRow; onPress: () =>
     >
       {/* Row 1: name + status */}
       <View style={styles.cardRow1}>
-        <Badge label={CONTRACT_STATUS_LABELS[item.status]} preset={statusPreset(item.status)} />
+        <Badge label={CONTRACT_STATUS_LABELS[item.status as keyof typeof CONTRACT_STATUS_LABELS]} preset={statusPreset(item.status)} />
         <AppText variant="bodyMd" weight="semiBold" numberOfLines={1} style={{ flex: 1, textAlign: 'right' }}>
           {item.contractName}
         </AppText>
@@ -94,7 +91,7 @@ function ContractCard({ item, onPress }: { item: ContractListRow; onPress: () =>
       {/* Row 2: type chip + link badge + date */}
       <View style={styles.cardRow2}>
         <AppText variant="caption" color="variant" numberOfLines={1}>
-          {item.agreementDate}
+          {item.agreementDate ?? '—'}
         </AppText>
 
         <View style={styles.cardMeta}>
@@ -111,7 +108,7 @@ function ContractCard({ item, onPress }: { item: ContractListRow; onPress: () =>
 
           <View style={styles.typeChip}>
             <AppText variant="caption" numberOfLines={1} style={{ color: Colors.onSurfaceVariant }}>
-              {CONTRACT_TYPE_LABELS[item.contractType]}
+              {CONTRACT_TYPE_LABELS[item.contractType as keyof typeof CONTRACT_TYPE_LABELS]}
             </AppText>
           </View>
         </View>
@@ -161,6 +158,25 @@ export function ContractsListScreen() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [agreementDateFrom, setAgreementDateFrom] = useState('');
   const [agreementDateTo, setAgreementDateTo] = useState('');
+  const [contracts, setContracts] = useState<ContractListItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const filters: Parameters<typeof fetchContracts>[0] = {};
+    if (linkScope !== 'all') filters.linkKind = linkScope;
+    if (typeFilter !== 'all') filters.contractType = typeFilter as ContractListItem['contractType'];
+    if (linkScope === 'PROJECT' && entityId) filters.projectId = entityId;
+    if (linkScope === 'PROPERTY' && entityId) filters.propertyId = entityId;
+    if (agreementDateFrom.trim()) filters.dateFrom = agreementDateFrom;
+    if (agreementDateTo.trim()) filters.dateTo = agreementDateTo;
+    fetchContracts(filters)
+      .then((data) => { if (!cancelled) setContracts(data); })
+      .catch(() => { if (!cancelled) setContracts([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo]);
 
   // ── Fixed sort handler: no nested setState ──
   const handleSortKeyChange = useCallback((key: string) => {
@@ -171,20 +187,41 @@ export function ContractsListScreen() {
     setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
   }, []);
 
-  const filtered = useMemo(
-    () =>
-      filterContractRows(MOCK_CONTRACTS_LIST, {
-        search,
-        linkScope,
-        typeFilter,
-        entityId,
-        dateFrom: agreementDateFrom,
-        dateTo: agreementDateTo,
-      }),
-    [search, linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo],
-  );
+  const filtered = useMemo(() => {
+    if (!search.trim()) return contracts;
+    const q = search.trim().toLowerCase();
+    return contracts.filter((r) => {
+      const hay = `${r.contractName} ${r.counterpartyName} ${r.linkLabel} ${CONTRACT_TYPE_LABELS[r.contractType as keyof typeof CONTRACT_TYPE_LABELS]}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [contracts, search]);
 
-  const sorted = useMemo(() => sortContractRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
+  const sorted = useMemo(() => {
+    const mult = sortDir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      let va: string | number = '';
+      let vb: string | number = '';
+      switch (sortKey) {
+        case 'contractName': va = a.contractName; vb = b.contractName; break;
+        case 'contractType':
+          va = CONTRACT_TYPE_LABELS[a.contractType as keyof typeof CONTRACT_TYPE_LABELS] ?? '';
+          vb = CONTRACT_TYPE_LABELS[b.contractType as keyof typeof CONTRACT_TYPE_LABELS] ?? '';
+          break;
+        case 'linkLabel': va = a.linkLabel; vb = b.linkLabel; break;
+        case 'counterpartyName': va = a.counterpartyName; vb = b.counterpartyName; break;
+        case 'agreementDate':
+          va = a.agreementDate ? new Date(a.agreementDate).getTime() : 0;
+          vb = b.agreementDate ? new Date(b.agreementDate).getTime() : 0;
+          break;
+        case 'status':
+          va = CONTRACT_STATUS_LABELS[a.status as keyof typeof CONTRACT_STATUS_LABELS] ?? '';
+          vb = CONTRACT_STATUS_LABELS[b.status as keyof typeof CONTRACT_STATUS_LABELS] ?? '';
+          break;
+      }
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * mult;
+      return String(va).localeCompare(String(vb), 'he') * mult;
+    });
+  }, [filtered, sortKey, sortDir]);
 
   const entityOptionsForScope = useMemo(
     () =>
@@ -271,8 +308,8 @@ export function ContractsListScreen() {
   const exportCsv = useCallback(async () => {
     const header = 'שם,סוג,שיוך,צד שני,תאריך,סטטוס\n';
     const lines = sorted.map(
-      (r) =>
-        `"${r.contractName}","${CONTRACT_TYPE_LABELS[r.contractType]}","${r.linkLabel}","${r.counterpartyName}","${r.agreementDate}","${CONTRACT_STATUS_LABELS[r.status]}"`,
+      (r: ContractListItem) =>
+        `"${r.contractName}","${CONTRACT_TYPE_LABELS[r.contractType as keyof typeof CONTRACT_TYPE_LABELS]}","${r.linkLabel}","${r.counterpartyName}","${r.agreementDate ?? ''}","${CONTRACT_STATUS_LABELS[r.status as keyof typeof CONTRACT_STATUS_LABELS]}"`,
     );
     const body = header + lines.join('\n');
     try {
@@ -329,7 +366,11 @@ export function ContractsListScreen() {
         </View>
       )}
 
-      {sorted.length === 0 ? (
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : sorted.length === 0 ? (
         <EmptyState
           title="אין חוזים"
           description="נסה לשנות חיפוש או סינון"
@@ -369,6 +410,7 @@ export function ContractsListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // ── Disclaimer ──
   disclaimer: {
