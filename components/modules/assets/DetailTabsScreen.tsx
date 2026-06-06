@@ -55,6 +55,7 @@ import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
 import { getProperty, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
 import { getProject, type BackendProject } from '@/lib/api/projects';
+import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,16 +71,6 @@ type FeedItem = {
   title: string;
   dateIso: string;
   targetId?: string;
-};
-
-type ContractInfo = {
-  id: string;
-  contractId: string;
-  tenantName: string;
-  startDate: string;
-  endDate: string;
-  monthlyRent: number;
-  active: boolean;
 };
 
 // TaskItem is no longer used — TasksTab uses TaskListRow from lib/mocks/tasks
@@ -138,27 +129,6 @@ function makeFeed(): FeedItem[] {
   });
   return rows.sort((a, b) => new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime());
 }
-
-const MOCK_CONTRACTS: ContractInfo[] = [
-  {
-    id: 'ctr1',
-    contractId: 'c1',
-    tenantName: 'יוסי כהן',
-    startDate: '01/01/2024',
-    endDate: '31/12/2025',
-    monthlyRent: 7200,
-    active: true,
-  },
-  {
-    id: 'ctr2',
-    contractId: 'c2',
-    tenantName: 'דנה לוי',
-    startDate: '01/01/2022',
-    endDate: '31/12/2023',
-    monthlyRent: 6500,
-    active: false,
-  },
-];
 
 // MOCK_TASKS replaced by MOCK_TASKS_LIST imported from lib/mocks/tasks
 
@@ -655,19 +625,29 @@ function ProjectMainAssetsTab({ entityId, projectName }: { entityId: string; pro
 }
 
 function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: string; projectName?: string }) {
-  if (mode === 'project') {
-    return <ProjectMainAssetsTab entityId={entityId} projectName={projectName ?? ''} />;
-  }
-
-  // Asset mode: contract details
   const filterOptions = [
     { key: 'all' as const, label: 'הכל' },
     { key: 'active' as const, label: 'פעיל' },
     { key: 'inactive' as const, label: 'לא פעיל' },
   ];
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const filtered = MOCK_CONTRACTS.filter(
-    (c) => filter === 'all' || (filter === 'active' ? c.active : !c.active),
+  const [contracts, setContracts] = useState<ContractListItem[]>([]);
+
+  useEffect(() => {
+    if (mode !== 'asset') return;
+    let cancelled = false;
+    fetchContracts({ propertyId: entityId })
+      .then((data) => { if (!cancelled) setContracts(data); })
+      .catch((err) => { console.warn('Failed to load contracts', err); });
+    return () => { cancelled = true; };
+  }, [mode, entityId]);
+
+  if (mode === 'project') {
+    return <ProjectMainAssetsTab entityId={entityId} projectName={projectName ?? ''} />;
+  }
+
+  const filtered = contracts.filter((c) =>
+    filter === 'all' || (filter === 'active' ? c.status === 'ACTIVE' : c.status !== 'ACTIVE'),
   );
 
   return (
@@ -690,19 +670,26 @@ function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: 
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={listStyles.row}>
-                  <AppText variant="bodyMd" weight="bold" style={{ flex: 1 }}>{item.tenantName}</AppText>
-                  <Badge label={item.active ? 'פעיל' : 'לא פעיל / לא בתוקף'} preset={item.active ? 'success' : 'neutral'} />
+                  <AppText variant="bodyMd" weight="bold" style={{ flex: 1 }}>{item.counterpartyName}</AppText>
+                  <Badge
+                    label={item.status === 'ACTIVE' ? 'פעיל' : 'לא פעיל / לא בתוקף'}
+                    preset={item.status === 'ACTIVE' ? 'success' : 'neutral'}
+                  />
                 </View>
-                <AppText variant="bodySm" color="variant">{item.startDate} – {item.endDate}</AppText>
+                <AppText variant="bodySm" color="variant">
+                  {item.agreementDate ? fmtDate(item.agreementDate) : '—'} – {item.endDate ? fmtDate(item.endDate) : '—'}
+                </AppText>
               </View>
             </View>
             <View style={listStyles.divider} />
             <View style={listStyles.contractRow}>
               <AppText variant="bodySm" color="variant">שכירות חודשית</AppText>
-              <AppText variant="bodyMd" weight="bold" color="primary">{fmtIls(item.monthlyRent)}</AppText>
+              <AppText variant="bodyMd" weight="bold" color="primary">
+                {item.monthlyAmount ? fmtIls(parseFloat(item.monthlyAmount)) : '—'}
+              </AppText>
             </View>
             <Pressable
-              onPress={() => router.push(`/(app)/contracts/${item.contractId}`)}
+              onPress={() => router.push(`/(app)/contracts/${item.id}`)}
               style={({ pressed }) => [listStyles.contractLink, pressed && { opacity: 0.75 }]}
               accessibilityRole="button"
             >
