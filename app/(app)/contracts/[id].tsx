@@ -53,6 +53,12 @@ const sh = StyleSheet.create({
   },
 });
 
+function fmtDecimal(amount: string): string {
+  const num = parseFloat(amount);
+  if (isNaN(num)) return amount;
+  return `₪${num.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
 // ─── Payments Section ─────────────────────────────────────────────────────────
 
 function PaymentsSection({
@@ -77,8 +83,8 @@ function PaymentsSection({
     );
   }
 
-  const totalIn = payments.filter((p) => p.direction === 'IN').reduce((sum, p) => sum + parseFloat(p.amount.replace(/[₪,]/g, '') || '0'), 0);
-  const totalOut = payments.filter((p) => p.direction === 'OUT').reduce((sum, p) => sum + parseFloat(p.amount.replace(/[₪,]/g, '') || '0'), 0);
+  const totalIn = payments.filter((p) => p.direction === 'IN').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const totalOut = payments.filter((p) => p.direction === 'OUT').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
   return (
     <View style={sec.wrap}>
@@ -116,7 +122,7 @@ function PaymentsSection({
                 {p.notes ? <AppText variant="bodySm" color="muted">{p.notes}</AppText> : null}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                <AppText variant="bodyMd" weight="bold" style={{ color }}>{p.amount}</AppText>
+                <AppText variant="bodyMd" weight="bold" style={{ color }}>{fmtDecimal(p.amount)}</AppText>
                 <AppText variant="caption" color="muted">{p.date}</AppText>
               </View>
               <Pressable
