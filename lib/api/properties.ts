@@ -48,6 +48,7 @@ export type ListPropertiesParams = {
   search?: string;
   occupancyStatus?: BackendOccupancyStatus;
   projectId?: string;
+  unassigned?: boolean;
 };
 
 export function listProperties(params: ListPropertiesParams = {}): Promise<BackendProperty[]> {
@@ -63,6 +64,10 @@ export function listProperties(params: ListPropertiesParams = {}): Promise<Backe
 
   if (params.projectId) {
     query.set('projectId', params.projectId);
+  }
+
+  if (params.unassigned) {
+    query.set('unassigned', 'true');
   }
 
   const suffix = query.toString() ? `?${query.toString()}` : '';

@@ -21,7 +21,7 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import type { AssetEntity } from '@/lib/mocks/assets';
-import { getUnassignedAssets, linkAssetToProject } from '@/lib/mocks/assets';
+import { listProperties, updateProperty, propertyToAssetEntity } from '@/lib/api/properties';
 import { setPreloadedProject } from '@/lib/navigation-state';
 
 type Props = {
@@ -43,6 +43,8 @@ export function AddAssetToProjectActions({
   const { height: winH } = useWindowDimensions();
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
+  const [unassigned, setUnassigned] = useState<AssetEntity[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const openMenu = useCallback(() => setMenuOpen(true), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -50,7 +52,12 @@ export function AddAssetToProjectActions({
 
   const handlePickExisting = useCallback(() => {
     closeMenu();
+    setLoading(true);
     setPickOpen(true);
+    listProperties({ unassigned: true })
+      .then((rows) => setUnassigned(rows.map(propertyToAssetEntity)))
+      .catch(() => setUnassigned([]))
+      .finally(() => setLoading(false));
   }, [closeMenu]);
 
   const handleNewAsset = useCallback(() => {
@@ -61,14 +68,15 @@ export function AddAssetToProjectActions({
 
   const handleLinkAsset = useCallback(
     (asset: AssetEntity) => {
-      linkAssetToProject(asset.id, projectId);
-      closePick();
-      onAssetsChanged?.();
+      updateProperty(asset.id, { projectId })
+        .then(() => {
+          closePick();
+          onAssetsChanged?.();
+        })
+        .catch(() => {});
     },
     [projectId, closePick, onAssetsChanged],
   );
-
-  const unassigned = getUnassignedAssets();
 
   const trigger =
     variant === 'fab' ? (
@@ -143,6 +151,11 @@ export function AddAssetToProjectActions({
             <AppText variant="headingSm" weight="bold" style={styles.sheetTitle}>
               נכסים ללא שיוך לפרויקט
             </AppText>
+            {loading ? (
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'center', paddingVertical: Spacing.xl }}>
+                טוען...
+              </AppText>
+            ) : (
             <FlatList
               data={unassigned}
               keyExtractor={(a) => a.id}
@@ -170,6 +183,7 @@ export function AddAssetToProjectActions({
                 </Pressable>
               )}
             />
+            )}
           </Pressable>
         </Pressable>
       </Modal>
