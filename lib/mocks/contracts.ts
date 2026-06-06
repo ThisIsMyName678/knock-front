@@ -3,6 +3,14 @@
 /** ערך כללי לשיוך ישות — משותף לכל מודולי המוק */
 export type LinkKind = 'asset' | 'project';
 
+/** ישות לשיוך (נכס / פרויקט) — השלמה אוטומטית */
+export type EntityLinkOption = {
+  id: string;
+  kind: LinkKind;
+  name: string;
+  address: string;
+};
+
 /** ערך שיוך ספציפי לחוזים — תואם לבקאנד */
 export type ContractLinkKind = 'PROJECT' | 'PROPERTY';
 
@@ -44,14 +52,6 @@ export type ContractListRow = {
   counterpartyName: string;
   agreementDate: string;
   status: ContractStatusKey;
-};
-
-/** ישות לשיוך (נכס / פרויקט) — השלמה אוטומטית */
-export type EntityLinkOption = {
-  id: string;
-  kind: LinkKind;
-  name: string;
-  address: string;
 };
 
 export function entitySearchText(e: EntityLinkOption): string {

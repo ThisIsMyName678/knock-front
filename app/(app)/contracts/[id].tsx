@@ -13,7 +13,7 @@ import {
   CONTRACT_ACCESS_LABELS,
   METER_KIND_LABELS,
   METER_KIND_ICONS,
-} from '@/lib/mocks/contracts';
+} from '@/lib/constants/contracts';
 import { fetchContractById, archiveContract } from '@/lib/api/contracts';
 import type { ContractDetail, ContractPayment, ContractMeter, ContractFile, MeterKind } from '@/lib/api/contracts';
 import { fetchPayments, createPayment, deletePayment } from '@/lib/api/contract-payments';

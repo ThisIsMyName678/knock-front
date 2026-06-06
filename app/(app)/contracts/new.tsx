@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { ContractCreateWizard } from '@/components/modules/contracts/ContractCreateWizard';
-import type { EntityLinkOption, LinkKind } from '@/lib/mocks/contracts';
+import type { EntityLinkOption, LinkKind } from '@/lib/api/entity-links';
 
 export default function NewContractScreen() {
   const { preloadId, preloadName, preloadAddress, preloadKind } = useLocalSearchParams<{

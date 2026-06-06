@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MOCK_PROJECTS } from '@/lib/mocks/assets';
-import { CONTRACT_TYPE_LABELS } from '@/lib/mocks/contracts';
+import { CONTRACT_TYPE_LABELS } from '@/lib/constants/contracts';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import { DocumentType, DOCUMENT_TYPE_LABELS } from '@/lib/mocks/documents';
 import { MaterialCommunityIcons } from '@expo/vector-icons';

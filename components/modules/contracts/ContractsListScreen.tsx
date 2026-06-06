@@ -25,7 +25,7 @@ import {
   type SortDir,
   type LinkScopeFilter,
   type ContractTypeFilter,
-} from '@/lib/mocks/contracts';
+} from '@/lib/constants/contracts';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import { listProjects } from '@/lib/api/projects';
 import { listProperties } from '@/lib/api/properties';
