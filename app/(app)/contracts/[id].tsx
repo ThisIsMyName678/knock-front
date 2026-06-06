@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -14,8 +14,10 @@ import {
   METER_KIND_LABELS,
   METER_KIND_ICONS,
 } from '@/lib/mocks/contracts';
-import { fetchContractById } from '@/lib/api/contracts';
+import { fetchContractById, archiveContract } from '@/lib/api/contracts';
 import type { ContractDetail, ContractPayment, ContractMeter, ContractFile, MeterKind } from '@/lib/api/contracts';
+import { fetchPayments, createPayment, deletePayment } from '@/lib/api/contract-payments';
+import { Input } from '@/components/ui/Input';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH, FontSize, FontFamily } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -53,12 +55,24 @@ const sh = StyleSheet.create({
 
 // ─── Payments Section ─────────────────────────────────────────────────────────
 
-function PaymentsSection({ payments }: { payments: ContractPayment[] }) {
+function PaymentsSection({
+  payments,
+  onAdd,
+  onDelete,
+}: {
+  payments: ContractPayment[];
+  onAdd: () => void;
+  onDelete: (id: string) => void;
+}) {
   if (payments.length === 0) {
     return (
       <View style={sec.wrap}>
         <SectionHeader title="תשלומים" count={0} />
         <AppText variant="bodySm" color="muted">לא הוזנו תשלומים לחוזה זה</AppText>
+        <Pressable onPress={onAdd} style={sec.addBtn} accessibilityRole="button">
+          <MaterialCommunityIcons name="plus" size={16} color={Colors.primary} />
+          <AppText variant="bodySm" weight="semiBold" color="primary">הוסף תשלום</AppText>
+        </Pressable>
       </View>
     );
   }
@@ -105,10 +119,23 @@ function PaymentsSection({ payments }: { payments: ContractPayment[] }) {
                 <AppText variant="bodyMd" weight="bold" style={{ color }}>{p.amount}</AppText>
                 <AppText variant="caption" color="muted">{p.date}</AppText>
               </View>
+              <Pressable
+                onPress={() => onDelete(p.id)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="מחק תשלום"
+              >
+                <MaterialCommunityIcons name="delete-outline" size={18} color={Colors.error} />
+              </Pressable>
             </View>
           );
         })}
       </Card>
+
+      <Pressable onPress={onAdd} style={sec.addBtn} accessibilityRole="button">
+        <MaterialCommunityIcons name="plus" size={16} color={Colors.primary} />
+        <AppText variant="bodySm" weight="semiBold" color="primary">הוסף תשלום</AppText>
+      </Pressable>
     </View>
   );
 }
@@ -255,6 +282,18 @@ const sec = StyleSheet.create({
     paddingTop: Spacing.xs,
     marginTop: Spacing.xs,
   },
+  addBtn: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.xs,
+    alignSelf: 'flex-start',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    marginTop: Spacing.xs,
+  },
   filesGrid: { flexDirection: RTL_ROW, flexWrap: 'wrap', gap: Spacing.sm },
   fileCard: {
     width: '47%',
@@ -294,6 +333,15 @@ export default function ContractDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [payments, setPayments] = useState<ContractPayment[]>([]);
+  const [addPaymentVisible, setAddPaymentVisible] = useState(false);
+  const [payDirection, setPayDirection] = useState<'IN' | 'OUT'>('IN');
+  const [payCategory, setPayCategory] = useState('');
+  const [payAmount, setPayAmount] = useState('');
+  const [payDate, setPayDate] = useState('');
+  const [payNotes, setPayNotes] = useState('');
+  const [paySaving, setPaySaving] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -303,6 +351,68 @@ export default function ContractDetailScreen() {
       .catch(() => setError('שגיאה בטעינת פרטי החוזה'))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (detail) setPayments(detail.payments);
+  }, [detail]);
+
+  const refreshPayments = useCallback(async () => {
+    if (!id) return;
+    try {
+      const updated = await fetchPayments(id);
+      setPayments(updated);
+    } catch {
+      /* silent */
+    }
+  }, [id]);
+
+  const openAddPayment = useCallback(() => {
+    setPayDirection('IN');
+    setPayCategory('');
+    setPayAmount('');
+    setPayDate(new Date().toISOString().slice(0, 10));
+    setPayNotes('');
+    setAddPaymentVisible(true);
+  }, []);
+
+  const handleAddPayment = useCallback(async () => {
+    if (!id || !payCategory.trim() || !payAmount.trim() || !payDate.trim()) return;
+    setPaySaving(true);
+    try {
+      await createPayment(id, {
+        direction: payDirection,
+        categoryLabel: payCategory.trim(),
+        amount: payAmount.trim(),
+        date: payDate.trim(),
+        notes: payNotes.trim() || null,
+      });
+      setAddPaymentVisible(false);
+      await refreshPayments();
+    } catch {
+      Alert.alert('שגיאה', 'לא ניתן להוסיף תשלום');
+    } finally {
+      setPaySaving(false);
+    }
+  }, [id, payDirection, payCategory, payAmount, payDate, payNotes, refreshPayments]);
+
+  const handleDeletePayment = useCallback((paymentId: string) => {
+    if (!id) return;
+    Alert.alert('מחיקת תשלום', 'האם למחוק את התשלום?', [
+      { text: 'ביטול', style: 'cancel' },
+      {
+        text: 'מחק',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deletePayment(id, paymentId);
+            await refreshPayments();
+          } catch {
+            Alert.alert('שגיאה', 'לא ניתן למחוק את התשלום');
+          }
+        },
+      },
+    ]);
+  }, [id, refreshPayments]);
 
   const onShare = useCallback(async () => {
     if (!detail) return;
@@ -325,11 +435,26 @@ export default function ContractDetailScreen() {
   }, [detail]);
 
   const onDelete = useCallback(() => {
-    Alert.alert('מחיקת חוזה', 'האם למחוק את החוזה?', [
-      { text: 'ביטול', style: 'cancel' },
-      { text: 'מחק', style: 'destructive', onPress: () => router.back() },
-    ]);
-  }, []);
+    Alert.alert(
+      'ארכוב חוזה',
+      'החוזה יסומן כפג תוקף והנתונים יישמרו. להמשיך?',
+      [
+        { text: 'ביטול', style: 'cancel' },
+        {
+          text: 'ארכב',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await archiveContract(id ?? '');
+              router.back();
+            } catch {
+              Alert.alert('שגיאה', 'לא ניתן לארכב את החוזה');
+            }
+          },
+        },
+      ],
+    );
+  }, [id]);
 
   if (loading) {
     return (
@@ -436,7 +561,7 @@ export default function ContractDetailScreen() {
         </View>
 
         {/* ─── Payments ─── */}
-        <PaymentsSection payments={detail.payments} />
+        <PaymentsSection payments={payments} onAdd={openAddPayment} onDelete={handleDeletePayment} />
 
         {/* ─── Meters ─── */}
         <MetersSection meters={detail.meters} />
@@ -459,6 +584,68 @@ export default function ContractDetailScreen() {
           style={{ marginTop: Spacing.sm }}
         />
       </ScrollView>
+
+      {/* ─── Add Payment Modal ─── */}
+      <Modal
+        visible={addPaymentVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddPaymentVisible(false)}
+      >
+        <Pressable style={modal.backdrop} onPress={() => setAddPaymentVisible(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <Pressable style={modal.sheet} onPress={(e) => e.stopPropagation()}>
+              <View style={modal.handle} />
+              <AppText variant="labelLg" weight="bold" style={{ marginBottom: Spacing.md }}>הוספת תשלום</AppText>
+
+              <View style={modal.dirRow}>
+                {(['IN', 'OUT'] as const).map((d) => (
+                  <Pressable
+                    key={d}
+                    onPress={() => setPayDirection(d)}
+                    style={[
+                      modal.dirBtn,
+                      payDirection === d && {
+                        borderColor: d === 'IN' ? Colors.success : Colors.error,
+                        backgroundColor: d === 'IN' ? Colors.successContainer : Colors.errorContainer,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                  >
+                    <MaterialCommunityIcons
+                      name={d === 'IN' ? 'arrow-down' : 'arrow-up'}
+                      size={16}
+                      color={payDirection === d ? (d === 'IN' ? Colors.success : Colors.error) : Colors.onSurfaceVariant}
+                    />
+                    <AppText
+                      variant="bodySm"
+                      weight="semiBold"
+                      style={{ color: payDirection === d ? (d === 'IN' ? Colors.success : Colors.error) : Colors.onSurfaceVariant }}
+                    >
+                      {d === 'IN' ? 'הכנסה' : 'הוצאה'}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Input label="קטגוריה" value={payCategory} onChangeText={setPayCategory} containerStyle={{ marginTop: Spacing.md }} />
+              <Input label="סכום" value={payAmount} onChangeText={setPayAmount} keyboardType="numeric" containerStyle={{ marginTop: Spacing.md }} />
+              <Input label="תאריך (YYYY-MM-DD)" value={payDate} onChangeText={setPayDate} containerStyle={{ marginTop: Spacing.md }} />
+              <Input label="הערות (אופציונלי)" value={payNotes} onChangeText={setPayNotes} containerStyle={{ marginTop: Spacing.md }} />
+
+              <View style={modal.actions}>
+                <Button label="ביטול" variant="secondary" onPress={() => setAddPaymentVisible(false)} style={{ flex: 1 }} />
+                <Button
+                  label={paySaving ? 'שומר...' : 'הוסף'}
+                  onPress={handleAddPayment}
+                  disabled={paySaving || !payCategory.trim() || !payAmount.trim() || !payDate.trim()}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -494,4 +681,36 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'flex-start', gap: Spacing.md, paddingVertical: Spacing.sm },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
+});
+
+const modal = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: CONTENT_HORIZONTAL_PADDING,
+    paddingBottom: Spacing['2xl'],
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  dirRow: { flexDirection: RTL_ROW, gap: Spacing.sm },
+  dirBtn: {
+    flex: 1,
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  actions: { flexDirection: RTL_ROW, gap: Spacing.sm, marginTop: Spacing.lg },
 });
