@@ -47,13 +47,13 @@ import { RTL_ROW } from '@/constants/rtl';
 
 const STEPS = ['פרטי חוזה', 'מחיר', 'תיעוד תשלום', 'תיעוד מונים', 'העלאת קבצים'] as const;
 
-const CONTRACT_TYPES: ContractTypeKey[] = ['rent', 'purchase', 'supplier_work', 'other'];
+const CONTRACT_TYPES: ContractTypeKey[] = ['RENT', 'PURCHASE', 'SUPPLIER_WORK', 'OTHER'];
 
 const METER_KINDS = [
-  { key: 'electric', label: 'חשמל' },
-  { key: 'water', label: 'מים' },
-  { key: 'gas', label: 'גז' },
-  { key: 'other', label: 'אחר' },
+  { key: 'ELECTRIC', label: 'חשמל' },
+  { key: 'WATER', label: 'מים' },
+  { key: 'GAS', label: 'גז' },
+  { key: 'OTHER', label: 'אחר' },
 ] as const;
 
 type MeterKind = (typeof METER_KINDS)[number]['key'];
@@ -78,11 +78,11 @@ const FILE_CATEGORIES = [
 
 type FileCategory = (typeof FILE_CATEGORIES)[number];
 
-const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['owner_only', 'tenant_only', 'employee_only', 'public'];
+const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['OWNER_ONLY', 'TENANT_ONLY', 'EMPLOYEE_ONLY', 'PUBLIC'];
 
 type PaymentDraft = {
   id: string;
-  direction: 'in' | 'out';
+  direction: 'IN' | 'OUT';
   amount: string;
   notes: string;
 };
@@ -145,12 +145,12 @@ export function ContractCreateWizard({
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderUnit, setReminderUnit] = useState<'days' | 'weeks' | 'months'>('days');
   const [reminderAmount, setReminderAmount] = useState('30');
-  const [contractAccess, setContractAccess] = useState<ContractAccessLevel>('owner_only');
+  const [contractAccess, setContractAccess] = useState<ContractAccessLevel>('OWNER_ONLY');
   const [datePickerTarget, setDatePickerTarget] = useState<'agreement' | 'expiry' | null>(null);
 
   // Step 1 – מחיר
   const [payments, setPayments] = useState<PaymentDraft[]>([]);
-  const [payDirection, setPayDirection] = useState<'in' | 'out'>('in');
+  const [payDirection, setPayDirection] = useState<'IN' | 'OUT'>('IN');
   const [payAmount, setPayAmount] = useState('');
   const [payNotes, setPayNotes] = useState('');
 
@@ -163,7 +163,7 @@ export function ContractCreateWizard({
   // Step 4
   const [fileCategory, setFileCategory] = useState<FileCategory>('צילום חוזה');
   const [fileName, setFileName] = useState('');
-  const [defaultFileVisibility, setDefaultFileVisibility] = useState<ContractAccessLevel>('owner_only');
+  const [defaultFileVisibility, setDefaultFileVisibility] = useState<ContractAccessLevel>('OWNER_ONLY');
   const [files, setFiles] = useState<FileDraft[]>([]);
   const [categoryModal, setCategoryModal] = useState(false);
 
@@ -187,7 +187,7 @@ export function ContractCreateWizard({
     contractType: contractType === '' ? 'יש לבחור סוג חוזה' : '',
     linkSelected: !linkSelected ? 'יש לבחור נכס או פרויקט' : '',
     counterpartyName: counterpartyName.trim().length === 0 ? 'שדה חובה' : '',
-    serviceType: contractType === 'supplier_work' && serviceType.trim().length === 0 ? 'שדה חובה' : '',
+    serviceType: contractType === 'SUPPLIER_WORK' && serviceType.trim().length === 0 ? 'שדה חובה' : '',
     agreementDate: agreementDate.trim().length === 0 ? 'שדה חובה' : '',
   }), [contractName, contractType, linkSelected, counterpartyName, serviceType, agreementDate]);
 
@@ -213,7 +213,7 @@ export function ContractCreateWizard({
       ...prev,
       {
         id: randomId(),
-        kind: 'electric',
+        kind: 'ELECTRIC',
         name: '',
         identifier: '',
         value: '',
@@ -421,7 +421,7 @@ export function ContractCreateWizard({
                 error={step1Submitted ? step1Errors.counterpartyName : ''}
                 containerStyle={{ marginTop: Spacing.md }}
               />
-              {contractType === 'supplier_work' && (
+              {contractType === 'SUPPLIER_WORK' && (
                 <Input label="סוג השירות" required placeholder="לדוגמה: ניקיון" value={serviceType} onChangeText={setServiceType} error={step1Submitted ? step1Errors.serviceType : ''} containerStyle={{ marginTop: Spacing.md }} />
               )}
 
@@ -518,7 +518,7 @@ export function ContractCreateWizard({
                   {payments.map((p) => (
                     <View key={p.id} style={styles.paymentChip}>
                       <AppText variant="bodySm" style={{ flex: 1 }}>
-                        {p.direction === 'in' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪
+                        {p.direction === 'IN' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪
                       </AppText>
                       <Pressable onPress={() => setPayments((prev) => prev.filter((x) => x.id !== p.id))}>
                         <MaterialCommunityIcons name="close" size={16} color={Colors.onSurfaceVariant} />
@@ -529,21 +529,21 @@ export function ContractCreateWizard({
               )}
 
               <View style={styles.directionRow}>
-                {(['in', 'out'] as const).map((d) => (
+                {(['IN', 'OUT'] as const).map((d) => (
                   <Pressable
                     key={d}
                     onPress={() => setPayDirection(d)}
                     style={[
                       styles.dirBtn,
                       payDirection === d && {
-                        borderColor: d === 'in' ? Colors.inbound : Colors.outbound,
-                        backgroundColor: d === 'in' ? Colors.inboundBg : Colors.outboundBg,
+                        borderColor: d === 'IN' ? Colors.inbound : Colors.outbound,
+                        backgroundColor: d === 'IN' ? Colors.inboundBg : Colors.outboundBg,
                       },
                     ]}
                   >
-                    <MaterialCommunityIcons name={d === 'in' ? 'arrow-down' : 'arrow-up'} size={22} color={d === 'in' ? Colors.inbound : Colors.outbound} />
-                    <AppText variant="bodyMd" weight="bold" style={{ color: d === 'in' ? Colors.inbound : Colors.outbound }}>
-                      {d === 'in' ? 'הכנסה' : 'הוצאה'}
+                    <MaterialCommunityIcons name={d === 'IN' ? 'arrow-down' : 'arrow-up'} size={22} color={d === 'IN' ? Colors.inbound : Colors.outbound} />
+                    <AppText variant="bodyMd" weight="bold" style={{ color: d === 'IN' ? Colors.inbound : Colors.outbound }}>
+                      {d === 'IN' ? 'הכנסה' : 'הוצאה'}
                     </AppText>
                   </Pressable>
                 ))}

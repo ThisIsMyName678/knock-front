@@ -65,8 +65,8 @@ function PaymentsSection({ payments }: { payments: ContractPaymentMock[] }) {
     );
   }
 
-  const totalIn = payments.filter((p) => p.direction === 'in').reduce((sum, p) => sum + parseFloat(p.amount.replace(/[₪,]/g, '') || '0'), 0);
-  const totalOut = payments.filter((p) => p.direction === 'out').reduce((sum, p) => sum + parseFloat(p.amount.replace(/[₪,]/g, '') || '0'), 0);
+  const totalIn = payments.filter((p) => p.direction === 'IN').reduce((sum, p) => sum + parseFloat(p.amount.replace(/[₪,]/g, '') || '0'), 0);
+  const totalOut = payments.filter((p) => p.direction === 'OUT').reduce((sum, p) => sum + parseFloat(p.amount.replace(/[₪,]/g, '') || '0'), 0);
 
   return (
     <View style={sec.wrap}>
@@ -92,7 +92,7 @@ function PaymentsSection({ payments }: { payments: ContractPaymentMock[] }) {
 
       <Card>
         {payments.map((p, i) => {
-          const inbound = p.direction === 'in';
+          const inbound = p.direction === 'IN';
           const color = inbound ? Colors.success : Colors.error;
           return (
             <View key={p.id} style={[sec.payRow, i < payments.length - 1 && sec.rowBorder]}>
@@ -128,10 +128,10 @@ function MetersSection({ meters }: { meters: ContractMeterMock[] }) {
   }
 
   const kindColor: Record<ContractMeterMock['kind'], string> = {
-    electric: Colors.warning ?? '#F59E0B',
-    water: Colors.info ?? '#3B82F6',
-    gas: Colors.error,
-    other: Colors.onSurfaceVariant,
+    ELECTRIC: Colors.warning ?? '#F59E0B',
+    WATER: Colors.info ?? '#3B82F6',
+    GAS: Colors.error,
+    OTHER: Colors.onSurfaceVariant,
   };
 
   return (
@@ -336,7 +336,7 @@ export default function ContractDetailScreen() {
     );
   }
 
-  const statusPreset = detail.status === 'active' ? 'success' : detail.status === 'expired' ? 'neutral' : 'warning';
+  const statusPreset = detail.status === 'ACTIVE' ? 'success' : detail.status === 'EXPIRED' ? 'neutral' : 'warning';
 
   const detailRows: { label: string; value: string }[] = [
     { label: 'שם החוזה', value: detail.contractName },
@@ -344,7 +344,7 @@ export default function ContractDetailScreen() {
     ...(detail.accessLevel
       ? [{ label: 'הרשאות גישה', value: CONTRACT_ACCESS_LABELS[detail.accessLevel] }]
       : []),
-    { label: 'שיוך', value: `${detail.linkKind === 'project' ? 'פרויקט' : 'נכס'}: ${detail.linkLabel}` },
+    { label: 'שיוך', value: `${detail.linkKind === 'PROJECT' ? 'פרויקט' : 'נכס'}: ${detail.linkLabel}` },
     { label: 'שם השוכר / רוכש / נותן שירות', value: detail.counterpartyName },
     { label: 'תאריך הסכם', value: detail.agreementDate },
     { label: 'תוקף', value: detail.endDate ?? '—' },

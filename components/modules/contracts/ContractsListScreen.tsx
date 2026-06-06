@@ -46,16 +46,16 @@ import {
 
 const LINK_SCOPE_OPTIONS: { key: LinkScopeFilter; label: string }[] = [
   { key: 'all', label: 'הכל' },
-  { key: 'asset', label: 'נכס' },
-  { key: 'project', label: 'פרויקט' },
+  { key: 'PROPERTY', label: 'נכס' },
+  { key: 'PROJECT', label: 'פרויקט' },
 ];
 
 const TYPE_FILTER_OPTIONS: { key: ContractTypeFilter; label: string }[] = [
   { key: 'all', label: 'כל הסוגים' },
-  { key: 'rent', label: 'שכירות' },
-  { key: 'purchase', label: 'רכישה' },
-  { key: 'supplier_work', label: 'הסכם ספק' },
-  { key: 'other', label: 'אחר' },
+  { key: 'RENT', label: 'שכירות' },
+  { key: 'PURCHASE', label: 'רכישה' },
+  { key: 'SUPPLIER_WORK', label: 'הסכם ספק' },
+  { key: 'OTHER', label: 'אחר' },
 ];
 
 const SORT_OPTIONS: { key: ContractSortKey; label: string }[] = [
@@ -69,8 +69,8 @@ const SORT_OPTIONS: { key: ContractSortKey; label: string }[] = [
 // ─── Status helpers ────────────────────────────────────────────────────────────
 
 function statusPreset(s: ContractListRow['status']): React.ComponentProps<typeof Badge>['preset'] {
-  if (s === 'active') return 'success';
-  if (s === 'expired') return 'neutral';
+  if (s === 'ACTIVE') return 'success';
+  if (s === 'EXPIRED') return 'neutral';
   return 'warning';
 }
 
@@ -100,7 +100,7 @@ function ContractCard({ item, onPress }: { item: ContractListRow; onPress: () =>
         <View style={styles.cardMeta}>
           <View style={styles.linkBadge}>
             <MaterialCommunityIcons
-              name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
+              name={item.linkKind === 'PROJECT' ? 'briefcase-outline' : 'home-outline'}
               size={11}
               color={Colors.primary}
             />
@@ -188,7 +188,10 @@ export function ContractsListScreen() {
 
   const entityOptionsForScope = useMemo(
     () =>
-      MOCK_ENTITY_LINKS.filter((e) => linkScope === 'all' || e.kind === linkScope).map((e) => ({
+      MOCK_ENTITY_LINKS.filter((e) => {
+        if (linkScope === 'all') return true;
+        return e.kind === (linkScope === 'PROPERTY' ? 'asset' : 'project');
+      }).map((e) => ({
         key: e.id,
         label: e.name,
       })),
@@ -226,8 +229,8 @@ export function ContractsListScreen() {
       },
       {
         kind: 'entitySearch',
-        label: linkScope === 'asset' ? 'חיפוש נכס' : 'חיפוש פרויקט',
-        placeholder: linkScope === 'asset' ? 'הקלד שם נכס או כתובת...' : 'הקלד שם פרויקט...',
+        label: linkScope === 'PROPERTY' ? 'חיפוש נכס' : 'חיפוש פרויקט',
+        placeholder: linkScope === 'PROPERTY' ? 'הקלד שם נכס או כתובת...' : 'הקלד שם פרויקט...',
         options: entityOptionsForScope,
         value: entityId,
         onChange: setEntityId,
