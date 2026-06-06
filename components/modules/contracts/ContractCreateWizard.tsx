@@ -26,8 +26,7 @@ import {
   CONTRACT_ACCESS_LABELS,
   type EntityLinkOption,
 } from '@/lib/mocks/contracts';
-import { listProjects, projectAddressLabel } from '@/lib/api/projects';
-import { listProperties, propertyAddressLabel } from '@/lib/api/properties';
+import { searchEntityLinks } from '@/lib/api/entity-links';
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { createContract, updateContract } from '@/lib/api/contracts';
 import type { ContractType, ContractAccessLevel, ContractDetail, CreateContractInput } from '@/lib/api/contracts';
@@ -198,16 +197,8 @@ export function ContractCreateWizard({
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const [projects, properties] = await Promise.all([
-          listProjects({ search: linkQuery }),
-          listProperties({ search: linkQuery }),
-        ]);
-        if (!cancelled) {
-          setEntitySuggestions([
-            ...projects.map((p) => ({ id: p.id, kind: 'project' as const, name: p.name, address: projectAddressLabel(p) })),
-            ...properties.map((p) => ({ id: p.id, kind: 'asset' as const, name: p.name, address: propertyAddressLabel(p) })),
-          ]);
-        }
+        const results = await searchEntityLinks(linkQuery);
+        if (!cancelled) setEntitySuggestions(results);
       } catch {
         // ignore search errors
       }
