@@ -41,6 +41,7 @@ import {
   type TasksDashboardPreset,
 } from '@/lib/mocks/dashboard';
 import { TASK_KIND_ICONS, type TaskKind } from '@/lib/mocks/tasks';
+import { getPropertiesStats } from '@/lib/api/properties';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
@@ -260,7 +261,27 @@ export function DashboardScreen() {
   const payments7d = useMemo(() => countPaymentsDueNext7Days(), []);
   const taskCounts = useMemo(() => countOpenTasksByStage(), []);
   const contactsN = useMemo(() => contactsDashboardCount(), []);
-  const assetsXY = useMemo(() => assetsDashboardOccupancy(), []);
+  const assetsXYMock = useMemo(() => assetsDashboardOccupancy(), []);
+  const [assetsXY, setAssetsXY] = useState(assetsXYMock);
+  const [assetsXYIsMock, setAssetsXYIsMock] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getPropertiesStats()
+      .then((stats) => {
+        if (cancelled) return;
+        setAssetsXY(stats);
+        setAssetsXYIsMock(false);
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load properties stats');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const calendarOpts = useMemo(
     () => ({ includeGoogle: googleSyncMock, manualEvents }),
@@ -471,7 +492,7 @@ export function DashboardScreen() {
                 {assetsXY.rented}/{assetsXY.total}
               </AppText>
               <AppText variant="caption" color="variant" align="right">
-                מושכרים / סה״כ (mock)
+                מושכרים / סה״כ{assetsXYIsMock ? ' (mock)' : ''}
               </AppText>
             </Pressable>
           </View>

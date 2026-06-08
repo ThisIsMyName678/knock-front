@@ -120,9 +120,9 @@ function makeFeed(): FeedItem[] {
       kind,
       title:
         kind === 'task' ? 'בדיקת מד מים בוצעה'
-        : kind === 'payment' ? 'תשלום שכירות התקבל'
-        : kind === 'message' ? 'הודעה מהדייר'
-        : 'חוזה עודכן',
+          : kind === 'payment' ? 'תשלום שכירות התקבל'
+            : kind === 'message' ? 'הודעה מהדייר'
+              : 'חוזה עודכן',
       dateIso: new Date(now - i * 1000 * 60 * 60 * 5).toISOString(),
       targetId,
     };
@@ -625,6 +625,11 @@ function ProjectMainAssetsTab({ entityId, projectName }: { entityId: string; pro
 }
 
 function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: string; projectName?: string }) {
+  if (mode === 'project') {
+    return <ProjectMainAssetsTab entityId={entityId} projectName={projectName ?? ''} />;
+  }
+
+  // Asset mode: contract details
   const filterOptions = [
     { key: 'all' as const, label: 'הכל' },
     { key: 'active' as const, label: 'פעיל' },
@@ -632,73 +637,79 @@ function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: 
   ];
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mode !== 'asset') return;
+    if (!entityId) return;
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     fetchContracts({ propertyId: entityId })
-      .then((data) => { if (!cancelled) setContracts(data); })
-      .catch((err) => { console.warn('Failed to load contracts', err); });
+      .then((rows) => { if (!cancelled) setContracts(rows); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת חוזים'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [mode, entityId]);
+  }, [entityId]);
 
-  if (mode === 'project') {
-    return <ProjectMainAssetsTab entityId={entityId} projectName={projectName ?? ''} />;
-  }
-
-  const filtered = contracts.filter((c) =>
-    filter === 'all' || (filter === 'active' ? c.status === 'ACTIVE' : c.status !== 'ACTIVE'),
-  );
+  const filtered = contracts.filter((c) => {
+    const active = c.status === 'ACTIVE';
+    return filter === 'all' || (filter === 'active' ? active : !active);
+  });
 
   return (
     <View style={{ flex: 1 }}>
       <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        contentContainerStyle={listStyles.content}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
-        ListEmptyComponent={
-          <EmptyState title="אין חוזים" icon={<MaterialCommunityIcons name="file-sign" size={28} color={Colors.primary} />} />
-        }
-        renderItem={({ item }) => (
-          <Card>
-            <View style={listStyles.contractHeader}>
-              <View style={listStyles.contractIcon}>
-                <MaterialCommunityIcons name="file-sign" size={22} color={Colors.primary} />
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <View style={listStyles.row}>
-                  <AppText variant="bodyMd" weight="bold" style={{ flex: 1 }}>{item.counterpartyName}</AppText>
-                  <Badge
-                    label={item.status === 'ACTIVE' ? 'פעיל' : 'לא פעיל / לא בתוקף'}
-                    preset={item.status === 'ACTIVE' ? 'success' : 'neutral'}
-                  />
+      {loading ? (
+        <InlineEmpty text="טוען חוזים..." />
+      ) : error ? (
+        <InlineEmpty text={error} />
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          contentContainerStyle={listStyles.content}
+          ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
+          ListEmptyComponent={
+            <EmptyState title="אין חוזים" icon={<MaterialCommunityIcons name="file-sign" size={28} color={Colors.primary} />} />
+          }
+          renderItem={({ item }) => {
+            const active = item.status === 'ACTIVE';
+            return (
+              <Card>
+                <View style={listStyles.contractHeader}>
+                  <View style={listStyles.contractIcon}>
+                    <MaterialCommunityIcons name="file-sign" size={22} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <View style={listStyles.row}>
+                      <AppText variant="bodyMd" weight="bold" style={{ flex: 1 }}>{item.counterpartyName}</AppText>
+                      <Badge label={active ? 'פעיל' : 'לא פעיל / לא בתוקף'} preset={active ? 'success' : 'neutral'} />
+                    </View>
+                    <AppText variant="bodySm" color="variant">
+                      {item.agreementDate ? fmtDate(item.agreementDate) : '—'} – {item.endDate ? fmtDate(item.endDate) : '—'}
+                    </AppText>
+                  </View>
                 </View>
-                <AppText variant="bodySm" color="variant">
-                  {item.agreementDate ? fmtDate(item.agreementDate) : '—'} – {item.endDate ? fmtDate(item.endDate) : '—'}
-                </AppText>
-              </View>
-            </View>
-            <View style={listStyles.divider} />
-            <View style={listStyles.contractRow}>
-              <AppText variant="bodySm" color="variant">שכירות חודשית</AppText>
-              <AppText variant="bodyMd" weight="bold" color="primary">
-                {item.monthlyAmount ? fmtIls(parseFloat(item.monthlyAmount)) : '—'}
-              </AppText>
-            </View>
-            <Pressable
-              onPress={() => router.push(`/(app)/contracts/${item.id}`)}
-              style={({ pressed }) => [listStyles.contractLink, pressed && { opacity: 0.75 }]}
-              accessibilityRole="button"
-            >
-              <AppText variant="bodySm" color="primary" weight="semiBold">צפה בחוזה במודול חוזים</AppText>
-              <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.primary} />
-            </Pressable>
-          </Card>
-        )}
-      />
+                <View style={listStyles.divider} />
+                <View style={listStyles.contractRow}>
+                  <AppText variant="bodySm" color="variant">שכירות חודשית</AppText>
+                  <AppText variant="bodyMd" weight="bold" color="primary">{item.monthlyAmount ? fmtIls(Number(item.monthlyAmount)) : '—'}</AppText>
+                </View>
+                <Pressable
+                  onPress={() => router.push(`/(app)/contracts/${item.id}`)}
+                  style={({ pressed }) => [listStyles.contractLink, pressed && { opacity: 0.75 }]}
+                  accessibilityRole="button"
+                >
+                  <AppText variant="bodySm" color="primary" weight="semiBold">צפה בחוזה במודול חוזים</AppText>
+                  <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.primary} />
+                </Pressable>
+              </Card>
+            );
+          }}
+        />
+      )}
     </View>
   );
 }

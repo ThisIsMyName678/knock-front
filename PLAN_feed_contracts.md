@@ -12,18 +12,18 @@
 ## שלבים
 
 ### שלב 1 — הסרת חוזים מ-`makeFeed()`
-- [ ] בפונקציה `makeFeed()`: הסר את `'contract'` ממערך `kinds`
+- [x] בפונקציה `makeFeed()`: הסר את `'contract'` ממערך `kinds`
   ```ts
   // לפני:
   const kinds: FeedKind[] = ['task', 'payment', 'message', 'contract'];
   // אחרי:
   const kinds: FeedKind[] = ['task', 'payment', 'message'];
   ```
-- [ ] הסר את שורת הכותרת `'חוזה עודכן'` מה-title switch (כי 'contract' לא יגיע יותר)
-- [ ] ב-`TARGET_IDS`: רוקן את מערך `contract` → `contract: []`
+- [x] הסר את שורת הכותרת `'חוזה עודכן'` מה-title switch (כי 'contract' לא יגיע יותר)
+- [x] ב-`TARGET_IDS`: רוקן את מערך `contract` → `contract: []`
 
 ### שלב 2 — הוספת props ל-`FeedTab`
-- [ ] שנה את ה-signature של הפונקציה:
+- [x] שנה את ה-signature של הפונקציה:
   ```ts
   // לפני:
   function FeedTab()
@@ -32,11 +32,11 @@
   ```
 
 ### שלב 3 — שליפת חוזים אמיתיים מהשרת
-- [ ] הוסף state בתוך `FeedTab`:
+- [x] הוסף state בתוך `FeedTab`:
   ```ts
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
   ```
-- [ ] הוסף `useEffect` לשליפה מהשרת (רק כשה-mode הוא `'asset'`):
+- [x] הוסף `useEffect` לשליפה מהשרת (רק כשה-mode הוא `'asset'`):
   ```ts
   useEffect(() => {
     if (mode !== 'asset') return;
@@ -49,13 +49,13 @@
   ```
 
 ### שלב 4 — הצגת חוזים אמיתיים כשהפילטר "חוזים" פעיל
-- [ ] כשה-`filter === 'contract'`: הצג רשימת חוזים אמיתיים (לא את timeline הפיד)
-- [ ] כל שורת חוזה תציג: שם הצד השני, תאריכים, badge סטטוס (פעיל / לא בתוקף)
-- [ ] לחיצה על חוזה → ניווט ל-`/(app)/contracts/${item.id}`
-- [ ] אם אין חוזים → `EmptyState` עם כיתוב "אין חוזים"
+- [x] כשה-`filter === 'contract'`: הצג רשימת חוזים אמיתיים (לא את timeline הפיד)
+- [x] כל שורת חוזה תציג: שם הצד השני, תאריכים, badge סטטוס (פעיל / לא בתוקף)
+- [x] לחיצה על חוזה → ניווט ל-`/(app)/contracts/${item.id}`
+- [x] אם אין חוזים → `EmptyState` עם כיתוב "אין חוזים"
 
 ### שלב 5 — העברת props מ-`DetailTabsScreen`
-- [ ] בפונקציה `renderContent()`, בcase של `'feed'`:
+- [x] בפונקציה `renderContent()`, בcase של `'feed'`:
   ```ts
   // לפני:
   case 'feed':

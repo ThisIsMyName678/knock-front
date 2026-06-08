@@ -74,6 +74,15 @@ export function listProperties(params: ListPropertiesParams = {}): Promise<Backe
   return backendRequest<BackendProperty[]>(`/properties${suffix}`);
 }
 
+export type PropertyStats = {
+  total: number;
+  rented: number;
+};
+
+export function getPropertiesStats(): Promise<PropertyStats> {
+  return backendRequest<PropertyStats>('/properties/stats');
+}
+
 export function getProperty(id: string): Promise<BackendProperty> {
   return backendRequest<BackendProperty>(`/properties/${id}`);
 }
