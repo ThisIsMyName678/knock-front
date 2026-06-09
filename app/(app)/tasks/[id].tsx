@@ -103,10 +103,9 @@ export default function TaskDetailRoute() {
   const [editStartDate, setEditStartDate] = useState('');
   const [editPriority, setEditPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>('medium');
   const [editTaskKind, setEditTaskKind] = useState<TaskKind>('execution');
-  const [editEndDate, setEditEndDate] = useState('');
   const [editCostNotes, setEditCostNotes] = useState('');
   const [editTimeNotes, setEditTimeNotes] = useState('');
-  const [editDatePickerTarget, setEditDatePickerTarget] = useState<'start' | 'due' | 'end' | null>(null);
+  const [editDatePickerTarget, setEditDatePickerTarget] = useState<'start' | 'due' | null>(null);
   const [editStatus, setEditStatus] = useState<WorkflowStatus>('open');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -118,7 +117,6 @@ export default function TaskDetailRoute() {
     setEditStartDate(localStartDate);
     setEditPriority(localPriority);
     setEditTaskKind(localTaskKind);
-    setEditEndDate(localEndDate);
     setEditCostNotes(localCostNotes);
     setEditTimeNotes(localTimeNotes);
     setEditStatus(workflowStatus ?? 'open');
@@ -147,7 +145,6 @@ export default function TaskDetailRoute() {
       setLocalPriority(editPriority);
       setLocalTaskKind(editTaskKind);
       setWorkflowStatus(editStatus);
-      setLocalEndDate(editEndDate.trim());
       setLocalCostNotes(editCostNotes.trim());
       setLocalTimeNotes(editTimeNotes.trim());
       setEditOpen(false);
@@ -657,13 +654,6 @@ export default function TaskDetailRoute() {
                       </AppText>
                     </Pressable>
 
-                    <AppText variant="labelSm" weight="semiBold" style={[styles.dateFieldLabel, { marginTop: Spacing.sm }]}>תאריך סיום בפועל</AppText>
-                    <Pressable onPress={() => setEditDatePickerTarget('end')} style={styles.dateTrigger} accessibilityRole="button">
-                      <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
-                      <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: editEndDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
-                        {editEndDate || 'בחר תאריך'}
-                      </AppText>
-                    </Pressable>
                   </View>
 
                   {/* עלות וזמן */}
@@ -683,14 +673,13 @@ export default function TaskDetailRoute() {
 
         <DatePickerModal
           visible={editDatePickerTarget !== null}
-          value={editDatePickerTarget === 'start' ? editStartDate : editDatePickerTarget === 'due' ? editDueDate : editEndDate}
+          value={editDatePickerTarget === 'start' ? editStartDate : editDueDate}
           onSelect={(d) => {
             if (editDatePickerTarget === 'start') setEditStartDate(d);
-            else if (editDatePickerTarget === 'due') setEditDueDate(d);
-            else setEditEndDate(d);
+            else setEditDueDate(d);
           }}
           onClose={() => setEditDatePickerTarget(null)}
-          title={editDatePickerTarget === 'start' ? 'תאריך התחלה' : editDatePickerTarget === 'due' ? 'תאריך יעד' : 'תאריך סיום בפועל'}
+          title={editDatePickerTarget === 'start' ? 'תאריך התחלה' : 'תאריך יעד'}
         />
       </View>
     </KeyboardAvoidingView>

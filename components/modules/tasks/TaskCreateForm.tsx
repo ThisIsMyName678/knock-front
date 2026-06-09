@@ -121,7 +121,7 @@ export function TaskCreateForm() {
         ? links.find((e) => e.id === rawId && e.kind === kind)
         : links.find((e) => e.id === rawId);
       if (opt) setLinkSelected(opt);
-    }).catch(() => {});
+    }).catch(() => { });
   }, [params.preloadLinkId, params.preloadLinkKind, params.contextEntityId]);
 
   const [submitted, setSubmitted] = useState(false);
@@ -367,7 +367,7 @@ export function TaskCreateForm() {
 
             <View style={{ marginTop: Spacing.sm }}>
               <AppText variant="labelSm" weight="semiBold" style={styles.dateLabel}>
-                תאריך סיום (אופציונלי)
+                תאריך יעד (אופציונלי)
               </AppText>
               <Pressable
                 onPress={() => setDatePickerTarget('end')}
