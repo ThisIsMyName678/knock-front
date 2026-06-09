@@ -35,7 +35,7 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
-import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
+import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendOccupancyStatus, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
 import { consumePreloadedProject } from '@/lib/navigation-state';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,6 +67,7 @@ type MeterEntry = {
 
 type Step1Data = {
   kind: AssetKind | null;
+  occupancyStatus: BackendOccupancyStatus;
   address: string;
   addressSuggestion: AddressSuggestion | null;
   apartmentNumber: string;
@@ -145,6 +146,15 @@ const AMENITIES: { key: AmenityKey; label: string; icon: React.ComponentProps<ty
   { key: 'shelter', label: 'ממ"ד', icon: 'shield-home-outline' },
   { key: 'solarWater', label: 'דוד שמש', icon: 'white-balance-sunny' },
   { key: 'parking', label: 'חניה', icon: 'parking' },
+];
+
+const OCCUPANCY_STATUSES: { key: BackendOccupancyStatus; label: string }[] = [
+  { key: 'VACANT', label: 'פנוי' },
+  { key: 'OCCUPIED', label: 'מושכר' },
+  { key: 'PARTIALLY_OCCUPIED', label: 'מאוכלס חלקית' },
+  { key: 'UNDER_CONSTRUCTION', label: 'בבנייה' },
+  { key: 'SOLD', label: 'נמכר' },
+  { key: 'OTHER', label: 'אחר' },
 ];
 
 const PROPERTY_CONDITIONS: { key: PropertyCondition; label: string }[] = [
@@ -237,6 +247,7 @@ function step1FromProperty(property: BackendProperty): Step1Data {
 
   return {
     kind: backendTypeToAssetKind(property.propertyType),
+    occupancyStatus: property.occupancyStatus ?? 'VACANT',
     address: propertyAddressLabel(property),
     addressSuggestion: addressSuggestionFromProperty(property),
     apartmentNumber: typeof addressJson?.apartmentNumber === 'string' ? addressJson.apartmentNumber : '',
@@ -740,10 +751,10 @@ function ProjectSearchField({
 }) {
   const filtered = query.trim().length > 0
     ? MOCK_PROJECTS.filter(
-        (p) =>
-          p.name.includes(query) ||
-          p.address.includes(query),
-      ).slice(0, 6)
+      (p) =>
+        p.name.includes(query) ||
+        p.address.includes(query),
+    ).slice(0, 6)
     : [];
 
   if (selectedId && selectedName) {
@@ -931,6 +942,26 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
         {showErrors && errors?.kind ? (
           <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{errors.kind}</AppText>
         ) : null}
+      </View>
+
+      {/* Occupancy status */}
+      <View style={{ gap: Spacing.sm }}>
+        <AppText variant="labelMd" weight="semiBold" style={s1.label}>סטטוס תפוסה</AppText>
+        <View style={s1.chipRow}>
+          {OCCUPANCY_STATUSES.map((o) => (
+            <Pressable
+              key={o.key}
+              onPress={() => update('occupancyStatus', o.key)}
+              style={[s1.chip, data.occupancyStatus === o.key && s1.chipActive]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: data.occupancyStatus === o.key }}
+            >
+              <AppText variant="labelMd" style={{ color: data.occupancyStatus === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                {o.label}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       {/* Address */}
@@ -1617,6 +1648,7 @@ export default function NewAssetScreen() {
 
   const [step1, setStep1] = useState<Step1Data>({
     kind: null,
+    occupancyStatus: 'VACANT',
     address: '',
     addressSuggestion: null,
     apartmentNumber: '',
@@ -1720,7 +1752,7 @@ export default function NewAssetScreen() {
           apartmentNumber: step1.apartmentNumber || undefined,
         },
         propertyType: assetKindToBackendType(step1.kind),
-        occupancyStatus: editProperty?.occupancyStatus ?? 'VACANT',
+        occupancyStatus: step1.occupancyStatus,
         projectId: uuidOrNull(step1.linkedProjectId),
         metadata: {
           floorNumber: step1.floorNumber,
