@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -146,25 +146,27 @@ export function TasksListScreen() {
   const [statusModalTaskId, setStatusModalTaskId] = useState<string | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setLoadError(null);
-    listTasks({ limit: 200 })
-      .then((res) => {
-        if (active) {
-          setRows(res.data.map(backendTaskToListRow));
-          setLoading(false);
-        }
-      })
-      .catch((err: Error) => {
-        if (active) {
-          setLoadError(err?.message ?? 'שגיאה בטעינת משימות');
-          setLoading(false);
-        }
-      });
-    return () => { active = false; };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      setLoadError(null);
+      listTasks({ limit: 200 })
+        .then((res) => {
+          if (active) {
+            setRows(res.data.map(backendTaskToListRow));
+            setLoading(false);
+          }
+        })
+        .catch((err: Error) => {
+          if (active) {
+            setLoadError(err?.message ?? 'שגיאה בטעינת משימות');
+            setLoading(false);
+          }
+        });
+      return () => { active = false; };
+    }, []),
+  );
 
   useEffect(() => {
     const w = paramStr(params.workflowStatus);
