@@ -107,6 +107,7 @@ export default function TaskDetailRoute() {
   const [editCostNotes, setEditCostNotes] = useState('');
   const [editTimeNotes, setEditTimeNotes] = useState('');
   const [editDatePickerTarget, setEditDatePickerTarget] = useState<'start' | 'due' | 'end' | null>(null);
+  const [editStatus, setEditStatus] = useState<WorkflowStatus>('open');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -120,6 +121,7 @@ export default function TaskDetailRoute() {
     setEditEndDate(localEndDate);
     setEditCostNotes(localCostNotes);
     setEditTimeNotes(localTimeNotes);
+    setEditStatus(workflowStatus ?? 'open');
     setEditOpen(true);
   };
 
@@ -132,6 +134,7 @@ export default function TaskDetailRoute() {
         title: newTitle,
         taskType: clientTaskTypeToBackend(editTaskKind),
         urgency: clientPriorityToBackendUrgency(editPriority),
+        status: clientStatusToBackend(editStatus) ?? undefined,
         startDate: editStartDate.trim() ? ddMmYyyyToIso(editStartDate) : undefined,
         dueDate: editDueDate.trim() ? ddMmYyyyToIso(editDueDate) : null,
         cost: editCostNotes.trim() || null,
@@ -143,6 +146,7 @@ export default function TaskDetailRoute() {
       setLocalStartDate(editStartDate.trim() || localStartDate);
       setLocalPriority(editPriority);
       setLocalTaskKind(editTaskKind);
+      setWorkflowStatus(editStatus);
       setLocalEndDate(editEndDate.trim());
       setLocalCostNotes(editCostNotes.trim());
       setLocalTimeNotes(editTimeNotes.trim());
@@ -598,6 +602,25 @@ export default function TaskDetailRoute() {
                         >
                           <AppText variant="caption" weight={editPriority === p ? 'bold' : 'regular'} style={{ color: editPriority === p ? Colors.onPrimary : Colors.onSurfaceVariant }}>
                             {TASK_PRIORITY_LABELS[p]}
+                          </AppText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* סטטוס */}
+                  <View style={styles.editSection}>
+                    <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>סטטוס</AppText>
+                    <View style={styles.editChipsWrap}>
+                      {(['open', 'in_progress', 'completed', 'cancelled'] as const).map((s) => (
+                        <Pressable
+                          key={s}
+                          onPress={() => setEditStatus(s)}
+                          style={[styles.editChip, editStatus === s && styles.editChipActive]}
+                          accessibilityRole="button"
+                        >
+                          <AppText variant="caption" weight={editStatus === s ? 'bold' : 'regular'} style={{ color: editStatus === s ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                            {WORKFLOW_STATUS_LABELS[s]}
                           </AppText>
                         </Pressable>
                       ))}
