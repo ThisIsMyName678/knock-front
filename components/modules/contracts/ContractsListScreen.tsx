@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -162,8 +162,12 @@ export function ContractsListScreen() {
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [entityLinks, setEntityLinks] = useState<Array<{ id: string; kind: 'asset' | 'project'; name: string }>>([]);
+  const [focusCount, setFocusCount] = useState(0);
+
+  useFocusEffect(useCallback(() => { setFocusCount((n) => n + 1); }, []));
 
   useEffect(() => {
+    if (focusCount === 0) return;
     let cancelled = false;
     setLoading(true);
     const filters: Parameters<typeof fetchContracts>[0] = {};
@@ -178,7 +182,7 @@ export function ContractsListScreen() {
       .catch(() => { if (!cancelled) setContracts([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo]);
+  }, [focusCount, linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo]);
 
   useEffect(() => {
     Promise.all([listProjects(), listProperties()])

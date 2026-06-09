@@ -337,7 +337,11 @@ export function ContractCreateWizard({
       const result = contractId
         ? await updateContract(contractId, dto)
         : await createContract(dto);
-      router.replace(`/(app)/contracts/${result.id}`);
+      if (contractId) {
+        router.replace(`/(app)/contracts/${result.id}`);
+      } else {
+        router.back();
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'שגיאה בשמירת החוזה';
       setServerError(msg);

@@ -15,7 +15,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -647,17 +647,19 @@ function MainTab({ mode, entityId, projectName, propertyName, propertyAddress }:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!entityId) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetchContracts({ propertyId: entityId })
-      .then((rows) => { if (!cancelled) setContracts(rows); })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת חוזים'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [entityId]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!entityId) return;
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      fetchContracts({ propertyId: entityId })
+        .then((rows) => { if (!cancelled) setContracts(rows); })
+        .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת חוזים'); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+      return () => { cancelled = true; };
+    }, [entityId]),
+  );
 
   const filtered = contracts.filter((c) => {
     const active = c.status === 'ACTIVE';
