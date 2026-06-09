@@ -492,7 +492,7 @@ export function DashboardScreen() {
                 {assetsXY.rented}/{assetsXY.total}
               </AppText>
               <AppText variant="caption" color="variant" align="right">
-                מושכרים / סה״כ{assetsXYIsMock ? ' (mock)' : ''}
+                סה"כ / מושכרים{assetsXYIsMock ? ' (mock)' : ''}
               </AppText>
             </Pressable>
           </View>
