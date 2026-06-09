@@ -10,6 +10,7 @@ import {
   Alert,
   Linking,
   Share,
+  ActivityIndicator,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -40,7 +41,6 @@ import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import {
-  MOCK_TASKS_LIST,
   TASK_KIND_LABELS,
   TASK_KIND_ICONS,
   WORKFLOW_STATUS_LABELS,
@@ -50,6 +50,7 @@ import {
   type TaskPriority,
   TASK_PRIORITY_LABELS,
 } from '@/lib/mocks/tasks';
+import { listTasks, backendTaskToListRow } from '@/lib/api/tasks';
 import { assetsForProject } from '@/lib/mocks/assets';
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
@@ -732,6 +733,27 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [tasks, setTasks] = useState<TaskListRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const params = mode === 'project'
+      ? { projectId: entityId }
+      : { propertyId: entityId };
+    listTasks(params)
+      .then((res) => {
+        if (!cancelled) setTasks(res.data.map(backendTaskToListRow));
+      })
+      .catch(() => {
+        if (!cancelled) setTasks([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [entityId, mode]);
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
@@ -751,11 +773,6 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
     { key: 'all', label: 'הכל' },
     ...Object.entries(TASK_PRIORITY_LABELS).map(([k, v]) => ({ key: k, label: v })),
   ], []);
-
-  const projectAssetIds = useMemo(
-    () => new Set(assetsForProject(entityId).map((a) => a.id)),
-    [entityId],
-  );
 
   const filterSections: FilterSection[] = useMemo(() => [
     {
@@ -783,12 +800,7 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
   ], [kindFilter, priorityFilter, dateFrom, dateTo, taskKindOptions, priorityOptions]);
 
   const filtered = useMemo(() => {
-    return MOCK_TASKS_LIST.filter((t) => {
-      const matchesScope =
-        mode === 'asset'
-          ? t.linkId === entityId
-          : t.linkId === entityId || (t.linkKind === 'asset' && projectAssetIds.has(t.linkId));
-      if (!matchesScope) return false;
+    return tasks.filter((t) => {
       if (statusFilter !== 'all') {
         if (statusFilter === 'open' && !(t.workflowStatus === 'open' || t.workflowStatus === 'not_started')) return false;
         if (statusFilter === 'in_progress' && t.workflowStatus !== 'in_progress') return false;
@@ -801,7 +813,7 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
       if (q && !(t.title.toLowerCase().includes(q) || TASK_KIND_LABELS[t.taskKind].toLowerCase().includes(q) || t.dueDate.includes(q))) return false;
       return true;
     });
-  }, [mode, entityId, projectAssetIds, statusFilter, kindFilter, priorityFilter, dateFrom, dateTo, search]);
+  }, [tasks, statusFilter, kindFilter, priorityFilter, dateFrom, dateTo, search]);
 
   const resetFilters = useCallback(() => {
     setKindFilter('all');
@@ -828,7 +840,9 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
         contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
         ListEmptyComponent={
-          <EmptyState title="אין משימות" icon={<MaterialCommunityIcons name="hammer-wrench" size={28} color={Colors.primary} />} />
+          loading
+            ? <ActivityIndicator style={{ marginTop: Spacing.xl }} color={Colors.primary} />
+            : <EmptyState title="אין משימות" icon={<MaterialCommunityIcons name="hammer-wrench" size={28} color={Colors.primary} />} />
         }
         renderItem={({ item }) => (
           <Pressable
