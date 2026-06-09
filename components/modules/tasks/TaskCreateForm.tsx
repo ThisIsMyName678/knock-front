@@ -30,9 +30,14 @@ import {
   paymentsForTaskLink,
   type TaskKind,
   type TaskPriority,
-  type WorkflowStatus,
   type MaintenanceCategory,
 } from '@/lib/mocks/tasks';
+import {
+  createTask,
+  clientTaskTypeToBackend,
+  clientPriorityToBackendUrgency,
+  ddMmYyyyToIso,
+} from '@/lib/api/tasks';
 import {
   Colors,
   Spacing,
@@ -113,27 +118,42 @@ export function TaskCreateForm() {
     if (opt) setLinkSelected(opt);
   }, [params.preloadLinkId, params.preloadLinkKind, params.contextEntityId]);
 
-  const workflowFromPreset = (): WorkflowStatus => {
-    if (startPreset === 'in_progress') return 'in_progress';
-    return 'open';
-  };
-
-  const effectivePriority = (): TaskPriority => {
-    if (startPreset === 'urgent_flow') return 'urgent';
-    return priority;
-  };
-
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const errors = useMemo(() => ({
     title: title.trim().length === 0 ? 'שדה חובה' : '',
     startDate: startDate.trim().length === 0 ? 'שדה חובה' : '',
-  }), [title, startDate]);
+    link: !linkSelected ? 'נא לבחור נכס או פרויקט' : '',
+  }), [title, startDate, linkSelected]);
 
-  const onSave = () => {
+  const onSave = async () => {
     setSubmitted(true);
+    setSaveError(null);
     if (Object.values(errors).some(Boolean)) return;
-    router.back();
+
+    const urgency = startPreset === 'urgent_flow' || priority === 'urgent' ? 'URGENT' as const : clientPriorityToBackendUrgency(priority);
+    const status = startPreset === 'in_progress' ? 'IN_PROGRESS' as const : 'OPEN' as const;
+
+    setSubmitting(true);
+    try {
+      await createTask({
+        title: title.trim(),
+        taskType: clientTaskTypeToBackend(taskKind),
+        urgency,
+        status,
+        propertyId: linkSelected!.kind === 'asset' ? linkSelected!.id : null,
+        projectId: linkSelected!.kind === 'project' ? linkSelected!.id : null,
+        startDate: ddMmYyyyToIso(startDate),
+        dueDate: endDate.trim() ? ddMmYyyyToIso(endDate) : null,
+      });
+      router.back();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'שגיאה בשמירת המשימה');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const onCopyInvite = () => {
@@ -351,12 +371,27 @@ export function TaskCreateForm() {
               </Pressable>
             </View>
 
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.md }}>
-              סטטוס שמור: {workflowFromPreset()} · עדיפות: {effectivePriority()} (תצוגה בלבד, ללא שמירה לשרת)
-            </AppText>
+            {submitted && errors.link ? (
+              <AppText variant="caption" style={{ color: Colors.error, textAlign: 'right', marginTop: Spacing.sm }}>
+                {errors.link}
+              </AppText>
+            ) : null}
           </View>
 
-          <Button label="שמור משימה" onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.base }} />
+          {saveError ? (
+            <AppText variant="bodySm" style={{ color: Colors.error, textAlign: 'center', marginTop: Spacing.sm }}>
+              {saveError}
+            </AppText>
+          ) : null}
+
+          <Button
+            label={submitting ? 'שומר...' : 'שמור משימה'}
+            onPress={onSave}
+            fullWidth
+            size="lg"
+            style={{ marginTop: Spacing.base }}
+            disabled={submitting}
+          />
         </ScrollView>
 
         <Modal visible={paymentModal} transparent animationType="slide" onRequestClose={() => setPaymentModal(false)}>
