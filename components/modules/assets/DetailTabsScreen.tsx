@@ -848,6 +848,9 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
                 </View>
                 <View style={{ flex: 1, gap: Spacing.xs }}>
                   <AppText variant="bodyMd" weight="bold" numberOfLines={2}>{item.title}</AppText>
+                  {!!item.description && (
+                    <AppText variant="bodySm" color="muted" numberOfLines={1}>{item.description}</AppText>
+                  )}
                   <View style={listStyles.rowGap}>
                     <MaterialCommunityIcons name="tag-outline" size={13} color={Colors.onSurfaceVariant} />
                     <AppText variant="bodySm" color="variant">{TASK_KIND_LABELS[item.taskKind]}</AppText>
