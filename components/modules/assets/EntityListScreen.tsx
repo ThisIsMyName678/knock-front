@@ -141,7 +141,7 @@ function EntityCard({ entity, onPress }: { entity: Entity; onPress: () => void }
         {/* Project-only: asset count + occupancy X/Y */}
         {isProject && (() => {
           const total = entity.assetCount;
-          const rented = entity.occupancy === 'rented' ? total : 0;
+          const rented = entity.rentedCount;
           return (
             <>
               <View style={styles.cardMeta}>
@@ -358,7 +358,11 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
     }
     if (mode === 'projects') {
       const orphans = plan === 'enterprise' ? backendAssets.filter((asset) => asset.projectId == null) : [];
-      return [...backendProjects, ...orphans];
+      const projectsWithRented = backendProjects.map((p) => ({
+        ...p,
+        rentedCount: backendAssets.filter((a) => a.projectId === p.id && a.occupancy === 'rented').length,
+      }));
+      return [...projectsWithRented, ...orphans];
     }
     return backendAssets;
   }, [mode, scopedProjectId, plan, backendAssets, backendProjects]);

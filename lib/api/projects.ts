@@ -52,6 +52,7 @@ export function projectToProjectEntity(project: BackendProject): ProjectEntity {
     name: project.name,
     address: addressJsonToLabel(project.addressJson),
     assetCount: project._count.properties,
+    rentedCount: (project._count as Record<string, number>).rentedProperties ?? 0,
     occupancy: 'vacant',
     role: { kind: 'owner' },
   };
