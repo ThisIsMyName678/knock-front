@@ -135,6 +135,7 @@ export default function TaskDetailRoute() {
         startDate: editStartDate.trim() ? ddMmYyyyToIso(editStartDate) : undefined,
         dueDate: editDueDate.trim() ? ddMmYyyyToIso(editDueDate) : null,
         cost: editCostNotes.trim() || null,
+        handlingTime: editTimeNotes.trim() ? parseInt(editTimeNotes.trim(), 10) : null,
       });
       setLocalTitle(newTitle);
       setLocalAssignee(editAssignee.trim() || localAssignee);
@@ -645,9 +646,9 @@ export default function TaskDetailRoute() {
                   {/* עלות וזמן */}
                   <View style={styles.editSection}>
                     <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>עלות וזמן</AppText>
-                    <Input label="הערות עלות" value={editCostNotes} onChangeText={setEditCostNotes} />
+                    <Input label='עלות (ש"ח)' value={editCostNotes} onChangeText={setEditCostNotes} keyboardType="numeric" />
                     <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="הערות זמן" value={editTimeNotes} onChangeText={setEditTimeNotes} />
+                      <Input label="זמן טיפול (שעות)" value={editTimeNotes} onChangeText={setEditTimeNotes} keyboardType="numeric" />
                     </View>
                   </View>
 

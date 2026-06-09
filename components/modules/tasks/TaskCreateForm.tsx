@@ -91,6 +91,8 @@ export function TaskCreateForm() {
   const [startDate, setStartDate] = useState(formatTodayDdMmYyyy);
   const [endDate, setEndDate] = useState('');
   const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
+  const [cost, setCost] = useState('');
+  const [handlingTime, setHandlingTime] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
 
   const [entities, setEntities] = useState<EntityLinkOption[]>([]);
@@ -151,6 +153,8 @@ export function TaskCreateForm() {
         projectId: linkSelected!.kind === 'project' ? linkSelected!.id : null,
         startDate: ddMmYyyyToIso(startDate),
         dueDate: endDate.trim() ? ddMmYyyyToIso(endDate) : null,
+        cost: cost.trim() || null,
+        handlingTime: handlingTime.trim() ? parseInt(handlingTime.trim(), 10) : null,
       });
       router.back();
     } catch (err) {
@@ -372,6 +376,12 @@ export function TaskCreateForm() {
                 </AppText>
               </Pressable>
             </View>
+
+            <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
+              עלות וזמן (אופציונלי)
+            </AppText>
+            <Input label='עלות (ש"ח)' value={cost} onChangeText={setCost} keyboardType="numeric" containerStyle={{ marginBottom: Spacing.sm }} />
+            <Input label="זמן טיפול (שעות)" value={handlingTime} onChangeText={setHandlingTime} keyboardType="numeric" />
 
             {/* ─── צרף קובץ ─── */}
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
