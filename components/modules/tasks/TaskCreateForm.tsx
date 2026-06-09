@@ -54,7 +54,7 @@ const TASK_KINDS = (Object.keys(TASK_KIND_LABELS) as TaskKind[])
 
 const PRIORITIES: TaskPriority[] = ['urgent', 'high', 'medium', 'low'];
 
-type StartPreset = 'open' | 'in_progress' | 'urgent_flow';
+type StartPreset = 'open' | 'in_progress' | 'completed' | 'cancelled';
 
 function formatTodayDdMmYyyy(): string {
   const d = new Date();
@@ -139,8 +139,14 @@ export function TaskCreateForm() {
     setSaveError(null);
     if (Object.values(errors).some(Boolean)) return;
 
-    const urgency = startPreset === 'urgent_flow' || priority === 'urgent' ? 'URGENT' as const : clientPriorityToBackendUrgency(priority);
-    const status = startPreset === 'in_progress' ? 'IN_PROGRESS' as const : 'OPEN' as const;
+    const urgency = clientPriorityToBackendUrgency(priority);
+    const statusMap: Record<StartPreset, 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'> = {
+      open: 'OPEN',
+      in_progress: 'IN_PROGRESS',
+      completed: 'COMPLETED',
+      cancelled: 'CANCELLED',
+    };
+    const status = statusMap[startPreset];
 
     setSubmitting(true);
     try {
@@ -250,14 +256,15 @@ export function TaskCreateForm() {
             </View>
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-              סטטוס התחלה
+              סטטוס
             </AppText>
             <View style={styles.rowChips}>
               {(
                 [
                   { key: 'open' as const, label: 'פתוח' },
                   { key: 'in_progress' as const, label: 'בטיפול' },
-                  { key: 'urgent_flow' as const, label: 'דחוף' },
+                  { key: 'completed' as const, label: 'הושלם' },
+                  { key: 'cancelled' as const, label: 'בוטל' },
                 ] as const
               ).map((o) => (
                 <Pressable key={o.key} onPress={() => setStartPreset(o.key)} style={[styles.miniChip, startPreset === o.key && styles.miniChipActive]}>
@@ -267,9 +274,6 @@ export function TaskCreateForm() {
                 </Pressable>
               ))}
             </View>
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.xs }}>
-              דחוף: נשמר כעדיפות דחוף + סטטוס פתוח (תצוגה בלבד)
-            </AppText>
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
               שיוך נכס / פרויקט
