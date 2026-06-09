@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { searchEntityLinks, type EntityLinkOption, type LinkKind } from '@/lib/api/entity-links';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
   TASK_KIND_LABELS,
@@ -26,7 +27,6 @@ import {
   MAINTENANCE_CATEGORY_LABELS,
   MAINTENANCE_CATEGORY_ICONS,
   MAINTENANCE_CATEGORY_ORDER,
-  MOCK_TASK_INVITE_URL,
   paymentsForTaskLink,
   type TaskKind,
   type TaskPriority,
@@ -90,6 +90,7 @@ export function TaskCreateForm() {
   const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState(formatTodayDdMmYyyy);
   const [endDate, setEndDate] = useState('');
+  const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
   const [attachmentName, setAttachmentName] = useState('');
 
   const [entities, setEntities] = useState<EntityLinkOption[]>([]);
@@ -337,8 +338,40 @@ export function TaskCreateForm() {
               </AppText>
             </Pressable>
 
-            <Input label="תאריך התחלה" required placeholder="DD/MM/YYYY" value={startDate} onChangeText={setStartDate} error={submitted ? errors.startDate : ''} containerStyle={{ marginTop: Spacing.md }} />
-            <Input label="תאריך סיום (אופציונלי)" placeholder="DD/MM/YYYY" value={endDate} onChangeText={setEndDate} containerStyle={{ marginTop: Spacing.sm }} />
+            <View style={{ marginTop: Spacing.md }}>
+              <AppText variant="labelSm" weight="semiBold" style={styles.dateLabel}>
+                תאריך התחלה <AppText variant="labelSm" style={{ color: Colors.error }}>*</AppText>
+              </AppText>
+              <Pressable
+                onPress={() => setDatePickerTarget('start')}
+                style={[styles.dateTrigger, submitted && errors.startDate ? styles.dateTriggerError : null]}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: startDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                  {startDate || 'בחר תאריך'}
+                </AppText>
+              </Pressable>
+              {submitted && errors.startDate ? (
+                <AppText variant="caption" style={{ color: Colors.error, textAlign: 'right', marginTop: 4 }}>{errors.startDate}</AppText>
+              ) : null}
+            </View>
+
+            <View style={{ marginTop: Spacing.sm }}>
+              <AppText variant="labelSm" weight="semiBold" style={styles.dateLabel}>
+                תאריך סיום (אופציונלי)
+              </AppText>
+              <Pressable
+                onPress={() => setDatePickerTarget('end')}
+                style={styles.dateTrigger}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: endDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                  {endDate || 'בחר תאריך'}
+                </AppText>
+              </Pressable>
+            </View>
 
             {/* ─── צרף קובץ ─── */}
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
@@ -392,6 +425,17 @@ export function TaskCreateForm() {
             disabled={submitting}
           />
         </ScrollView>
+
+        <DatePickerModal
+          visible={datePickerTarget !== null}
+          value={datePickerTarget === 'start' ? startDate : endDate}
+          onSelect={(d) => {
+            if (datePickerTarget === 'start') setStartDate(d);
+            else setEndDate(d);
+          }}
+          onClose={() => setDatePickerTarget(null)}
+          title={datePickerTarget === 'start' ? 'תאריך התחלה' : 'תאריך סיום'}
+        />
 
         <Modal visible={paymentModal} transparent animationType="slide" onRequestClose={() => setPaymentModal(false)}>
           <Pressable style={styles.payModalBackdrop} onPress={() => setPaymentModal(false)}>
@@ -534,5 +578,23 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
     alignItems: 'flex-end',
     gap: 4,
+  },
+  dateLabel: {
+    textAlign: 'right',
+    marginBottom: Spacing.xs,
+    color: Colors.onBackground,
+  },
+  dateTrigger: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  dateTriggerError: {
+    borderColor: Colors.error,
   },
 });
