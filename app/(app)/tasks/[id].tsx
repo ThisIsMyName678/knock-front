@@ -37,11 +37,15 @@ import {
   backendTaskDetailToRow,
   updateTask,
   clientStatusToBackend,
+  clientTaskTypeToBackend,
+  clientPriorityToBackendUrgency,
+  ddMmYyyyToIso,
 } from '@/lib/api/tasks';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, FontFamily, FontSize } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { Input } from '@/components/ui/Input';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 
 const STATUS_OPTIONS: WorkflowStatus[] = ['not_started', 'open', 'in_progress', 'completed', 'cancelled'];
 
@@ -102,6 +106,9 @@ export default function TaskDetailRoute() {
   const [editEndDate, setEditEndDate] = useState('');
   const [editCostNotes, setEditCostNotes] = useState('');
   const [editTimeNotes, setEditTimeNotes] = useState('');
+  const [editDatePickerTarget, setEditDatePickerTarget] = useState<'start' | 'due' | 'end' | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const openEdit = () => {
     setEditTitle(localTitle);
@@ -116,17 +123,34 @@ export default function TaskDetailRoute() {
     setEditOpen(true);
   };
 
-  const saveEdit = () => {
-    setLocalTitle(editTitle.trim() || localTitle);
-    setLocalAssignee(editAssignee.trim() || localAssignee);
-    setLocalDueDate(editDueDate.trim() || localDueDate);
-    setLocalStartDate(editStartDate.trim() || localStartDate);
-    setLocalPriority(editPriority);
-    setLocalTaskKind(editTaskKind);
-    setLocalEndDate(editEndDate.trim());
-    setLocalCostNotes(editCostNotes.trim());
-    setLocalTimeNotes(editTimeNotes.trim());
-    setEditOpen(false);
+  const saveEdit = async () => {
+    setEditError(null);
+    const newTitle = editTitle.trim() || localTitle;
+    setEditSaving(true);
+    try {
+      await updateTask(String(id ?? ''), {
+        title: newTitle,
+        taskType: clientTaskTypeToBackend(editTaskKind),
+        urgency: clientPriorityToBackendUrgency(editPriority),
+        startDate: editStartDate.trim() ? ddMmYyyyToIso(editStartDate) : undefined,
+        dueDate: editDueDate.trim() ? ddMmYyyyToIso(editDueDate) : null,
+        cost: editCostNotes.trim() || null,
+      });
+      setLocalTitle(newTitle);
+      setLocalAssignee(editAssignee.trim() || localAssignee);
+      setLocalDueDate(editDueDate.trim() || localDueDate);
+      setLocalStartDate(editStartDate.trim() || localStartDate);
+      setLocalPriority(editPriority);
+      setLocalTaskKind(editTaskKind);
+      setLocalEndDate(editEndDate.trim());
+      setLocalCostNotes(editCostNotes.trim());
+      setLocalTimeNotes(editTimeNotes.trim());
+      setEditOpen(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'שגיאה בשמירת המשימה');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -524,11 +548,16 @@ export default function TaskDetailRoute() {
                   <AppText variant="headingSm" weight="bold" style={{ flex: 1, textAlign: 'right' }}>
                     עריכת משימה
                   </AppText>
-                  <Pressable onPress={saveEdit} style={styles.saveBtn} accessibilityRole="button">
-                    <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>שמור</AppText>
+                  <Pressable onPress={editSaving ? undefined : saveEdit} style={[styles.saveBtn, editSaving && { opacity: 0.6 }]} accessibilityRole="button">
+                    <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>{editSaving ? 'שומר...' : 'שמור'}</AppText>
                   </Pressable>
                 </View>
 
+                {editError ? (
+                  <AppText variant="bodySm" style={{ color: Colors.error, textAlign: 'right', paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.sm }}>
+                    {editError}
+                  </AppText>
+                ) : null}
                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editContent}>
 
                   {/* סוג משימה */}
@@ -587,13 +616,30 @@ export default function TaskDetailRoute() {
                   {/* תאריכים */}
                   <View style={styles.editSection}>
                     <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>תאריכים</AppText>
-                    <Input label="תאריך התחלה (DD/MM/YYYY)" value={editStartDate} onChangeText={setEditStartDate} keyboardType="numeric" />
-                    <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="תאריך יעד (DD/MM/YYYY)" value={editDueDate} onChangeText={setEditDueDate} keyboardType="numeric" />
-                    </View>
-                    <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="תאריך סיום בפועל (DD/MM/YYYY)" value={editEndDate} onChangeText={setEditEndDate} keyboardType="numeric" />
-                    </View>
+
+                    <AppText variant="labelSm" weight="semiBold" style={styles.dateFieldLabel}>תאריך התחלה</AppText>
+                    <Pressable onPress={() => setEditDatePickerTarget('start')} style={styles.dateTrigger} accessibilityRole="button">
+                      <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                      <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: editStartDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                        {editStartDate || 'בחר תאריך'}
+                      </AppText>
+                    </Pressable>
+
+                    <AppText variant="labelSm" weight="semiBold" style={[styles.dateFieldLabel, { marginTop: Spacing.sm }]}>תאריך יעד</AppText>
+                    <Pressable onPress={() => setEditDatePickerTarget('due')} style={styles.dateTrigger} accessibilityRole="button">
+                      <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                      <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: editDueDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                        {editDueDate || 'בחר תאריך'}
+                      </AppText>
+                    </Pressable>
+
+                    <AppText variant="labelSm" weight="semiBold" style={[styles.dateFieldLabel, { marginTop: Spacing.sm }]}>תאריך סיום בפועל</AppText>
+                    <Pressable onPress={() => setEditDatePickerTarget('end')} style={styles.dateTrigger} accessibilityRole="button">
+                      <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                      <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: editEndDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                        {editEndDate || 'בחר תאריך'}
+                      </AppText>
+                    </Pressable>
                   </View>
 
                   {/* עלות וזמן */}
@@ -610,6 +656,18 @@ export default function TaskDetailRoute() {
             </Pressable>
           </KeyboardAvoidingView>
         </Modal>
+
+        <DatePickerModal
+          visible={editDatePickerTarget !== null}
+          value={editDatePickerTarget === 'start' ? editStartDate : editDatePickerTarget === 'due' ? editDueDate : editEndDate}
+          onSelect={(d) => {
+            if (editDatePickerTarget === 'start') setEditStartDate(d);
+            else if (editDatePickerTarget === 'due') setEditDueDate(d);
+            else setEditEndDate(d);
+          }}
+          onClose={() => setEditDatePickerTarget(null)}
+          title={editDatePickerTarget === 'start' ? 'תאריך התחלה' : editDatePickerTarget === 'due' ? 'תאריך יעד' : 'תאריך סיום בפועל'}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -810,5 +868,20 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     gap: Spacing.sm,
+  },
+  dateFieldLabel: {
+    textAlign: 'right',
+    marginBottom: Spacing.xs,
+    color: Colors.onBackground,
+  },
+  dateTrigger: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.surfaceVariant,
   },
 });
