@@ -563,7 +563,7 @@ export default function TaskDetailRoute() {
                     {editError}
                   </AppText>
                 ) : null}
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editContent}>
+                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editContent}>
 
                   {/* סוג משימה */}
                   <View style={styles.editSection}>
