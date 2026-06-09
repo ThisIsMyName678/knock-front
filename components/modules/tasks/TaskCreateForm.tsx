@@ -17,7 +17,7 @@ import { AppText } from '@/components/ui/Text';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AppHeader } from '@/components/ui/AppHeader';
-import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption, type LinkKind } from '@/lib/mocks/contracts';
+import { searchEntityLinks, type EntityLinkOption, type LinkKind } from '@/lib/api/entity-links';
 import { PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
   TASK_KIND_LABELS,
@@ -42,7 +42,6 @@ import {
   Colors,
   Spacing,
   Radius,
-  Shadow,
   FontFamily,
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
@@ -65,11 +64,6 @@ function formatTodayDdMmYyyy(): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-function filterEntitiesForTaskQuery(query: string): EntityLinkOption[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return MOCK_ENTITY_LINKS;
-  return MOCK_ENTITY_LINKS.filter((e) => entitySearchText(e).includes(q));
-}
 
 function iconName(icon: string): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
   return icon as React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -98,7 +92,14 @@ export function TaskCreateForm() {
   const [endDate, setEndDate] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
 
-  const entities = useMemo(() => filterEntitiesForTaskQuery(linkQuery), [linkQuery]);
+  const [entities, setEntities] = useState<EntityLinkOption[]>([]);
+  useEffect(() => {
+    if (!linkQuery.trim()) { setEntities([]); return; }
+    const t = setTimeout(() => {
+      searchEntityLinks(linkQuery).then(setEntities).catch(() => setEntities([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [linkQuery]);
   const paymentOptions = useMemo(() => paymentsForTaskLink(linkSelected?.id ?? ''), [linkSelected]);
 
   useEffect(() => {
@@ -112,10 +113,12 @@ export function TaskCreateForm() {
     const kindParam = params.preloadLinkKind;
     const kind: LinkKind | undefined =
       kindParam === 'project' || kindParam === 'asset' ? kindParam : undefined;
-    const opt = kind
-      ? MOCK_ENTITY_LINKS.find((e) => e.id === rawId && e.kind === kind)
-      : MOCK_ENTITY_LINKS.find((e) => e.id === rawId);
-    if (opt) setLinkSelected(opt);
+    searchEntityLinks('').then((links) => {
+      const opt = kind
+        ? links.find((e) => e.id === rawId && e.kind === kind)
+        : links.find((e) => e.id === rawId);
+      if (opt) setLinkSelected(opt);
+    }).catch(() => {});
   }, [params.preloadLinkId, params.preloadLinkKind, params.contextEntityId]);
 
   const [submitted, setSubmitted] = useState(false);
@@ -154,10 +157,6 @@ export function TaskCreateForm() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const onCopyInvite = () => {
-    Alert.alert('לינק הזמנה (דמה)', `${MOCK_TASK_INVITE_URL}\n\nשלחו לינק לשיוך בעל תפקיד למשימה.`);
   };
 
   const mockAttach = () => {

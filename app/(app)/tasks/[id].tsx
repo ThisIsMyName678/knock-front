@@ -10,6 +10,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -19,9 +20,7 @@ import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
-  getTaskDetailMock,
   TASK_KIND_LABELS,
   TASK_KIND_ICONS,
   TASK_PRIORITY_LABELS,
@@ -31,7 +30,14 @@ import {
   type TaskMessage,
   type WorkflowStatus,
   type TaskKind,
+  type TaskListRow,
 } from '@/lib/mocks/tasks';
+import {
+  getTask,
+  backendTaskDetailToRow,
+  updateTask,
+  clientStatusToBackend,
+} from '@/lib/api/tasks';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, FontFamily, FontSize } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { Input } from '@/components/ui/Input';
@@ -61,38 +67,41 @@ function statusPreset(s: WorkflowStatus): React.ComponentProps<typeof Badge>['pr
 export default function TaskDetailRoute() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const base = useMemo(() => getTaskDetailMock(String(id ?? '')), [id]);
+  const [task, setTask] = useState<TaskListRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(base?.workflowStatus ?? null);
-  const [messages, setMessages] = useState<TaskMessage[]>(() => base?.messages ?? []);
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null);
+  const [messages, setMessages] = useState<TaskMessage[]>([]);
   const [showAllMessages, setShowAllMessages] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeText, setComposeText] = useState('');
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
 
   // Local display state (reflects saves from edit modal)
-  const [localTitle, setLocalTitle] = useState(base?.title ?? '');
-  const [localAssignee, setLocalAssignee] = useState(base?.assigneeName ?? '');
-  const [localDueDate, setLocalDueDate] = useState(base?.dueDate ?? '');
-  const [localStartDate, setLocalStartDate] = useState(base?.startDate ?? '');
-  const [localPriority, setLocalPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>(base?.priority ?? 'medium');
-  const [localTaskKind, setLocalTaskKind] = useState<TaskKind>(base?.taskKind ?? 'execution');
-  const [localEndDate, setLocalEndDate] = useState(base?.endDate ?? '');
-  const [localCostNotes, setLocalCostNotes] = useState(base?.costNotes ?? '');
-  const [localTimeNotes, setLocalTimeNotes] = useState(base?.timeNotes ?? '');
+  const [localTitle, setLocalTitle] = useState('');
+  const [localAssignee, setLocalAssignee] = useState('');
+  const [localDueDate, setLocalDueDate] = useState('');
+  const [localStartDate, setLocalStartDate] = useState('');
+  const [localPriority, setLocalPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>('medium');
+  const [localTaskKind, setLocalTaskKind] = useState<TaskKind>('execution');
+  const [localEndDate, setLocalEndDate] = useState('');
+  const [localCostNotes, setLocalCostNotes] = useState('');
+  const [localTimeNotes, setLocalTimeNotes] = useState('');
 
   // Edit modal draft state
   const [editOpen, setEditOpen] = useState(false);
-  const [editTitle, setEditTitle] = useState(base?.title ?? '');
-  const [editAssignee, setEditAssignee] = useState(base?.assigneeName ?? '');
-  const [editDueDate, setEditDueDate] = useState(base?.dueDate ?? '');
-  const [editStartDate, setEditStartDate] = useState(base?.startDate ?? '');
-  const [editPriority, setEditPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>(base?.priority ?? 'medium');
-  const [editTaskKind, setEditTaskKind] = useState<TaskKind>(base?.taskKind ?? 'execution');
-  const [editEndDate, setEditEndDate] = useState(base?.endDate ?? '');
-  const [editCostNotes, setEditCostNotes] = useState(base?.costNotes ?? '');
-  const [editTimeNotes, setEditTimeNotes] = useState(base?.timeNotes ?? '');
+  const [editTitle, setEditTitle] = useState('');
+  const [editAssignee, setEditAssignee] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editPriority, setEditPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>('medium');
+  const [editTaskKind, setEditTaskKind] = useState<TaskKind>('execution');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editCostNotes, setEditCostNotes] = useState('');
+  const [editTimeNotes, setEditTimeNotes] = useState('');
 
   const openEdit = () => {
     setEditTitle(localTitle);
@@ -108,10 +117,10 @@ export default function TaskDetailRoute() {
   };
 
   const saveEdit = () => {
-    setLocalTitle(editTitle.trim() || (base?.title ?? ''));
-    setLocalAssignee(editAssignee.trim() || (base?.assigneeName ?? ''));
-    setLocalDueDate(editDueDate.trim() || (base?.dueDate ?? ''));
-    setLocalStartDate(editStartDate.trim() || (base?.startDate ?? ''));
+    setLocalTitle(editTitle.trim() || localTitle);
+    setLocalAssignee(editAssignee.trim() || localAssignee);
+    setLocalDueDate(editDueDate.trim() || localDueDate);
+    setLocalStartDate(editStartDate.trim() || localStartDate);
     setLocalPriority(editPriority);
     setLocalTaskKind(editTaskKind);
     setLocalEndDate(editEndDate.trim());
@@ -121,21 +130,40 @@ export default function TaskDetailRoute() {
   };
 
   useEffect(() => {
-    const t = getTaskDetailMock(String(id ?? ''));
-    if (t) {
-      setWorkflowStatus(t.workflowStatus);
-      setMessages([...t.messages]);
-    }
+    let active = true;
+    setLoading(true);
+    setLoadError(null);
+    getTask(String(id ?? ''))
+      .then((res) => {
+        if (!active) return;
+        const row = backendTaskDetailToRow(res);
+        setTask(row);
+        setWorkflowStatus(row.workflowStatus);
+        setMessages(row.messages);
+        setLocalTitle(row.title);
+        setLocalAssignee(row.assigneeName);
+        setLocalDueDate(row.dueDate);
+        setLocalStartDate(row.startDate);
+        setLocalPriority(row.priority);
+        setLocalTaskKind(row.taskKind);
+        setLocalEndDate(row.endDate ?? '');
+        setLocalCostNotes(row.costNotes ?? '');
+        setLocalTimeNotes(row.timeNotes ?? '');
+        setLoading(false);
+      })
+      .catch((err: Error) => {
+        if (!active) return;
+        setLoadError(err?.message ?? 'שגיאה בטעינת המשימה');
+        setLoading(false);
+      });
+    return () => { active = false; };
   }, [id]);
 
-  const task = base;
   const effectiveStatus = workflowStatus ?? task?.workflowStatus ?? 'open';
   const effectiveTaskKind = localTaskKind;
   const effectivePriority = localPriority;
 
   const lastFive = useMemo(() => lastMessages(messages, 5), [messages]);
-
-  const linkedPayment = task?.linkedPaymentId ? MOCK_PAYMENTS_LIST.find((p) => p.id === task.linkedPaymentId) : null;
 
   const sendMessage = useCallback(() => {
     const text = composeText.trim();
@@ -151,13 +179,25 @@ export default function TaskDetailRoute() {
     setComposeOpen(false);
   }, [composeText]);
 
-  if (!task) {
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="משימה" showBack />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  if (loadError || !task) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <AppHeader title="משימה" showBack />
         <View style={{ flex: 1, justifyContent: 'center', padding: CONTENT_HORIZONTAL_PADDING }}>
-          <AppText variant="bodyMd" align="center" color="variant">
-            לא נמצאה משימה
+          <MaterialCommunityIcons name="alert-circle-outline" size={36} color={Colors.error} style={{ alignSelf: 'center' }} />
+          <AppText variant="bodyMd" align="center" color="error" style={{ marginTop: Spacing.sm }}>
+            {loadError ?? 'לא נמצאה משימה'}
           </AppText>
           <Button label="חזרה" onPress={() => router.back()} fullWidth style={{ marginTop: Spacing.lg }} />
         </View>
@@ -272,16 +312,6 @@ export default function TaskDetailRoute() {
                 </AppText>
               </Pressable>
             ) : null}
-            {linkedPayment && (
-              <View style={styles.detailRow}>
-                <AppText variant="bodyMd" color="variant">
-                  תשלום מקושר
-                </AppText>
-                <AppText variant="bodyMd" weight="semiBold" style={{ flex: 1, textAlign: 'right' }} numberOfLines={2}>
-                  {linkedPayment.displayName} ({PAYMENT_TYPE_LABELS[linkedPayment.paymentType]})
-                </AppText>
-              </View>
-            )}
             {(localCostNotes || localTimeNotes || task.costNotes || task.timeNotes) && (
               <>
                 {(localCostNotes || task.costNotes) ? (
@@ -363,9 +393,22 @@ export default function TaskDetailRoute() {
               {STATUS_OPTIONS.map((s) => (
                 <Pressable
                   key={s}
-                  onPress={() => {
+                  disabled={statusSaving}
+                  onPress={async () => {
+                    const prev = workflowStatus;
                     setWorkflowStatus(s);
                     setStatusMenuOpen(false);
+                    const backendStatus = clientStatusToBackend(s);
+                    if (!backendStatus) return;
+                    setStatusSaving(true);
+                    try {
+                      await updateTask(String(id ?? ''), { status: backendStatus });
+                    } catch {
+                      setWorkflowStatus(prev);
+                      Alert.alert('שגיאה', 'לא ניתן לעדכן את הסטטוס. נסה שוב.');
+                    } finally {
+                      setStatusSaving(false);
+                    }
                   }}
                   style={[styles.modalOption, effectiveStatus === s && styles.modalOptionActive]}
                 >
