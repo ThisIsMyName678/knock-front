@@ -625,7 +625,13 @@ function ProjectMainAssetsTab({ entityId, projectName }: { entityId: string; pro
   );
 }
 
-function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: string; projectName?: string }) {
+function MainTab({ mode, entityId, projectName, propertyName, propertyAddress }: {
+  mode: DetailMode;
+  entityId: string;
+  projectName?: string;
+  propertyName?: string;
+  propertyAddress?: string;
+}) {
   if (mode === 'project') {
     return <ProjectMainAssetsTab entityId={entityId} projectName={projectName ?? ''} />;
   }
@@ -670,7 +676,7 @@ function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: 
           data={filtered}
           keyExtractor={(item) => item.id}
           scrollEnabled={false}
-          contentContainerStyle={listStyles.content}
+          contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]}
           ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
           ListEmptyComponent={
             <EmptyState title="אין חוזים" icon={<MaterialCommunityIcons name="file-sign" size={28} color={Colors.primary} />} />
@@ -711,6 +717,20 @@ function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: 
           }}
         />
       )}
+      <TabFab
+        onPress={() =>
+          router.push({
+            pathname: '/(app)/contracts/new',
+            params: {
+              preloadId: entityId,
+              preloadName: propertyName ?? '',
+              preloadAddress: propertyAddress ?? '',
+              preloadKind: 'asset',
+            },
+          })
+        }
+        accessibilityLabel="חוזה חדש"
+      />
     </View>
   );
 }
@@ -1454,7 +1474,7 @@ export function DetailTabsScreen({
       case 'feed':
         return <FeedTab />;
       case 'main':
-        return <MainTab mode={mode} entityId={id} projectName={project?.name} />;
+        return <MainTab mode={mode} entityId={id} projectName={project?.name} propertyName={headerTitle} propertyAddress={headerAddress} />;
       case 'tasks':
         return <TasksTab entityId={id} mode={mode} />;
       case 'documents':
