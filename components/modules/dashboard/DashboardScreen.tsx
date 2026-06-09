@@ -28,7 +28,6 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import {
-  assetsDashboardOccupancy,
   contactsDashboardCount,
   countOpenTasksByStage,
   countPaymentsDueNext7Days,
@@ -261,8 +260,7 @@ export function DashboardScreen() {
   const payments7d = useMemo(() => countPaymentsDueNext7Days(), []);
   const taskCounts = useMemo(() => countOpenTasksByStage(), []);
   const contactsN = useMemo(() => contactsDashboardCount(), []);
-  const assetsXYMock = useMemo(() => assetsDashboardOccupancy(), []);
-  const [assetsXY, setAssetsXY] = useState(assetsXYMock);
+  const [assetsXY, setAssetsXY] = useState({ rented: 0, total: 0 });
   const [assetsXYIsMock, setAssetsXYIsMock] = useState(true);
 
   useEffect(() => {
