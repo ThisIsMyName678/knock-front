@@ -81,12 +81,12 @@ export default function LoginScreen() {
       {/* Top brand strip */}
       <View style={styles.brandStrip}>
         <View style={styles.logoCircle}>
-          <MaterialCommunityIcons name="home-city-outline" size={32} color={Colors.onPrimary} />
+          <MaterialCommunityIcons name="home-city-outline" size={32} color={Colors.accent} />
         </View>
-        <AppText variant="displayMd" weight="extraBold" color="onPrimary" align="center">
+        <AppText variant="displayMd" weight="extraBold" align="center">
           Knock
         </AppText>
-        <AppText variant="bodyMd" color="onPrimary" align="center" style={{ opacity: 0.8 }}>
+        <AppText variant="bodyMd" color="variant" align="center">
           ניהול נכסים ארגוני
         </AppText>
       </View>
@@ -214,7 +214,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.background,
   },
   brandStrip: {
     alignItems: 'center',
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: Colors.accentMuted,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,

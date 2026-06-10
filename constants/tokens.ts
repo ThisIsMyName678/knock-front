@@ -1,75 +1,69 @@
 // ─── Design Tokens ──────────────────────────────────────────────────────────
 // Single source of truth for all visual values.
-// NEVER import colors/spacing/typography directly — always go through tokens.
 
 export const Colors = {
-  // Brand
-  primary: '#004a99',
-  primaryLight: '#1a65b3',
-  primaryDark: '#003875',
-  primaryContainer: '#d7e2ff',
-  onPrimary: '#ffffff',
-  onPrimaryContainer: '#001b3f',
+  primary: '#18181B',
+  primaryLight: '#3F3F46',
+  primaryDark: '#09090B',
+  primaryContainer: '#F1F5F9',
+  onPrimary: '#FFFFFF',
+  onPrimaryContainer: '#18181B',
 
-  // Surfaces
-  background: '#f9f9ff',
-  surface: '#ffffff',
-  surfaceVariant: '#f1f4f9',
-  surfaceElevated: '#ffffff',
+  accent: '#6366F1',
+  accentMuted: '#EEF2FF',
+  onAccent: '#FFFFFF',
 
-  // Text
-  onBackground: '#111c2d',
-  onSurface: '#111c2d',
-  onSurfaceVariant: '#64748b',
-  onSurfaceMuted: '#94a3b8',
+  background: '#F8FAFC',
+  surface: '#FFFFFF',
+  surfaceVariant: '#F1F5F9',
+  surfaceElevated: '#FFFFFF',
 
-  // Semantic
-  success: '#10b981',
-  successContainer: '#d1fae5',
-  onSuccess: '#ffffff',
+  onBackground: '#0F172A',
+  onSurface: '#0F172A',
+  onSurfaceVariant: '#64748B',
+  onSurfaceMuted: '#94A3B8',
 
-  warning: '#f59e0b',
-  warningContainer: '#fef3c7',
-  onWarning: '#ffffff',
+  success: '#10B981',
+  successContainer: '#ECFDF5',
+  onSuccess: '#FFFFFF',
 
-  error: '#ba1a1a',
-  errorContainer: '#ffdad6',
-  onError: '#ffffff',
+  warning: '#F59E0B',
+  warningContainer: '#FFFBEB',
+  onWarning: '#FFFFFF',
 
-  info: '#0284c7',
-  infoContainer: '#e0f2fe',
+  error: '#DC2626',
+  errorContainer: '#FEF2F2',
+  onError: '#FFFFFF',
 
-  // Borders
-  outline: '#94a3b8',
-  outlineVariant: '#c2c6d3',
-  outlineLight: '#e8eaf0',
+  info: '#0EA5E9',
+  infoContainer: '#F0F9FF',
 
-  // Money direction
-  inbound: '#10b981',
-  inboundBg: '#d1fae5',
-  outbound: '#ef4444',
-  outboundBg: '#fee2e2',
+  outline: '#CBD5E1',
+  outlineVariant: '#E2E8F0',
+  outlineLight: '#E2E8F0',
 
-  // Feed / Feed stripe colors
-  feedMaintenance: '#f59e0b',
-  feedPayments: '#004a99',
-  feedMessages: '#10b981',
-  feedContracts: '#6b7280',
+  inbound: '#10B981',
+  inboundBg: '#ECFDF5',
+  outbound: '#EF4444',
+  outboundBg: '#FEF2F2',
 
-  // Status
-  statusOpen: '#f59e0b',
-  statusOpenBg: '#fef3c7',
-  statusInProgress: '#004a99',
-  statusInProgressBg: '#d7e2ff',
-  statusClosed: '#10b981',
-  statusClosedBg: '#d1fae5',
-  statusCancelled: '#6b7280',
-  statusCancelledBg: '#f1f5f9',
+  feedMaintenance: '#F59E0B',
+  feedPayments: '#6366F1',
+  feedMessages: '#10B981',
+  feedContracts: '#64748B',
 
-  // Tab bar
-  tabActive: '#004a99',
-  tabInactive: '#94a3b8',
-  tabBg: '#ffffff',
+  statusOpen: '#F59E0B',
+  statusOpenBg: '#FFFBEB',
+  statusInProgress: '#6366F1',
+  statusInProgressBg: '#EEF2FF',
+  statusClosed: '#10B981',
+  statusClosedBg: '#ECFDF5',
+  statusCancelled: '#64748B',
+  statusCancelledBg: '#F1F5F9',
+
+  tabActive: '#18181B',
+  tabInactive: '#94A3B8',
+  tabBg: '#FFFFFF',
 } as const;
 
 export const Spacing = {
@@ -84,34 +78,35 @@ export const Spacing = {
 } as const;
 
 export const Radius = {
-  sm: 8,
-  md: 12,
-  lg: 14,
-  xl: 16,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 20,
+  '2xl': 24,
   full: 999,
 } as const;
 
 export const Shadow = {
   sm: {
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   md: {
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
   lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 6,
   },
 } as const;
 
@@ -122,9 +117,9 @@ export const FontSize = {
   md: 15,
   lg: 16,
   xl: 18,
-  '2xl': 20,
-  '3xl': 24,
-  '4xl': 28,
+  '2xl': 22,
+  '3xl': 26,
+  '4xl': 32,
 } as const;
 
 export const FontFamily = {
@@ -136,7 +131,7 @@ export const FontFamily = {
 
 export const LineHeight = {
   tight: 1.2,
-  normal: 1.4,
+  normal: 1.45,
   relaxed: 1.6,
 } as const;
 
@@ -149,11 +144,20 @@ export const ZIndex = {
   toast: 200,
 } as const;
 
-// Touch target minimum (accessibility)
 export const MIN_TOUCH = 44;
-
-// Layout
 export const HEADER_HEIGHT = 60;
 export const TAB_BAR_HEIGHT = 62;
-export const CONTENT_HORIZONTAL_PADDING = 16;
-export const MAX_CONTENT_WIDTH = 640; // for tablet centering
+export const CONTENT_HORIZONTAL_PADDING = 20;
+export const MAX_CONTENT_WIDTH = 640;
+
+/** Shared layout presets */
+export const SurfaceStyle = {
+  page: { flex: 1 as const, backgroundColor: Colors.background },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    ...Shadow.sm,
+  },
+} as const;

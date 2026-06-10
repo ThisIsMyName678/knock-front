@@ -6,7 +6,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { AppText } from './Text';
-import { Colors, Radius, Spacing, FontFamily, MIN_TOUCH } from '@/constants/tokens';
+import { Colors, Radius, Shadow, Spacing, FontFamily, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -66,16 +66,13 @@ export function Button({
           <AppText
             variant={size === 'sm' ? 'labelMd' : 'labelLg'}
             weight="bold"
-            color={variant === 'primary' || variant === 'danger' ? 'onPrimary' : 'primary'}
             align="center"
             style={{
               fontFamily: FontFamily.bold,
               color:
-                variant === 'primary'
+                variant === 'primary' || variant === 'danger'
                   ? Colors.onPrimary
-                  : variant === 'danger'
-                    ? Colors.onPrimary
-                    : Colors.primary,
+                  : Colors.primary,
             }}
           >
             {label}
@@ -94,24 +91,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
     minHeight: MIN_TOUCH,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
   },
   fullWidth: { width: '100%' },
   pressed: { opacity: 0.88 },
   disabled: { opacity: 0.45 },
-
   size_sm: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2, minHeight: 36 },
   size_md: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
   size_lg: { paddingHorizontal: Spacing['2xl'], paddingVertical: Spacing.md },
-
-  variant_primary: { backgroundColor: Colors.primary },
+  variant_primary: { backgroundColor: Colors.primary, ...Shadow.sm },
   variant_secondary: {
     backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
   },
-  variant_ghost: {
-    backgroundColor: 'transparent',
-  },
+  variant_ghost: { backgroundColor: 'transparent' },
   variant_danger: { backgroundColor: Colors.error },
 });

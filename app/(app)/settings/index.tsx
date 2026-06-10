@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
-import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
+import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { useAuth } from '@/lib/auth';
 
@@ -69,12 +69,12 @@ export default function SettingsScreen() {
       {/* Profile card */}
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
-          <MaterialCommunityIcons name="account-circle" size={40} color={Colors.onPrimary} />
+          <MaterialCommunityIcons name="account-circle" size={40} color={Colors.accent} />
         </View>
         <View style={{ flex: 1 }}>
-          <AppText variant="headingSm" weight="bold" color="onPrimary">{displayName}</AppText>
-          <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>{displayRole}</AppText>
-          <AppText variant="caption" color="onPrimary" style={{ opacity: 0.65 }}>{displayEmail}</AppText>
+          <AppText variant="headingSm" weight="bold">{displayName}</AppText>
+          <AppText variant="bodySm" color="variant">{displayRole}</AppText>
+          <AppText variant="caption" color="muted">{displayEmail}</AppText>
         </View>
         <Pressable
           onPress={() => router.push('/(app)/settings/profile-edit')}
@@ -82,7 +82,7 @@ export default function SettingsScreen() {
           accessibilityRole="button"
           accessibilityLabel="עריכת פרופיל"
         >
-          <MaterialCommunityIcons name="pencil-outline" size={20} color={Colors.onPrimary} />
+          <MaterialCommunityIcons name="pencil-outline" size={20} color={Colors.onSurfaceVariant} />
         </Pressable>
       </View>
 
@@ -140,15 +140,22 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
+    ...Shadow.sm,
   },
-  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  editBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.accentMuted, alignItems: 'center', justifyContent: 'center' },
+  editBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.sm },
   sectionLabel: { textAlign: 'right', paddingTop: Spacing.md, paddingBottom: Spacing.xs, paddingHorizontal: 4 },
-  sectionCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineVariant, overflow: 'hidden' },
+  sectionCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.outlineLight, overflow: 'hidden', ...Shadow.sm },
   row: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md, padding: Spacing.base },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
   logoutBtn: {

@@ -25,7 +25,7 @@ type Props = {
 type BadgeStyle = { bg: string; text: string; border: string };
 
 const presets: Record<Preset, BadgeStyle> = {
-  primary: { bg: Colors.primaryContainer, text: Colors.primary, border: Colors.primary },
+  primary: { bg: Colors.accentMuted, text: Colors.accent, border: Colors.accent },
   success: { bg: Colors.successContainer, text: Colors.success, border: Colors.success },
   warning: { bg: Colors.warningContainer, text: Colors.warning, border: Colors.warning },
   error: { bg: Colors.errorContainer, text: Colors.error, border: Colors.error },

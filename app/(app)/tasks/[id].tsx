@@ -213,8 +213,8 @@ export default function TaskDetailRoute() {
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} showsVerticalScrollIndicator={false}>
           {isMaintenance && (
             <View style={styles.maintenanceBanner}>
-              <MaterialCommunityIcons name="hammer-wrench" size={20} color={Colors.onPrimary} />
-              <AppText variant="labelMd" weight="bold" color="onPrimary" style={{ flex: 1, textAlign: 'right' }}>
+              <MaterialCommunityIcons name="hammer-wrench" size={20} color={Colors.warning} />
+              <AppText variant="labelMd" weight="bold" style={{ flex: 1, textAlign: 'right', color: Colors.onBackground }}>
                 קריאת תחזוקה פעילה
               </AppText>
             </View>
@@ -606,9 +606,11 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primaryDark,
+    backgroundColor: Colors.warningContainer,
     padding: Spacing.md,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
   },
   titleRow: { flexDirection: RTL_ROW, alignItems: 'flex-start', gap: Spacing.md },
   badgeRow: { flexDirection: RTL_ROW, gap: Spacing.sm, flexWrap: 'wrap' },

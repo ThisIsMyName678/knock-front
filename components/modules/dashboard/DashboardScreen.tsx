@@ -11,10 +11,9 @@ import {
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
-import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import {
   Colors,
@@ -41,7 +40,10 @@ import {
   type TasksDashboardPreset,
 } from '@/lib/mocks/dashboard';
 import { TASK_KIND_ICONS, type TaskKind } from '@/lib/mocks/tasks';
-import { AppHeader } from '@/components/ui/AppHeader';
+import { DashboardHero } from './DashboardHero';
+import { DashboardAttentionLane } from './DashboardAttentionLane';
+import { AgendaTimeline } from './AgendaTimeline';
+import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
 
@@ -110,11 +112,11 @@ function MonthCalendar({
       {/* Month nav */}
       <View style={calStyles.nav}>
         <Pressable onPress={() => setViewMonth(new Date(year, month + 1, 1))} style={calStyles.navBtn} hitSlop={8}>
-          <MaterialCommunityIcons name="chevron-right" size={22} color={Colors.primary} />
+          <MaterialCommunityIcons name="chevron-right" size={22} color={Colors.accent} />
         </Pressable>
         <AppText variant="bodyMd" weight="bold" style={{ flex: 1, textAlign: 'center' }}>{monthLabel}</AppText>
         <Pressable onPress={() => setViewMonth(new Date(year, month - 1, 1))} style={calStyles.navBtn} hitSlop={8}>
-          <MaterialCommunityIcons name="chevron-left" size={22} color={Colors.primary} />
+          <MaterialCommunityIcons name="chevron-left" size={22} color={Colors.accent} />
         </Pressable>
       </View>
 
@@ -145,7 +147,7 @@ function MonthCalendar({
                 <AppText
                   variant="bodySm"
                   weight={isToday ? 'bold' : 'regular'}
-                  style={{ textAlign: 'center', color: isSelected ? Colors.onPrimary : isToday ? Colors.primary : Colors.onBackground }}
+                  style={{ textAlign: 'center', color: isSelected ? Colors.onPrimary : isToday ? Colors.accent : Colors.onBackground }}
                 >
                   {day.getDate()}
                 </AppText>
@@ -160,16 +162,16 @@ function MonthCalendar({
 }
 
 const calStyles = StyleSheet.create({
-  wrap: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineVariant, overflow: 'hidden' },
+  wrap: { backgroundColor: Colors.background, borderRadius: Radius.lg, overflow: 'hidden' },
   nav: { flexDirection: RTL_ROW, alignItems: 'center', paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
   navBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: RTL_ROW },
   dayHeaderCell: { flex: 1, alignItems: 'center', paddingVertical: Spacing.xs },
   cell: { flex: 1, alignItems: 'center', paddingVertical: 5, minHeight: 38 },
-  cellSelected: { backgroundColor: Colors.primary, borderRadius: 6, margin: 1 },
-  cellToday: { borderWidth: 1, borderColor: Colors.primary, borderRadius: 6, margin: 1 },
+  cellSelected: { backgroundColor: Colors.onBackground, borderRadius: Radius.md, margin: 1 },
+  cellToday: { borderWidth: 1, borderColor: Colors.accent, borderRadius: Radius.md, margin: 1 },
   dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent', marginTop: 2 },
-  dotOn: { backgroundColor: Colors.primary },
+  dotOn: { backgroundColor: Colors.accent },
   dotSelected: { backgroundColor: Colors.onPrimary },
 });
 
@@ -256,6 +258,14 @@ export function DashboardScreen() {
   const [contactSearch, setContactSearch] = useState('');
   const [agendaStatusForId, setAgendaStatusForId] = useState<Record<string, string>>({});
   const [statusModalEventId, setStatusModalEventId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setLoading(false));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const showSkeleton = useSkeletonGate(loading);
 
   const payments7d = useMemo(() => countPaymentsDueNext7Days(), []);
   const taskCounts = useMemo(() => countOpenTasksByStage(), []);
@@ -373,115 +383,44 @@ export function DashboardScreen() {
 
   const statusModalEvent = statusModalEventId ? agenda.find((e) => e.id === statusModalEventId) : null;
 
+  const dateLabel = useMemo(
+    () => new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' }),
+    [],
+  );
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <AppHeader
-        title="שלום, ניר 👋"
-        subtitle={`דשבורד — ${new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}`}
-        showMenu
-      />
+      {showSkeleton ? (
+        <DashboardSkeleton />
+      ) : (
+        <FadeInContent visible style={{ flex: 1 }}>
+          <DashboardHero
+            payments7d={payments7d}
+            taskCounts={taskCounts}
+            assetsXY={assetsXY}
+            contactsN={contactsN}
+            dateLabel={dateLabel}
+            onPaymentsPress={pushPaymentsPreset}
+            onTasksPreset={pushTasksPreset}
+            onContactsPress={() => router.push('/(app)/contacts')}
+            onAssetsPress={() => router.push('/(app)/assets-screens')}
+          />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
-      >
-        {/* סקשן א — קוביות */}
-        <View style={styles.section}>
-          <AppText variant="headingSm" weight="bold" style={styles.sectionTitle}>
-            סקירה
-          </AppText>
-          <View style={styles.cubeGrid}>
-            <Pressable
-              onPress={() => router.push('/(app)/contacts')}
-              style={({ pressed }) => [styles.cube, pressed && { opacity: 0.88 }]}
-              accessibilityRole="button"
-            >
-              <MaterialCommunityIcons name="contacts-outline" size={26} color={Colors.primary} />
-              <AppText variant="labelMd" weight="bold" align="right">
-                ספר טלפונים
-              </AppText>
-              <AppText variant="displayMd" weight="extraBold" align="right" style={{ color: Colors.primary }}>
-                {contactsN}
-              </AppText>
-              <AppText variant="caption" color="variant" align="right">
-                אנשי קשר במערכת
-              </AppText>
-            </Pressable>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
+          >
+        <DashboardAttentionLane
+          payments7d={payments7d}
+          taskCounts={taskCounts}
+          onPaymentsPress={pushPaymentsPreset}
+          onTasksPreset={pushTasksPreset}
+        />
 
-            <Pressable
-              onPress={pushPaymentsPreset}
-              style={({ pressed }) => [styles.cube, pressed && { opacity: 0.88 }]}
-              accessibilityRole="button"
-            >
-              <MaterialCommunityIcons name="calendar-clock" size={26} color={Colors.warning} />
-              <AppText variant="labelMd" weight="bold" align="right">
-                תשלומים (7 ימים)
-              </AppText>
-              <AppText variant="displayMd" weight="extraBold" align="right" style={{ color: Colors.warning }}>
-                {payments7d}
-              </AppText>
-              <AppText variant="caption" color="variant" align="right">
-                עתידיים / באיחור (לא התקבלו)
-              </AppText>
-            </Pressable>
-
-            <View style={styles.cube}>
-              <MaterialCommunityIcons name="format-list-checks" size={26} color={Colors.info} />
-              <AppText variant="labelMd" weight="bold" align="right">
-                משימות פתוחות
-              </AppText>
-              <View style={styles.taskMiniRow}>
-                <Pressable onPress={() => pushTasksPreset('new')} hitSlop={6} style={styles.taskMiniCell}>
-                  <AppText variant="caption" color="variant">
-                    חדשות
-                  </AppText>
-                  <AppText variant="headingSm" weight="bold">
-                    {taskCounts.newCount}
-                  </AppText>
-                </Pressable>
-                <Pressable onPress={() => pushTasksPreset('in_progress')} hitSlop={6} style={styles.taskMiniCell}>
-                  <AppText variant="caption" color="variant">
-                    בתהליך
-                  </AppText>
-                  <AppText variant="headingSm" weight="bold">
-                    {taskCounts.inProgressCount}
-                  </AppText>
-                </Pressable>
-                <Pressable onPress={() => pushTasksPreset('total_open')} hitSlop={6} style={styles.taskMiniCell}>
-                  <AppText variant="caption" color="variant">
-                    סה״כ
-                  </AppText>
-                  <AppText variant="headingSm" weight="bold">
-                    {taskCounts.totalOpen}
-                  </AppText>
-                </Pressable>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() => router.push('/(app)/assets-screens')}
-              style={({ pressed }) => [styles.cube, pressed && { opacity: 0.88 }]}
-              accessibilityRole="button"
-            >
-              <MaterialCommunityIcons name="home-city-outline" size={26} color={Colors.success} />
-              <AppText variant="labelMd" weight="bold" align="right">
-                נכסים
-              </AppText>
-              <AppText variant="displayMd" weight="extraBold" align="right" style={{ color: Colors.success }}>
-                {assetsXY.rented}/{assetsXY.total}
-              </AppText>
-              <AppText variant="caption" color="variant" align="right">
-                מושכרים / סה״כ (mock)
-              </AppText>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* סקשן ב — יומן */}
-        <View style={styles.section}>
+        <View style={styles.workspace}>
           <View style={styles.rowBetween}>
-            <AppText variant="headingSm" weight="bold">
-              יומן אירועים
+            <AppText variant="headingSm" weight="bold" style={styles.sectionTitle}>
+              יומן וסדר יום
             </AppText>
             <View style={styles.syncRow}>
               <AppText variant="caption" color="variant">
@@ -492,7 +431,7 @@ export function DashboardScreen() {
           </View>
 
           {googleSyncMock ? (
-            <Card style={styles.googleCard}>
+            <View style={styles.googleNote}>
               <AppText variant="bodySm" align="right" style={{ marginBottom: Spacing.sm }}>
                 מצב מסונכרן (mock): אירועי Google מוצגים בסדר היום ובסימון הימים.
               </AppText>
@@ -500,15 +439,14 @@ export function DashboardScreen() {
                 onPress={() => Linking.openURL(GOOGLE_CALENDAR_URL)}
                 style={({ pressed }) => [styles.linkBtn, pressed && { opacity: 0.85 }]}
               >
-                <MaterialCommunityIcons name="open-in-new" size={18} color={Colors.primary} />
+                <MaterialCommunityIcons name="open-in-new" size={18} color={Colors.accent} />
                 <AppText variant="labelMd" weight="semiBold" color="primary">
                   פתח ב-Google Calendar
                 </AppText>
               </Pressable>
-            </Card>
+            </View>
           ) : null}
 
-          {/* Monthly Calendar */}
           <MonthCalendar
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
@@ -530,69 +468,23 @@ export function DashboardScreen() {
               <MaterialCommunityIcons name="plus" size={22} color={Colors.onPrimary} />
             </Pressable>
           </View>
-        </View>
 
-        {/* סקשן ג — סדר יום */}
-        <View style={styles.section}>
-          <AppText variant="headingSm" weight="bold" style={styles.sectionTitle}>
-            {agendaTitle}
-          </AppText>
-
-          {agenda.length === 0 ? (
-            <Card style={styles.emptyAgenda}>
-              <AppText variant="bodyMd" color="variant" align="center">
-                אין אירועים ביום זה
-              </AppText>
-            </Card>
-          ) : (
-            agenda.map((ev) => {
-              const displayStatus = agendaStatusForId[ev.id] ?? ev.statusLabel;
-              const tint = sourceColor(ev.source);
-              return (
-                <Card key={ev.id} style={styles.agendaCard}>
-                  <View style={styles.agendaRow}>
-                    <View style={[styles.agendaIcon, { backgroundColor: `${tint}22` }]}>
-                      <MaterialCommunityIcons name={agendaEventIcon(ev)} size={20} color={tint} />
-                    </View>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <AppText variant="bodyMd" weight="semiBold" numberOfLines={2} align="right">
-                        {ev.title}
-                      </AppText>
-                      <AppText variant="bodySm" color="variant" numberOfLines={2} align="right">
-                        {ev.timeLabel ? `${ev.timeLabel} · ` : ''}
-                        {ev.detail}
-                      </AppText>
-                    </View>
-                    <Badge label={displayStatus} preset="neutral" />
-                  </View>
-                  <View style={styles.agendaActions}>
-                    <Pressable
-                      onPress={() => setStatusModalEventId(ev.id)}
-                      style={({ pressed }) => [styles.smallBtn, pressed && { opacity: 0.85 }]}
-                      hitSlop={6}
-                    >
-                      <AppText variant="labelSm" weight="semiBold" color="primary">
-                        שינוי סטטוס
-                      </AppText>
-                    </Pressable>
-                    {ev.href ? (
-                      <Pressable
-                        onPress={() => router.push(ev.href as Href)}
-                        style={({ pressed }) => [styles.smallBtn, pressed && { opacity: 0.85 }]}
-                        hitSlop={6}
-                      >
-                        <AppText variant="labelSm" weight="semiBold" color="primary">
-                          פרטים
-                        </AppText>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </Card>
-              );
-            })
-          )}
+          <View style={styles.agendaSection}>
+            <AppText variant="labelMd" weight="semiBold" color="variant" style={styles.agendaTitle}>
+              {agendaTitle}
+            </AppText>
+            <AgendaTimeline
+              events={agenda}
+              statusById={agendaStatusForId}
+              onStatusPress={setStatusModalEventId}
+              sourceColor={sourceColor}
+              eventIcon={agendaEventIcon}
+            />
+          </View>
         </View>
       </ScrollView>
+        </FadeInContent>
+      )}
 
       <Modal visible={createOpen} animationType="slide" transparent onRequestClose={() => setCreateOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setCreateOpen(false)}>
@@ -820,30 +712,16 @@ const styles = StyleSheet.create({
     padding: CONTENT_HORIZONTAL_PADDING,
     gap: Spacing.xl,
   },
-  section: { gap: Spacing.md },
   sectionTitle: { textAlign: 'right' },
-  cubeGrid: {
-    flexDirection: RTL_ROW,
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  cube: {
-    width: '47%',
-    minHeight: 132,
+  workspace: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    padding: Spacing.md,
-    gap: Spacing.xs,
+    borderColor: Colors.outlineLight,
+    padding: Spacing.lg,
+    gap: Spacing.lg,
     ...Shadow.sm,
   },
-  taskMiniRow: {
-    flexDirection: RTL_ROW,
-    justifyContent: 'space-between',
-    marginTop: Spacing.xs,
-  },
-  taskMiniCell: { alignItems: 'center', minWidth: 44 },
   rowBetween: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
@@ -851,39 +729,19 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   syncRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
-  googleCard: { padding: Spacing.md },
+  googleNote: {
+    backgroundColor: Colors.background,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    padding: Spacing.md,
+  },
   linkBtn: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.sm,
     alignSelf: 'flex-end',
   },
-  weekRow: {
-    flexDirection: RTL_ROW,
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-  },
-  dayCell: {
-    width: 48,
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.surface,
-  },
-  dayCellSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryContainer,
-  },
-  dot: {
-    marginTop: 4,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'transparent',
-  },
-  dotOn: { backgroundColor: Colors.primary },
   plusFab: {
     width: MIN_TOUCH,
     height: MIN_TOUCH,
@@ -893,28 +751,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...Shadow.sm,
   },
-  emptyAgenda: { padding: Spacing.xl },
-  agendaCard: { gap: Spacing.sm, marginBottom: Spacing.sm },
-  agendaRow: {
-    flexDirection: RTL_ROW,
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-  },
-  agendaIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  agendaActions: {
-    flexDirection: RTL_ROW,
-    gap: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.outlineLight,
-    paddingTop: Spacing.sm,
-  },
-  smallBtn: { paddingVertical: Spacing.xs },
+  agendaSection: { gap: Spacing.md },
+  agendaTitle: { textAlign: 'right' },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',

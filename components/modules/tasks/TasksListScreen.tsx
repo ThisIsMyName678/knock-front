@@ -18,6 +18,7 @@ import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { RTL_ROW } from '@/constants/rtl';
+import { CardSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
   MOCK_TASKS_LIST,
@@ -138,6 +139,14 @@ export function TasksListScreen() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [statusModalTaskId, setStatusModalTaskId] = useState<string | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setLoading(false));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const showSkeleton = useSkeletonGate(loading);
 
   useEffect(() => {
     const w = paramStr(params.workflowStatus);
@@ -355,51 +364,55 @@ export function TasksListScreen() {
         sections={filterSections}
       />
 
-      <FlatList
-        data={sorted}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={listHeader}
-        contentContainerStyle={{
-          paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-          paddingBottom: insets.bottom + Spacing['2xl'],
-          paddingTop: Spacing.sm,
-          gap: Spacing.sm,
-        }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <EmptyState
-            title="אין משימות"
-            description="שנה סינון או חיפוש"
-            icon={<MaterialCommunityIcons name="checkbox-outline" size={32} color={Colors.primary} />}
-            actionLabel="משימה חדשה"
-            onAction={() => router.push('/(app)/tasks/new')}
-            style={{ paddingTop: Spacing.xl }}
-          />
-        }
-        renderItem={({ item }) => {
-          const priorityColor = PRIORITY_COLORS[item.priority];
-          return (
-            <View style={[styles.card, { borderRightColor: priorityColor }]}>
-              <Pressable
-                onPress={() => router.push(`/(app)/tasks/${item.id}`)}
-                style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.88 }]}
-                accessibilityRole="button"
-              >
-                {/* Row 1: kind icon + title + status badge */}
-                <View style={styles.cardRow}>
-                  <Badge
-                    label={WORKFLOW_STATUS_LABELS[item.workflowStatus]}
-                    preset={statusPreset(item.workflowStatus)}
-                  />
-                  <View style={styles.cardTitleWrap}>
-                    <AppText variant="bodyMd" weight="semiBold" numberOfLines={2} style={{ textAlign: 'right', flex: 1 }}>
-                      {item.title}
-                    </AppText>
-                    <View style={styles.kindIconWrap}>
-                      <MaterialCommunityIcons name={iconName(item.taskKind)} size={16} color={Colors.primary} />
+      {showSkeleton ? (
+        <CardSkeletonList count={6} style={{ flex: 1 }} />
+      ) : (
+        <FadeInContent visible style={{ flex: 1 }}>
+          <FlatList
+            data={sorted}
+            keyExtractor={(item) => item.id}
+            ListHeaderComponent={listHeader}
+            contentContainerStyle={{
+              paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+              paddingBottom: insets.bottom + Spacing['2xl'],
+              paddingTop: Spacing.sm,
+              gap: Spacing.sm,
+            }}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <EmptyState
+                title="אין משימות"
+                description="שנה סינון או חיפוש"
+                icon={<MaterialCommunityIcons name="checkbox-outline" size={32} color={Colors.primary} />}
+                actionLabel="משימה חדשה"
+                onAction={() => router.push('/(app)/tasks/new')}
+                style={{ paddingTop: Spacing.xl }}
+              />
+            }
+            renderItem={({ item }) => {
+              const priorityColor = PRIORITY_COLORS[item.priority];
+              return (
+                <View style={[styles.card, { borderRightColor: priorityColor }]}>
+                  <Pressable
+                    onPress={() => router.push(`/(app)/tasks/${item.id}`)}
+                    style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.88 }]}
+                    accessibilityRole="button"
+                  >
+                    {/* Row 1: kind icon + title + status badge */}
+                    <View style={styles.cardRow}>
+                      <Badge
+                        label={WORKFLOW_STATUS_LABELS[item.workflowStatus]}
+                        preset={statusPreset(item.workflowStatus)}
+                      />
+                      <View style={styles.cardTitleWrap}>
+                        <AppText variant="bodyMd" weight="semiBold" numberOfLines={2} style={{ textAlign: 'right', flex: 1 }}>
+                          {item.title}
+                        </AppText>
+                        <View style={styles.kindIconWrap}>
+                          <MaterialCommunityIcons name={iconName(item.taskKind)} size={16} color={Colors.primary} />
+                        </View>
+                      </View>
                     </View>
-                  </View>
-                </View>
 
                 {/* Row 2: priority + due date */}
                 <View style={[styles.cardRow, { marginTop: Spacing.sm }]}>
@@ -452,7 +465,9 @@ export function TasksListScreen() {
             </View>
           );
         }}
-      />
+          />
+        </FadeInContent>
+      )}
 
       {/* FAB */}
       <Pressable
@@ -534,7 +549,7 @@ const styles = StyleSheet.create({
   // ── Task card ──
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     borderColor: Colors.outlineLight,
     borderRightWidth: 4,

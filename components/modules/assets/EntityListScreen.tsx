@@ -32,6 +32,7 @@ import { setPreloadedProject } from '@/lib/navigation-state';
 import { useSubscriptionPlan } from '@/hooks/useSubscriptionPlan';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { FilterBar } from '@/components/ui/FilterBar';
+import { GridCardSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { RTL_ROW, RTL_ALIGN_START } from '@/constants/rtl';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -323,6 +324,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
   const [sheetVisible, setSheetVisible] = useState(false);
   const [backendAssets, setBackendAssets] = useState<AssetEntity[]>([]);
   const [backendProjects, setBackendProjects] = useState<ProjectEntity[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const loadProperties = useCallback(async () => {
     try {
@@ -347,10 +349,18 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
 
   useFocusEffect(
     useCallback(() => {
-      void loadProperties();
-      void loadProjects();
+      let cancelled = false;
+      setLoading(true);
+      Promise.all([loadProperties(), loadProjects()]).finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+      return () => {
+        cancelled = true;
+      };
     }, [loadProperties, loadProjects, refreshNonce]),
   );
+
+  const showSkeleton = useSkeletonGate(loading);
 
   const rawData: Entity[] = useMemo(() => {
     if (scopedProjectId) {
@@ -441,8 +451,9 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
         </View>
       ) : null}
 
-      {/* No data at all — onboarding empty state */}
-      {hasNoData ? (
+      {showSkeleton ? (
+        <GridCardSkeletonList rows={3} columns={embedded ? 2 : 3} style={{ flex: 1 }} />
+      ) : hasNoData ? (
         <EmptyState
           title={
             mode === 'projects'
@@ -490,24 +501,28 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
           style={{ flex: 1 }}
         />
       ) : embedded ? (
-        <EmbeddedEntityGrid
-          items={filtered}
-          bottomPadding={Spacing['2xl']}
-          onCardPress={handleCardPress}
-        />
+        <FadeInContent visible style={{ flex: 1 }}>
+          <EmbeddedEntityGrid
+            items={filtered}
+            bottomPadding={Spacing['2xl']}
+            onCardPress={handleCardPress}
+          />
+        </FadeInContent>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id}
-          numColumns={3}
-          contentContainerStyle={[
-            styles.grid,
-            { paddingBottom: insets.bottom + Spacing['2xl'] },
-          ]}
-          columnWrapperStyle={styles.gridRow}
-          showsVerticalScrollIndicator={false}
-          renderItem={renderItem}
-        />
+        <FadeInContent visible style={{ flex: 1 }}>
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+            numColumns={3}
+            contentContainerStyle={[
+              styles.grid,
+              { paddingBottom: insets.bottom + Spacing['2xl'] },
+            ]}
+            columnWrapperStyle={styles.gridRow}
+            showsVerticalScrollIndicator={false}
+            renderItem={renderItem}
+          />
+        </FadeInContent>
       )}
 
       {!embedded ? (
@@ -589,9 +604,9 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant,
+    borderColor: Colors.outlineLight,
     overflow: 'hidden',
     ...Shadow.sm,
   },

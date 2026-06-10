@@ -4,92 +4,53 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { AppText } from './Text';
 import { DrawerMenu } from './DrawerMenu';
-import { Colors, Spacing, CONTENT_HORIZONTAL_PADDING, Shadow } from '@/constants/tokens';
+import { Colors, Spacing, CONTENT_HORIZONTAL_PADDING, Shadow, Radius } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
 type Props = {
   title: string;
   subtitle?: string;
-  /** Custom subtitle node — replaces the plain text subtitle when provided */
   subtitleNode?: React.ReactNode;
-  /** Show back button — auto-detected via router.canGoBack() when omitted */
   showBack?: boolean;
   onBack?: () => void;
-  /** Show hamburger menu (also manages the DrawerMenu internally) */
   showMenu?: boolean;
 };
 
-/**
- * Unified app header — consistent across all screens.
- *
- * RTL layout: with I18nManager.forceRTL(true), use `row` (not `row-reverse`) so the
- * engine does not mirror twice — hamburger stays visually RIGHT, back LEFT.
- */
 export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, showMenu }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-
   const canGoBack = router.canGoBack();
   const showBackBtn = showBack === true || (showBack !== false && canGoBack);
-
   const handleBack = onBack ?? (() => router.back());
 
   return (
     <>
       <View style={styles.header}>
-        {/* RIGHT (first in row when RTL) — hamburger or placeholder */}
         <View style={styles.side}>
           {showMenu ? (
-            <Pressable
-              onPress={() => setDrawerOpen(true)}
-              style={styles.iconBtn}
-              accessibilityRole="button"
-              accessibilityLabel="תפריט ראשי"
-            >
-              <MaterialCommunityIcons name="menu" size={24} color={Colors.onPrimary} />
+            <Pressable onPress={() => setDrawerOpen(true)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
+              <MaterialCommunityIcons name="menu" size={22} color={Colors.onBackground} />
             </Pressable>
           ) : (
             <View style={styles.placeholder} />
           )}
         </View>
-
-        {/* CENTER — title + subtitle */}
         <View style={styles.titleContainer}>
-          <AppText
-            variant="headingMd"
-            weight="bold"
-            color="onPrimary"
-            style={styles.title}
-            numberOfLines={1}
-          >
-            {title}
-          </AppText>
+          <AppText variant="headingMd" weight="bold" style={styles.title} numberOfLines={1}>{title}</AppText>
           {subtitleNode ?? (subtitle ? (
-            <AppText variant="caption" color="onPrimary" style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
-            </AppText>
+            <AppText variant="caption" color="variant" style={styles.subtitle} numberOfLines={1}>{subtitle}</AppText>
           ) : null)}
         </View>
-
-        {/* LEFT (last in row when RTL) — back arrow or placeholder */}
         <View style={styles.side}>
           {showBackBtn ? (
-            <Pressable
-              onPress={handleBack}
-              style={styles.iconBtn}
-              accessibilityRole="button"
-              accessibilityLabel="חזרה"
-            >
-              <MaterialCommunityIcons name="arrow-right" size={24} color={Colors.onPrimary} />
+            <Pressable onPress={handleBack} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="חזרה">
+              <MaterialCommunityIcons name="arrow-right" size={22} color={Colors.onBackground} />
             </Pressable>
           ) : (
             <View style={styles.placeholder} />
           )}
         </View>
       </View>
-
-      {showMenu && (
-        <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
-      )}
+      {showMenu && <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />}
     </>
   );
 }
@@ -99,40 +60,21 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingBottom: Spacing.base,
+    paddingBottom: Spacing.md,
     paddingTop: Spacing.sm,
-    ...Shadow.md,
+    ...Shadow.sm,
   },
-  side: {
-    width: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleContainer: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  subtitle: {
-    textAlign: 'center',
-    opacity: 0.8,
-    marginTop: 1,
-  },
+  side: { width: 40, alignItems: 'center', justifyContent: 'center' },
+  titleContainer: { flex: 1, alignItems: 'center', paddingHorizontal: Spacing.sm },
+  title: { textAlign: 'center', color: Colors.onBackground },
+  subtitle: { textAlign: 'center', marginTop: 2 },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 40, height: 40, borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center',
   },
-  placeholder: {
-    width: 40,
-    height: 40,
-  },
+  placeholder: { width: 40, height: 40 },
 });

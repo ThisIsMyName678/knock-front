@@ -5,7 +5,6 @@ import {
   Pressable,
   Share,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -18,6 +17,7 @@ import { RTL_ROW } from '@/constants/rtl';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
+import { CardSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import {
   MOCK_ENTITY_LINKS,
   CONTRACT_TYPE_LABELS,
@@ -159,7 +159,8 @@ export function ContractsListScreen() {
   const [agreementDateFrom, setAgreementDateFrom] = useState('');
   const [agreementDateTo, setAgreementDateTo] = useState('');
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const showSkeleton = useSkeletonGate(loading);
 
   useEffect(() => {
     let cancelled = false;
@@ -366,10 +367,8 @@ export function ContractsListScreen() {
         </View>
       )}
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
+      {showSkeleton ? (
+        <CardSkeletonList count={6} variant="contract" style={{ flex: 1 }} />
       ) : sorted.length === 0 ? (
         <EmptyState
           title="אין חוזים"
@@ -380,19 +379,21 @@ export function ContractsListScreen() {
           style={{ flex: 1 }}
         />
       ) : (
-        <FlatList
-          data={sorted}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
-          showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
-          renderItem={({ item }) => (
-            <ContractCard
-              item={item}
-              onPress={() => router.push(`/(app)/contracts/${item.id}`)}
-            />
-          )}
-        />
+        <FadeInContent visible style={{ flex: 1 }}>
+          <FlatList
+            data={sorted}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
+            renderItem={({ item }) => (
+              <ContractCard
+                item={item}
+                onPress={() => router.push(`/(app)/contracts/${item.id}`)}
+              />
+            )}
+          />
+        </FadeInContent>
       )}
 
       {/* FAB */}
@@ -410,7 +411,6 @@ export function ContractsListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // ── Disclaimer ──
   disclaimer: {
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   // ── Card ──
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     borderColor: Colors.outlineLight,
     paddingVertical: Spacing.md,

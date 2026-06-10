@@ -574,12 +574,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  sectionAccent: {
-    width: 3,
-    height: 16,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
-  },
+  sectionAccent: { width: 3, height: 16, borderRadius: 2, backgroundColor: Colors.accent },
   sectionLabelText: {
     textAlign: 'right',
     color: Colors.onBackground,
@@ -598,14 +593,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs + 2,
     borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.outlineVariant,
-    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    backgroundColor: Colors.surface,
   },
-  chipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
+  chipActive: { backgroundColor: Colors.onBackground, borderColor: Colors.onBackground },
 
   // Date
   presetRow: {
@@ -664,10 +656,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.primaryContainer,
+    backgroundColor: Colors.accentMuted,
     borderRadius: Radius.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: Colors.accent,
   },
   entityList: {
     borderWidth: 1,
@@ -709,7 +701,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs + 2,
     borderRadius: Radius.full,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryContainer,
+    borderColor: Colors.outlineLight,
+    backgroundColor: Colors.surfaceVariant,
   },
 });

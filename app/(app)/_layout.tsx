@@ -14,7 +14,7 @@ export default function AppLayout() {
     console.log('[AppLayout] Showing loading screen');
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={Colors.accent} />
         <AppText style={styles.loadingText}>טוען נתונים...</AppText>
       </View>
     );
@@ -41,10 +41,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.background,
   },
   loadingText: {
     marginTop: 16,
-    color: Colors.variant,
+    color: Colors.onSurfaceVariant,
   },
 });

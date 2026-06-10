@@ -20,6 +20,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
+import { ListRowSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import type { LinkKind } from '@/lib/mocks/contracts';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
@@ -107,11 +108,13 @@ export function DocumentsListScreen() {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [menuRow, setMenuRow] = useState<DocumentListRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentListRow | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const linkScope = linkScopeFromScope(scope);
 
   useFocusEffect(
     useCallback(() => {
+      setLoading(true);
       setRows((prev) => {
         const pending = consumePendingDocuments();
         const snap = getActiveDocumentRowsSnapshot();
@@ -122,8 +125,12 @@ export function DocumentsListScreen() {
         if (snap) return [...snap];
         return prev;
       });
+      const id = requestAnimationFrame(() => setLoading(false));
+      return () => cancelAnimationFrame(id);
     }, []),
   );
+
+  const showSkeleton = useSkeletonGate(loading);
 
   useEffect(() => {
     setActiveDocumentRowsSnapshot(rows);
@@ -224,94 +231,100 @@ export function DocumentsListScreen() {
         sections={filterSections}
       />
 
-      <FlatList
-        data={sorted}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{
-          paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-          paddingTop: Spacing.sm,
-          paddingBottom: insets.bottom + 88,
-          gap: Spacing.sm,
-        }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <EmptyState
-            title="אין מסמכים"
-            description="שנה סינון או חיפוש"
-            icon={<MaterialCommunityIcons name="folder-outline" size={32} color={Colors.primary} />}
-            actionLabel="העלה מסמך"
-            onAction={() => router.push('/(app)/documents/new')}
-            style={{ paddingTop: Spacing.xl }}
+      {showSkeleton ? (
+        <ListRowSkeletonList count={6} variant="document" showTableHeader={false} style={{ flex: 1 }} />
+      ) : (
+        <FadeInContent visible style={{ flex: 1 }}>
+          <FlatList
+            data={sorted}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{
+              paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
+              paddingTop: Spacing.sm,
+              paddingBottom: insets.bottom + 88,
+              gap: Spacing.sm,
+            }}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <EmptyState
+                title="אין מסמכים"
+                description="שנה סינון או חיפוש"
+                icon={<MaterialCommunityIcons name="folder-outline" size={32} color={Colors.primary} />}
+                actionLabel="העלה מסמך"
+                onAction={() => router.push('/(app)/documents/new')}
+                style={{ paddingTop: Spacing.xl }}
+              />
+            }
+            renderItem={({ item }) => (
+              <View style={styles.card}>
+                <Pressable
+                  onPress={() => router.push(`/(app)/documents/${item.id}`)}
+                  style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.88 }]}
+                  accessibilityRole="button"
+                >
+                  {/* Row 1: file icon + name + menu button */}
+                  <View style={styles.cardRow}>
+                    <TouchableOpacity
+                      onPress={() => setTimeout(() => setMenuRow(item), 30)}
+                      style={styles.menuBtn}
+                      accessibilityLabel="פעולות"
+                      hitSlop={8}
+                    >
+                      <MaterialCommunityIcons name="dots-vertical" size={22} color={Colors.onSurfaceVariant} />
+                    </TouchableOpacity>
+                    <AppText
+                      variant="bodyMd"
+                      weight="semiBold"
+                      numberOfLines={2}
+                      style={{ flex: 1, textAlign: 'right' }}
+                    >
+                      {item.displayName}
+                    </AppText>
+                    <View style={[styles.fileIconWrap, { backgroundColor: `${fileIconColor(item.fileKind)}18` }]}>
+                      <MaterialCommunityIcons
+                        name={fileIconName(item.fileKind)}
+                        size={22}
+                        color={fileIconColor(item.fileKind)}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Row 2: type tag + date */}
+                  <View style={[styles.cardRow, { marginTop: Spacing.sm }]}>
+                    <View style={styles.metaGroup}>
+                      <MaterialCommunityIcons name="calendar-outline" size={13} color={Colors.onSurfaceMuted} />
+                      <AppText variant="caption" color="muted">{item.uploadedAt}</AppText>
+                    </View>
+                    <View style={styles.typeTag}>
+                      <AppText variant="caption" color="variant" numberOfLines={1}>
+                        {DOCUMENT_TYPE_LABELS[item.documentType]}
+                      </AppText>
+                    </View>
+                  </View>
+
+                  {/* Row 3: access badge + size + link */}
+                  <View style={[styles.cardRow, { marginTop: Spacing.xs }]}>
+                    <View style={styles.metaGroup}>
+                      <Badge label={accessShort(item.accessLevel)} preset={accessPreset(item.accessLevel)} />
+                      <AppText variant="caption" color="muted">{item.sizeLabel}</AppText>
+                    </View>
+                    <View style={styles.linkBadge}>
+                      <MaterialCommunityIcons
+                        name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
+                        size={12}
+                        color={Colors.primary}
+                      />
+                      <AppText variant="caption" numberOfLines={1} style={{ color: Colors.primary, maxWidth: 160 }}>
+                        {item.linkLabel}
+                      </AppText>
+                    </View>
+                  </View>
+                </Pressable>
+              </View>
+            )}
           />
-        }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Pressable
-              onPress={() => router.push(`/(app)/documents/${item.id}`)}
-              style={({ pressed }) => [styles.cardBody, pressed && { opacity: 0.88 }]}
-              accessibilityRole="button"
-            >
-              {/* Row 1: file icon + name + menu button */}
-              <View style={styles.cardRow}>
-                <TouchableOpacity
-                  onPress={() => setTimeout(() => setMenuRow(item), 30)}
-                  style={styles.menuBtn}
-                  accessibilityLabel="פעולות"
-                  hitSlop={8}
-                >
-                  <MaterialCommunityIcons name="dots-vertical" size={22} color={Colors.onSurfaceVariant} />
-                </TouchableOpacity>
-                <AppText
-                  variant="bodyMd"
-                  weight="semiBold"
-                  numberOfLines={2}
-                  style={{ flex: 1, textAlign: 'right' }}
-                >
-                  {item.displayName}
-                </AppText>
-                <View style={[styles.fileIconWrap, { backgroundColor: `${fileIconColor(item.fileKind)}18` }]}>
-                  <MaterialCommunityIcons
-                    name={fileIconName(item.fileKind)}
-                    size={22}
-                    color={fileIconColor(item.fileKind)}
-                  />
-                </View>
-              </View>
-
-              {/* Row 2: type tag + date */}
-              <View style={[styles.cardRow, { marginTop: Spacing.sm }]}>
-                <View style={styles.metaGroup}>
-                  <MaterialCommunityIcons name="calendar-outline" size={13} color={Colors.onSurfaceMuted} />
-                  <AppText variant="caption" color="muted">{item.uploadedAt}</AppText>
-                </View>
-                <View style={styles.typeTag}>
-                  <AppText variant="caption" color="variant" numberOfLines={1}>
-                    {DOCUMENT_TYPE_LABELS[item.documentType]}
-                  </AppText>
-                </View>
-              </View>
-
-              {/* Row 3: access badge + size + link */}
-              <View style={[styles.cardRow, { marginTop: Spacing.xs }]}>
-                <View style={styles.metaGroup}>
-                  <Badge label={accessShort(item.accessLevel)} preset={accessPreset(item.accessLevel)} />
-                  <AppText variant="caption" color="muted">{item.sizeLabel}</AppText>
-                </View>
-                <View style={styles.linkBadge}>
-                  <MaterialCommunityIcons
-                    name={item.linkKind === 'project' ? 'briefcase-outline' : 'home-outline'}
-                    size={12}
-                    color={Colors.primary}
-                  />
-                  <AppText variant="caption" numberOfLines={1} style={{ color: Colors.primary, maxWidth: 160 }}>
-                    {item.linkLabel}
-                  </AppText>
-                </View>
-              </View>
-            </Pressable>
-          </View>
-        )}
-      />
+        </FadeInContent>
+      )}
 
       {/* ─── Action menu sheet ─── */}
       <Modal visible={!!menuRow} transparent animationType="slide" onRequestClose={() => setMenuRow(null)}>
@@ -419,7 +432,7 @@ const styles = StyleSheet.create({
   // ── Card ──
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     borderColor: Colors.outlineLight,
     ...Shadow.sm,
