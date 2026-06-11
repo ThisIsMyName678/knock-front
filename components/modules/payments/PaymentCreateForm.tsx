@@ -437,7 +437,7 @@ export function PaymentCreateForm({
         return;
       }
       setIsSaving(false);
-      router.replace(`/(app)/payments/${initialData.id}` as const);
+      router.back();
       return;
     }
 
@@ -488,11 +488,8 @@ export function PaymentCreateForm({
       setIsSaving(false);
 
       if (createdPayment) {
-        const first = Array.isArray(createdPayment) ? createdPayment[0] : createdPayment;
-        if (first) {
-          router.replace(`/(app)/payments/${first.id}` as const);
-          return;
-        }
+        router.back();
+        return;
       }
     }
 

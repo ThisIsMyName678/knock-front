@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
@@ -24,23 +24,25 @@ export default function PaymentDetailScreen() {
   const [detail, setDetail] = useState<PaymentDetailMock | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    getPayment(id ?? '')
-      .then((payment) => {
-        if (active) setDetail(paymentToDetail(payment));
-      })
-      .catch(() => {
-        if (active) setDetail(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      getPayment(id ?? '')
+        .then((payment) => {
+          if (active) setDetail(paymentToDetail(payment));
+        })
+        .catch(() => {
+          if (active) setDetail(null);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }, [id]),
+  );
 
   const onDownload = useCallback(() => {
     Alert.alert('הורדה', 'במימוש אמיתי יורד קובץ / מסמך. כעת תצוגה בלבד.', [{ text: 'אישור' }]);
