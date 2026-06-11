@@ -400,7 +400,7 @@ export function PaymentCreateForm({
     setSubmitted(true);
     if (hasErrors) return;
 
-    if ((paymentMode === 'full' || paymentMode === 'recurring') && linkSelected) {
+    if ((paymentMode === 'full' || paymentMode === 'recurring' || paymentMode === 'installments') && linkSelected) {
       const amountNet = digitsToInt(amountExVat) || digitsToInt(amountIncVat);
       const amountGross = digitsToInt(amountIncVat) || digitsToInt(amountExVat);
       const dueDateIso = ddMmYyyyToIso(dueDate);
@@ -412,7 +412,7 @@ export function PaymentCreateForm({
           name: paymentName.trim(),
           direction: clientDirectionToBackend(direction),
           paymentType: clientPaymentTypeToBackend(paymentType),
-          mode: paymentMode === 'recurring' ? 'RECURRING' : 'FULL',
+          mode: paymentMode === 'recurring' ? 'RECURRING' : paymentMode === 'installments' ? 'INSTALLMENTS' : 'FULL',
           linkScope: linkSelected.kind === 'project' ? 'PROJECT' : 'PROPERTY',
           projectId: linkSelected.kind === 'project' ? linkSelected.id : null,
           propertyId: linkSelected.kind === 'asset' ? linkSelected.id : null,
@@ -427,6 +427,16 @@ export function PaymentCreateForm({
           notes: notes.trim() || null,
           ...(paymentMode === 'recurring'
             ? { cycle: clientCycleToBackend(recCycle), count: Math.min(36, Math.max(1, parseInt(recCount, 10) || 1)) }
+            : {}),
+          ...(paymentMode === 'installments'
+            ? {
+                installments: instRows.map((row) => ({
+                  amount: digitsToInt(row.amountDigits),
+                  dueDate: ddMmYyyyToIso(row.dueDate) ?? dueDateIso ?? new Date().toISOString().slice(0, 10),
+                  paymentMethod: clientMeansToBackend(row.means),
+                  indexed: row.indexed,
+                })),
+              }
             : {}),
         });
       } catch (error) {

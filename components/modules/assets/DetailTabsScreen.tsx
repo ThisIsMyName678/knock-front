@@ -51,8 +51,8 @@ import {
   TASK_PRIORITY_LABELS,
 } from '@/lib/mocks/tasks';
 import { listTasks, backendTaskToListRow } from '@/lib/api/tasks';
-import { assetsForProject } from '@/lib/mocks/assets';
-import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
+import { PAYMENT_TYPE_LABELS, type PaymentListRow } from '@/lib/mocks/payments';
+import { listPayments, paymentToListRow } from '@/lib/api/payments';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
 import { getProperty, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
 import { getProject, type BackendProject } from '@/lib/api/projects';
@@ -1132,27 +1132,27 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
     setDateTo('');
   }, []);
 
-  const projectAssetIds = useMemo(
-    () => new Set(assetsForProject(entityId).map((a) => a.id)),
-    [entityId],
-  );
+  const [payments, setPayments] = useState<PaymentListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const inScope = useMemo(
-    () =>
-      MOCK_PAYMENTS_LIST.filter((p) => {
-        if (mode === 'asset') {
-          return p.linkKind === 'asset' && p.linkId === entityId;
-        }
-        return (
-          (p.linkKind === 'project' && p.linkId === entityId) ||
-          (p.linkKind === 'asset' && projectAssetIds.has(p.linkId))
-        );
-      }),
-    [mode, entityId, projectAssetIds],
+  useFocusEffect(
+    useCallback(() => {
+      if (!entityId) return;
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      const params = mode === 'asset' ? { propertyId: entityId } : { projectId: entityId };
+      listPayments(params)
+        .then((rows) => { if (!cancelled) setPayments(rows.map(paymentToListRow)); })
+        .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת תשלומים'); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+      return () => { cancelled = true; };
+    }, [mode, entityId]),
   );
 
   const filtered = useMemo(() => {
-    return inScope.filter((p) => {
+    return payments.filter((p) => {
       if (dirFilter !== 'all' && p.direction !== dirFilter) return false;
       if (!inDateRange(p.dueDate, dateFrom, dateTo)) return false;
       const q = search.trim().toLowerCase();
@@ -1170,7 +1170,7 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
       }
       return true;
     });
-  }, [inScope, dirFilter, dateFrom, dateTo, search]);
+  }, [payments, dirFilter, dateFrom, dateTo, search]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -1184,8 +1184,14 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
       <FilterRow options={dirOptions} active={dirFilter} onSelect={setDirFilter} />
       <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <View style={[listStyles.content, { paddingBottom: 80 }]}>
-        {filtered.length === 0 && <InlineEmpty text="אין תשלומים להצגה" />}
-        {filtered.map((p) => {
+        {loading ? (
+          <InlineEmpty text="טוען תשלומים..." />
+        ) : error ? (
+          <InlineEmpty text={error} />
+        ) : filtered.length === 0 ? (
+          <InlineEmpty text="אין תשלומים להצגה" />
+        ) : null}
+        {!loading && !error && filtered.map((p) => {
           const inbound = p.direction === 'inbound';
           const color = inbound ? Colors.inbound : Colors.outbound;
           return (

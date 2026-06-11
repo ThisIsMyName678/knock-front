@@ -111,6 +111,12 @@ export type CreatePaymentInput = {
   notes?: string | null;
   cycle?: BackendRecurringCycle;
   count?: number;
+  installments?: {
+    amount: number;
+    dueDate: string;
+    paymentMethod: BackendPaymentMethod;
+    indexed: boolean;
+  }[];
 };
 
 export function createPayment(input: CreatePaymentInput): Promise<BackendPayment | BackendPayment[]> {
