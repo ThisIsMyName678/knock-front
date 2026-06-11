@@ -33,6 +33,7 @@ import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import {
   PAYER_TYPE_OPTIONS,
   createPayment,
+  updatePayment,
   clientDirectionToBackend,
   clientPaymentTypeToBackend,
   clientMeansToBackend,
@@ -167,6 +168,7 @@ export function PaymentCreateForm({
   preloadedContractName?: string;
 } = {}) {
   const insets = useSafeAreaInsets();
+  const isEdit = Boolean(initialData?.id);
 
   const [paymentName, setPaymentName] = useState(() => initialData?.displayName ?? '');
   const [direction, setDirection] = useState<'in' | 'out'>(() => initialData?.direction === 'inbound' ? 'in' : 'out');
@@ -200,7 +202,7 @@ export function PaymentCreateForm({
   const [amountIncVat, setAmountIncVat] = useState(() => initialData?.amountGross ? String(initialData.amountGross) : '');
   const [vatPct, setVatPct] = useState('18');
   const [vatSource, setVatSource] = useState<'ex' | 'inc'>('ex');
-  const [means, setMeans] = useState(() => initialData?.means ?? 'bank');
+  const [means, setMeans] = useState(() => initialData?.paymentMethodKey ?? 'bank');
   const [dueDate, setDueDate] = useState(() => initialData?.dueDate ?? todayDdMmYyyy());
   const [paymentMode, setPaymentMode] = useState<PaymentModeKey>(() => initialData?.mode ?? 'recurring');
   const [recCycle, setRecCycle] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
@@ -409,11 +411,37 @@ export function PaymentCreateForm({
     setSubmitted(true);
     if (hasErrors) return;
 
-    if ((paymentMode === 'full' || paymentMode === 'recurring' || paymentMode === 'installments' || paymentMode === 'shafif_plus') && linkSelected) {
-      const amountNet = digitsToInt(amountExVat) || digitsToInt(amountIncVat);
-      const amountGross = digitsToInt(amountIncVat) || digitsToInt(amountExVat);
-      const dueDateIso = ddMmYyyyToIso(dueDate);
+    const amountNet = digitsToInt(amountExVat) || digitsToInt(amountIncVat);
+    const amountGross = digitsToInt(amountIncVat) || digitsToInt(amountExVat);
+    const dueDateIso = ddMmYyyyToIso(dueDate);
 
+    if (isEdit && initialData?.id) {
+      setIsSaving(true);
+      try {
+        await updatePayment(initialData.id, {
+          name: paymentName.trim(),
+          paymentType: clientPaymentTypeToBackend(paymentType),
+          amountNet,
+          amountGross,
+          vatPercent: parsePct(vatPct),
+          paymentMethod: clientMeansToBackend(means),
+          dueDate: dueDateIso ?? undefined,
+          payerType,
+          payerContactId,
+          notes: notes.trim() || null,
+        });
+      } catch (error) {
+        setIsSaving(false);
+        const message = error instanceof BackendApiError ? error.message : 'עדכון התשלום נכשל';
+        Alert.alert('שגיאה', message);
+        return;
+      }
+      setIsSaving(false);
+      router.replace(`/(app)/payments/${initialData.id}` as const);
+      return;
+    }
+
+    if ((paymentMode === 'full' || paymentMode === 'recurring' || paymentMode === 'installments' || paymentMode === 'shafif_plus') && linkSelected) {
       setIsSaving(true);
       let createdPayment: BackendPayment | BackendPayment[] | undefined;
       try {
@@ -615,7 +643,7 @@ export function PaymentCreateForm({
               {PAYMENT_TYPE_LABELS[paymentType]}
             </AppText>
           </Pressable>
-          {paymentType === 'rent' && (
+          {!isEdit && paymentType === 'rent' && (
             <View style={styles.hintRow}>
               <MaterialCommunityIcons name="information-outline" size={14} color={Colors.primary} />
               <AppText variant="caption" color="primary">שכירות: הוגדר אוטומטית כמחזורי חודשי × 12</AppText>
@@ -707,19 +735,23 @@ export function PaymentCreateForm({
           </Pressable>
 
           {/* ─── אופן תשלום ─── */}
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>אופן תשלום</AppText>
-          <View style={styles.rowChips}>
-            {MODES.map((m) => (
-              <Pressable key={m.key} onPress={() => setPaymentMode(m.key)} style={[styles.miniChip, paymentMode === m.key && styles.miniChipActive]}>
-                <AppText variant="caption" weight={paymentMode === m.key ? 'bold' : 'regular'} style={{ color: paymentMode === m.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                  {m.label}
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
+          {!isEdit && (
+            <>
+              <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>אופן תשלום</AppText>
+              <View style={styles.rowChips}>
+                {MODES.map((m) => (
+                  <Pressable key={m.key} onPress={() => setPaymentMode(m.key)} style={[styles.miniChip, paymentMode === m.key && styles.miniChipActive]}>
+                    <AppText variant="caption" weight={paymentMode === m.key ? 'bold' : 'regular'} style={{ color: paymentMode === m.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                      {m.label}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
           {/* ─── מחזוריות ─── */}
-          {paymentMode === 'recurring' && (
+          {!isEdit && paymentMode === 'recurring' && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>מחזוריות</AppText>
               <View style={styles.rowChips}>
@@ -790,7 +822,7 @@ export function PaymentCreateForm({
           )}
 
           {/* ─── תשלומים מפוצלים ─── */}
-          {paymentMode === 'installments' && (
+          {!isEdit && paymentMode === 'installments' && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>תשלומים מפוצלים</AppText>
               <AmountField label="סכום כולל" value={instTotal} onChangeValue={setInstTotal} />
@@ -846,7 +878,7 @@ export function PaymentCreateForm({
           )}
 
           {/* ─── שוטף+ ─── */}
-          {paymentMode === 'shafif_plus' && (
+          {!isEdit && paymentMode === 'shafif_plus' && (
             <View style={styles.card}>
               <Input label="ימים (שוטף+)" value={shafifDays} onChangeText={setShafifDays} keyboardType="number-pad" />
               <AppText variant="bodySm" color="primary" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
@@ -1027,7 +1059,7 @@ export function PaymentCreateForm({
 
           {/* ─── תזכורות ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>תזכורות לפני מועד התשלום</AppText>
-          {paymentMode === 'recurring' && (
+          {!isEdit && paymentMode === 'recurring' && (
             <View style={styles.hintRow}>
               <MaterialCommunityIcons name="information-outline" size={14} color={Colors.primary} />
               <AppText variant="caption" color="primary">

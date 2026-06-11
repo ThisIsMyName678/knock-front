@@ -370,6 +370,7 @@ export type PaymentDetailMock = PaymentListRow & {
   amountNet?: number;
   amountGross?: number;
   means?: string;
+  paymentMethodKey?: string;
   contractLabel?: string;
 };
 

@@ -174,6 +174,18 @@ export function clientMeansToBackend(means: string): BackendPaymentMethod {
   return MEANS_TO_BACKEND[means as ClientPaymentMethodKey] ?? 'OTHER';
 }
 
+const BACKEND_TO_CLIENT_MEANS: Record<BackendPaymentMethod, ClientPaymentMethodKey> = {
+  CHECK: 'check',
+  BANK_TRANSFER: 'bank',
+  CASH: 'cash',
+  CREDIT: 'credit',
+  OTHER: 'other',
+};
+
+export function backendMeansToClient(method: BackendPaymentMethod): ClientPaymentMethodKey {
+  return BACKEND_TO_CLIENT_MEANS[method] ?? 'other';
+}
+
 export function clientDirectionToBackend(direction: ClientDirection): BackendPaymentDirection {
   return direction === 'in' ? 'IN' : 'OUT';
 }
@@ -211,6 +223,7 @@ export function paymentToDetail(payment: BackendPayment): PaymentDetailMock {
     amountNet: Number(payment.amountNet),
     amountGross: Number(payment.amountGross),
     means: PAYMENT_METHOD_LABELS[payment.paymentMethod],
+    paymentMethodKey: backendMeansToClient(payment.paymentMethod),
   };
 }
 
