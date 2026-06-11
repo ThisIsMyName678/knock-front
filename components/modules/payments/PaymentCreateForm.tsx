@@ -400,7 +400,7 @@ export function PaymentCreateForm({
     setSubmitted(true);
     if (hasErrors) return;
 
-    if ((paymentMode === 'full' || paymentMode === 'recurring' || paymentMode === 'installments') && linkSelected) {
+    if ((paymentMode === 'full' || paymentMode === 'recurring' || paymentMode === 'installments' || paymentMode === 'shafif_plus') && linkSelected) {
       const amountNet = digitsToInt(amountExVat) || digitsToInt(amountIncVat);
       const amountGross = digitsToInt(amountIncVat) || digitsToInt(amountExVat);
       const dueDateIso = ddMmYyyyToIso(dueDate);
@@ -412,7 +412,7 @@ export function PaymentCreateForm({
           name: paymentName.trim(),
           direction: clientDirectionToBackend(direction),
           paymentType: clientPaymentTypeToBackend(paymentType),
-          mode: paymentMode === 'recurring' ? 'RECURRING' : paymentMode === 'installments' ? 'INSTALLMENTS' : 'FULL',
+          mode: paymentMode === 'recurring' ? 'RECURRING' : paymentMode === 'installments' ? 'INSTALLMENTS' : paymentMode === 'shafif_plus' ? 'SHAFIF_PLUS' : 'FULL',
           linkScope: linkSelected.kind === 'project' ? 'PROJECT' : 'PROPERTY',
           projectId: linkSelected.kind === 'project' ? linkSelected.id : null,
           propertyId: linkSelected.kind === 'asset' ? linkSelected.id : null,
@@ -437,6 +437,9 @@ export function PaymentCreateForm({
                   indexed: row.indexed,
                 })),
               }
+            : {}),
+          ...(paymentMode === 'shafif_plus'
+            ? { shafifPlusDays: parseInt(shafifDays, 10) || 0 }
             : {}),
         });
       } catch (error) {

@@ -117,6 +117,7 @@ export type CreatePaymentInput = {
     paymentMethod: BackendPaymentMethod;
     indexed: boolean;
   }[];
+  shafifPlusDays?: number;
 };
 
 export function createPayment(input: CreatePaymentInput): Promise<BackendPayment | BackendPayment[]> {
