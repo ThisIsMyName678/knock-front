@@ -22,10 +22,9 @@ import { Button } from '@/components/ui/Button';
 import {
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_ACCESS_LABELS,
-  removeDocumentFromSnapshot,
   type DocumentListRow,
 } from '@/lib/mocks/documents';
-import { getDocument, documentToListRow } from '@/lib/api/documents';
+import { getDocument, deleteDocument, documentToListRow } from '@/lib/api/documents';
 import { MOCK_TASKS_LIST } from '@/lib/mocks/tasks';
 import {
   Colors,
@@ -339,14 +338,15 @@ export default function DocumentDetailScreen() {
 
   const onDelete = useCallback(() => {
     if (!doc) return;
-    Alert.alert('מחיקה', 'להסיר את המסמך מהרשימה המקומית?', [
+    Alert.alert('מחיקה', 'למחוק את המסמך?', [
       { text: 'ביטול', style: 'cancel' },
       {
         text: 'מחק',
         style: 'destructive',
         onPress: () => {
-          removeDocumentFromSnapshot(doc.id);
-          router.back();
+          deleteDocument(doc.id)
+            .then(() => router.back())
+            .catch((error) => console.warn(error instanceof Error ? error.message : 'Failed to delete document'));
         },
       },
     ]);

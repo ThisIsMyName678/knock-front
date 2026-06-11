@@ -35,7 +35,7 @@ import {
   type DocumentAccessLevel,
   type SortDir,
 } from '@/lib/mocks/documents';
-import { listDocuments, documentToListRow } from '@/lib/api/documents';
+import { listDocuments, deleteDocument, documentToListRow } from '@/lib/api/documents';
 import {
   Colors,
   Spacing,
@@ -155,11 +155,16 @@ export function DocumentsListScreen() {
     setTimeout(() => setDeleteTarget(row), 50);
   }, []);
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+    try {
+      await deleteDocument(deleteTarget.id);
+      await loadDocuments();
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to delete document');
+    }
     setDeleteTarget(null);
-  }, [deleteTarget]);
+  }, [deleteTarget, loadDocuments]);
 
   const activeSecondaryCount = useMemo(() => {
     let count = 0;
