@@ -37,6 +37,7 @@ import {
   clientPaymentTypeToBackend,
   clientMeansToBackend,
   ddMmYyyyToIso,
+  type BackendPayment,
 } from '@/lib/api/payments';
 import { BackendApiError } from '@/lib/backend';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
@@ -404,8 +405,9 @@ export function PaymentCreateForm({
       const dueDateIso = ddMmYyyyToIso(dueDate);
 
       setIsSaving(true);
+      let createdPayment: BackendPayment | undefined;
       try {
-        await createPayment({
+        createdPayment = await createPayment({
           name: paymentName.trim(),
           direction: clientDirectionToBackend(direction),
           paymentType: clientPaymentTypeToBackend(paymentType),
@@ -430,6 +432,11 @@ export function PaymentCreateForm({
         return;
       }
       setIsSaving(false);
+
+      if (createdPayment) {
+        router.replace(`/(app)/payments/${createdPayment.id}` as const);
+        return;
+      }
     }
 
     if (preloadedContractId) {
