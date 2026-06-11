@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -8,9 +8,10 @@ import {
   Alert,
   Modal,
   TouchableWithoutFeedback,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
@@ -19,11 +20,12 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import {
-  getDocumentDetailMock,
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_ACCESS_LABELS,
   removeDocumentFromSnapshot,
+  type DocumentListRow,
 } from '@/lib/mocks/documents';
+import { getDocument, documentToListRow } from '@/lib/api/documents';
 import { MOCK_TASKS_LIST } from '@/lib/mocks/tasks';
 import {
   Colors,
@@ -298,8 +300,29 @@ function fileKindLabel(k: string) {
 export default function DocumentDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const doc = useMemo(() => getDocumentDetailMock(String(id ?? '')), [id]);
+  const [doc, setDoc] = useState<DocumentListRow | null>(null);
+  const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      getDocument(String(id ?? ''))
+        .then((document) => {
+          if (active) setDoc(documentToListRow(document));
+        })
+        .catch(() => {
+          if (active) setDoc(null);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }, [id]),
+  );
 
   const taskTitle = doc?.linkedTaskId ? MOCK_TASKS_LIST.find((t) => t.id === doc.linkedTaskId)?.title : null;
 
@@ -332,6 +355,17 @@ export default function DocumentDetailScreen() {
   const onDuplicate = useCallback(() => {
     Alert.alert('שכפול', 'ייווצר עותק של המסמך בהמשך.', [{ text: 'אישור' }]);
   }, []);
+
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="מסמך" showBack />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   if (!doc) {
     return (

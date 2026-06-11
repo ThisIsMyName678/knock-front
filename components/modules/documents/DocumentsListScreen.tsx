@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -23,21 +23,19 @@ import type { FilterSection } from '@/components/ui/FilterSheet';
 import type { LinkKind } from '@/lib/mocks/contracts';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
-  MOCK_DOCUMENTS_LIST,
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_CATEGORY_LABELS,
   filterDocumentRows,
   sortDocumentRows,
-  setActiveDocumentRowsSnapshot,
-  getActiveDocumentRowsSnapshot,
-  consumePendingDocuments,
   DOCUMENT_UPLOAD_TYPE_ORDER,
   type DocumentListRow,
   type DocumentCategoryFilter,
   type DocumentSortKey,
   type DocumentType,
+  type DocumentAccessLevel,
   type SortDir,
 } from '@/lib/mocks/documents';
+import { listDocuments, documentToListRow } from '@/lib/api/documents';
 import {
   Colors,
   Spacing,
@@ -97,7 +95,7 @@ function fileIconColor(kind: DocumentListRow['fileKind']): string {
 
 export function DocumentsListScreen() {
   const insets = useSafeAreaInsets();
-  const [rows, setRows] = useState<DocumentListRow[]>(() => [...MOCK_DOCUMENTS_LIST]);
+  const [rows, setRows] = useState<DocumentListRow[]>([]);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<ScopeFilter>('all');
   const [entityId, setEntityId] = useState<string | null>(null);
@@ -110,24 +108,20 @@ export function DocumentsListScreen() {
 
   const linkScope = linkScopeFromScope(scope);
 
+  const loadDocuments = useCallback(async () => {
+    try {
+      const docs = await listDocuments();
+      setRows(docs.map(documentToListRow));
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to load documents');
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      setRows((prev) => {
-        const pending = consumePendingDocuments();
-        const snap = getActiveDocumentRowsSnapshot();
-        if (pending.length) {
-          const base = snap ?? prev;
-          return [...pending, ...base];
-        }
-        if (snap) return [...snap];
-        return prev;
-      });
-    }, []),
+      void loadDocuments();
+    }, [loadDocuments]),
   );
-
-  useEffect(() => {
-    setActiveDocumentRowsSnapshot(rows);
-  }, [rows]);
 
   const filtered = useMemo(
     () =>
