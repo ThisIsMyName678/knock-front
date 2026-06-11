@@ -124,6 +124,24 @@ export function createPayment(input: CreatePaymentInput): Promise<BackendPayment
   return backendRequest<BackendPayment | BackendPayment[]>('/payments', { method: 'POST', body: input });
 }
 
+export type UpdatePaymentInput = {
+  name?: string;
+  paymentType?: BackendPaymentTypeKey;
+  amountNet?: number;
+  amountGross?: number;
+  vatPercent?: number;
+  paymentMethod?: BackendPaymentMethod;
+  dueDate?: string;
+  status?: BackendPaymentStatus;
+  payerType?: string | null;
+  payerContactId?: string | null;
+  notes?: string | null;
+};
+
+export function updatePayment(id: string, input: UpdatePaymentInput): Promise<BackendPayment> {
+  return backendRequest<BackendPayment>(`/payments/${id}`, { method: 'PATCH', body: input });
+}
+
 const PAYMENT_METHOD_LABELS: Record<BackendPaymentMethod, string> = {
   CHECK: 'שיק',
   BANK_TRANSFER: 'העברה בנקאית',
