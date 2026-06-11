@@ -559,8 +559,12 @@ export function PaymentCreateForm({
             {(['in', 'out'] as const).map((d) => (
               <Pressable
                 key={d}
-                onPress={() => setDirection(d)}
-                style={[styles.dirBtn, direction === d && { borderColor: d === 'in' ? Colors.inbound : Colors.outbound, backgroundColor: d === 'in' ? Colors.inboundBg : Colors.outboundBg }]}
+                onPress={isEdit ? undefined : () => setDirection(d)}
+                style={[
+                  styles.dirBtn,
+                  direction === d && { borderColor: d === 'in' ? Colors.inbound : Colors.outbound, backgroundColor: d === 'in' ? Colors.inboundBg : Colors.outboundBg },
+                  isEdit && direction !== d && styles.disabled,
+                ]}
               >
                 <MaterialCommunityIcons name={d === 'in' ? 'arrow-down' : 'arrow-up'} size={22} color={d === 'in' ? Colors.inbound : Colors.outbound} />
                 <AppText variant="bodyMd" weight="bold" style={{ color: d === 'in' ? Colors.inbound : Colors.outbound }}>
@@ -576,10 +580,11 @@ export function PaymentCreateForm({
             <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
           </View>
           <TextInput
-            style={[styles.entityInput, submitted && errors.linkSelected ? { borderColor: Colors.error } : undefined]}
+            style={[styles.entityInput, submitted && errors.linkSelected ? { borderColor: Colors.error } : undefined, isEdit && styles.disabled]}
             placeholder="חיפוש..."
             placeholderTextColor={Colors.onSurfaceMuted}
             value={linkQuery}
+            editable={!isEdit}
             onChangeText={(t) => {
               setLinkQuery(t);
               setShowSuggest(t.trim().length > 0);
@@ -592,12 +597,14 @@ export function PaymentCreateForm({
               <AppText variant="bodySm" style={{ flex: 1 }}>
                 {linkSelected.name} — {linkSelected.address}
               </AppText>
-              <Pressable onPress={() => { setLinkSelected(null); setLinkQuery(''); setContractId(null); setPayerContactId(null); }}>
-                <MaterialCommunityIcons name="close-circle" size={20} color={Colors.onSurfaceMuted} />
-              </Pressable>
+              {!isEdit && (
+                <Pressable onPress={() => { setLinkSelected(null); setLinkQuery(''); setContractId(null); setPayerContactId(null); }}>
+                  <MaterialCommunityIcons name="close-circle" size={20} color={Colors.onSurfaceMuted} />
+                </Pressable>
+              )}
             </View>
           )}
-          {showSuggest && !linkSelected && entities.length > 0 && (
+          {!isEdit && showSuggest && !linkSelected && entities.length > 0 && (
             <View style={styles.suggestBox}>
               {entities.map((e) => (
                 <Pressable
@@ -624,7 +631,7 @@ export function PaymentCreateForm({
               <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
                 שיוך לחוזה (לא חובה)
               </AppText>
-              <Pressable onPress={() => setContractModal(true)} style={styles.dropdown}>
+              <Pressable onPress={isEdit ? undefined : () => setContractModal(true)} style={[styles.dropdown, isEdit && styles.disabled]}>
                 <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.onSurfaceVariant} />
                 <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
                   {contractId ? contracts.find((c) => c.id === contractId)?.contractName ?? '—' : 'בחר חוזה'}
@@ -1247,6 +1254,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.md,
   },
+  disabled: { opacity: 0.5 },
   directionRow: { flexDirection: RTL_ROW, gap: Spacing.md },
   dirBtn: {
     flex: 1,
