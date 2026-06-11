@@ -1,17 +1,48 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { PaymentCreateForm } from '@/components/modules/payments/PaymentCreateForm';
-import { getPaymentDetailMock } from '@/lib/mocks/payments';
+import { getPayment, paymentToDetail } from '@/lib/api/payments';
+import type { PaymentDetailMock } from '@/lib/mocks/payments';
 import { Colors, CONTENT_HORIZONTAL_PADDING, Spacing } from '@/constants/tokens';
 
 export default function PaymentEditScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const initialData = getPaymentDetailMock(id ?? '');
+  const [initialData, setInitialData] = useState<PaymentDetailMock | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getPayment(id ?? '')
+      .then((payment) => {
+        if (active) setInitialData(paymentToDetail(payment));
+      })
+      .catch(() => {
+        if (active) setInitialData(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="עריכת תשלום" showBack />
+        <View style={styles.empty}>
+          <ActivityIndicator color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   if (!initialData) {
     return (
