@@ -36,6 +36,7 @@ import {
   clientDirectionToBackend,
   clientPaymentTypeToBackend,
   clientMeansToBackend,
+  clientCycleToBackend,
   ddMmYyyyToIso,
   type BackendPayment,
 } from '@/lib/api/payments';
@@ -399,19 +400,19 @@ export function PaymentCreateForm({
     setSubmitted(true);
     if (hasErrors) return;
 
-    if (paymentMode === 'full' && linkSelected) {
+    if ((paymentMode === 'full' || paymentMode === 'recurring') && linkSelected) {
       const amountNet = digitsToInt(amountExVat) || digitsToInt(amountIncVat);
       const amountGross = digitsToInt(amountIncVat) || digitsToInt(amountExVat);
       const dueDateIso = ddMmYyyyToIso(dueDate);
 
       setIsSaving(true);
-      let createdPayment: BackendPayment | undefined;
+      let createdPayment: BackendPayment | BackendPayment[] | undefined;
       try {
         createdPayment = await createPayment({
           name: paymentName.trim(),
           direction: clientDirectionToBackend(direction),
           paymentType: clientPaymentTypeToBackend(paymentType),
-          mode: 'FULL',
+          mode: paymentMode === 'recurring' ? 'RECURRING' : 'FULL',
           linkScope: linkSelected.kind === 'project' ? 'PROJECT' : 'PROPERTY',
           projectId: linkSelected.kind === 'project' ? linkSelected.id : null,
           propertyId: linkSelected.kind === 'asset' ? linkSelected.id : null,
@@ -424,6 +425,9 @@ export function PaymentCreateForm({
           payerType,
           payerContactId,
           notes: notes.trim() || null,
+          ...(paymentMode === 'recurring'
+            ? { cycle: clientCycleToBackend(recCycle), count: Math.min(36, Math.max(1, parseInt(recCount, 10) || 1)) }
+            : {}),
         });
       } catch (error) {
         setIsSaving(false);
@@ -434,8 +438,11 @@ export function PaymentCreateForm({
       setIsSaving(false);
 
       if (createdPayment) {
-        router.replace(`/(app)/payments/${createdPayment.id}` as const);
-        return;
+        const first = Array.isArray(createdPayment) ? createdPayment[0] : createdPayment;
+        if (first) {
+          router.replace(`/(app)/payments/${first.id}` as const);
+          return;
+        }
       }
     }
 

@@ -19,6 +19,7 @@ export type BackendPaymentTypeKey =
   | 'SEVERANCE'
   | 'OTHER';
 export type BackendPaymentMode = 'FULL' | 'RECURRING' | 'INSTALLMENTS' | 'SHAFIF_PLUS';
+export type BackendRecurringCycle = 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 export type BackendPaymentLinkScope = 'PROJECT' | 'PROPERTY';
 export type BackendPaymentMethod = 'CHECK' | 'BANK_TRANSFER' | 'CASH' | 'CREDIT' | 'OTHER';
 export type BackendPaymentStatus = 'PLANNED' | 'PAID' | 'OVERDUE' | 'CANCELLED';
@@ -108,10 +109,12 @@ export type CreatePaymentInput = {
   payerType?: string | null;
   payerContactId?: string | null;
   notes?: string | null;
+  cycle?: BackendRecurringCycle;
+  count?: number;
 };
 
-export function createPayment(input: CreatePaymentInput): Promise<BackendPayment> {
-  return backendRequest<BackendPayment>('/payments', { method: 'POST', body: input });
+export function createPayment(input: CreatePaymentInput): Promise<BackendPayment | BackendPayment[]> {
+  return backendRequest<BackendPayment | BackendPayment[]>('/payments', { method: 'POST', body: input });
 }
 
 const PAYMENT_METHOD_LABELS: Record<BackendPaymentMethod, string> = {
@@ -156,6 +159,10 @@ export function clientPaymentTypeToBackend(type: PaymentTypeKey): BackendPayment
 
 export function clientPaymentModeToBackend(mode: PaymentModeKey): BackendPaymentMode {
   return mode.toUpperCase() as BackendPaymentMode;
+}
+
+export function clientCycleToBackend(cycle: 'weekly' | 'monthly' | 'yearly'): BackendRecurringCycle {
+  return cycle.toUpperCase() as BackendRecurringCycle;
 }
 
 export function ddMmYyyyToIso(date: string): string | null {
