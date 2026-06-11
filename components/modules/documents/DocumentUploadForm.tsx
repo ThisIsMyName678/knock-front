@@ -22,7 +22,6 @@ import {
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_ACCESS_LABELS,
   DOCUMENT_UPLOAD_TYPE_ORDER,
-  tasksForEntityLinkId,
   type DocumentType,
   type DocumentAccessLevel,
   type DocumentListRow,
@@ -35,6 +34,8 @@ import {
   clientAccessLevelToBackend,
   clientLinkKindToBackend,
 } from '@/lib/api/documents';
+import { listTasks, backendTaskToListRow } from '@/lib/api/tasks';
+import type { TaskListRow } from '@/lib/mocks/tasks';
 import { BackendApiError } from '@/lib/backend';
 import {
   Colors,
@@ -89,7 +90,17 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink }: { ini
     }, 250);
     return () => clearTimeout(t);
   }, [linkQuery]);
-  const taskOptions = useMemo(() => (linkSelected ? tasksForEntityLinkId(linkSelected.id) : []), [linkSelected]);
+  const [taskOptions, setTaskOptions] = useState<TaskListRow[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  useEffect(() => {
+    if (!linkSelected) { setTaskOptions([]); return; }
+    setLoadingTasks(true);
+    const params = linkSelected.kind === 'project' ? { projectId: linkSelected.id } : { propertyId: linkSelected.id };
+    listTasks(params)
+      .then((res) => setTaskOptions(res.data.map(backendTaskToListRow)))
+      .catch(() => setTaskOptions([]))
+      .finally(() => setLoadingTasks(false));
+  }, [linkSelected]);
 
   const pickMock = (kind: 'file' | 'image' | 'camera') => {
     const suggested =
@@ -355,9 +366,13 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink }: { ini
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>
                 בחירת משימה
               </AppText>
-              {taskOptions.length === 0 ? (
+              {loadingTasks ? (
                 <AppText variant="bodySm" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.md }}>
-                  אין משימות לישות זו ב-mock
+                  טוען משימות...
+                </AppText>
+              ) : taskOptions.length === 0 ? (
+                <AppText variant="bodySm" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.md }}>
+                  אין משימות פתוחות לישות זו
                 </AppText>
               ) : (
                 taskOptions.map((t) => (
