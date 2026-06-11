@@ -1097,7 +1097,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
 
 // ─── Tab: Payments ────────────────────────────────────────────────────────────
 
-function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
+function PaymentsTab({ entityId, mode, entityName, entityAddress }: { entityId: string; mode: DetailMode; entityName: string; entityAddress: string }) {
   const dirOptions = [
     { key: 'all' as const, label: 'הכל' },
     { key: 'inbound' as const, label: 'הכנסות' },
@@ -1228,7 +1228,12 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
         onPress={() =>
           router.push({
             pathname: '/(app)/payments/new',
-            params: { contextEntityId: entityId },
+            params: {
+              preloadLinkId: entityId,
+              preloadLinkLabel: entityName,
+              preloadLinkAddress: entityAddress,
+              preloadLinkKind: mode,
+            },
           })
         }
         accessibilityLabel="הוספת תשלום"
@@ -1488,7 +1493,7 @@ export function DetailTabsScreen({
       case 'documents':
         return <DocumentsTab entityId={id} />;
       case 'payments':
-        return <PaymentsTab entityId={id} mode={mode} />;
+        return <PaymentsTab entityId={id} mode={mode} entityName={headerTitle} entityAddress={headerAddress} />;
       case 'contacts':
         return <ContactsTab entityId={id} />;
       default:
