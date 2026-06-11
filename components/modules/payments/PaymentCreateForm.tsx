@@ -524,7 +524,7 @@ export function PaymentCreateForm({
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <AppHeader title={initialData ? 'עריכת תשלום' : 'יצירת תשלום'} showBack />
+        <AppHeader title={isEdit ? 'עריכת תשלום' : 'יצירת תשלום'} showBack />
 
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
