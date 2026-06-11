@@ -22,15 +22,15 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import {
   PAYMENT_TYPE_LABELS,
-  PAYMENT_ENTITY_OPTIONS,
   contractsForLink,
   maintenanceCallsForLink,
-  filterEntitiesForPaymentQuery,
   type PaymentTypeKey,
   type PaymentModeKey,
   type PaymentDetailMock,
 } from '@/lib/mocks/payments';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
+import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
+import { PAYER_TYPE_OPTIONS } from '@/lib/api/payments';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
 import {
   Colors,
@@ -164,12 +164,14 @@ export function PaymentCreateForm({
     if (preloadedLink) return `${preloadedLink.name}${preloadedLink.address ? ', ' + preloadedLink.address : ''}`;
     return initialData?.linkLabel ?? '';
   });
-  const [linkSelected, setLinkSelected] = useState<(typeof PAYMENT_ENTITY_OPTIONS)[0] | null>(() => {
+  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() => {
     if (preloadedLink) {
-      const found = PAYMENT_ENTITY_OPTIONS.find((e) => e.id === preloadedLink.id);
-      return found ?? { id: preloadedLink.id, name: preloadedLink.name, address: preloadedLink.address, kind: preloadedLink.kind };
+      return { id: preloadedLink.id, name: preloadedLink.name, address: preloadedLink.address, kind: preloadedLink.kind };
     }
-    return initialData ? (PAYMENT_ENTITY_OPTIONS.find((e) => e.id === initialData.linkId) ?? null) : null;
+    if (initialData) {
+      return { id: initialData.linkId, name: initialData.linkLabel, address: '', kind: initialData.linkKind };
+    }
+    return null;
   });
   const [showSuggest, setShowSuggest] = useState(false);
 
@@ -204,6 +206,7 @@ export function PaymentCreateForm({
   const [indexKind, setIndexKind] = useState<'cpi' | 'construction'>('cpi');
   const [indexAmount, setIndexAmount] = useState('');
   const [indexAsOf, setIndexAsOf] = useState('');
+  const [payerType, setPayerType] = useState<string | null>(null);
   const [payerContactId, setPayerContactId] = useState<string | null>(null);
   const [payerSearch, setPayerSearch] = useState('');
   const [notes, setNotes] = useState(() => initialData ? '' : '');
@@ -212,7 +215,14 @@ export function PaymentCreateForm({
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const entities = useMemo(() => filterEntitiesForPaymentQuery(linkQuery), [linkQuery]);
+  const [entities, setEntities] = useState<EntityLinkOption[]>([]);
+  useEffect(() => {
+    if (!linkQuery.trim()) { setEntities([]); return; }
+    const t = setTimeout(() => {
+      searchEntityLinks(linkQuery).then(setEntities).catch(() => setEntities([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [linkQuery]);
   const contracts = useMemo(
     () => contractsForLink(linkSelected?.id ?? null, linkSelected?.kind ?? null),
     [linkSelected],
@@ -829,21 +839,38 @@ export function PaymentCreateForm({
             )}
           </View>
 
-          {/* ─── שולם על ידי (contacts autocomplete) ─── */}
+          {/* ─── שולם על ידי ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>שולם על ידי</AppText>
+
+          {/* סוג המשלם */}
+          <View style={styles.rowChips}>
+            {PAYER_TYPE_OPTIONS.map((p) => (
+              <Pressable
+                key={p.key}
+                onPress={() => setPayerType((prev) => (prev === p.key ? null : p.key))}
+                style={[styles.miniChip, payerType === p.key && styles.miniChipActive]}
+              >
+                <AppText variant="caption" weight={payerType === p.key ? 'bold' : 'regular'} style={{ color: payerType === p.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                  {p.label}
+                </AppText>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* איש קשר משויך (autocomplete) */}
           {!linkSelected ? (
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.sm }}>
               בחר נכס / פרויקט כדי לראות אנשי קשר משויכים
             </AppText>
           ) : linkedContacts.length === 0 ? (
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.sm }}>
               אין אנשי קשר משויכים לנכס זה
             </AppText>
           ) : payerContactId ? (
             /* Selected contact chip */
             <Pressable
               onPress={() => { setPayerContactId(null); setPayerSearch(''); }}
-              style={styles.payerSelected}
+              style={[styles.payerSelected, { marginTop: Spacing.sm }]}
               accessibilityRole="button"
             >
               <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
@@ -862,7 +889,7 @@ export function PaymentCreateForm({
           ) : (
             /* Autocomplete search */
             <>
-              <View style={styles.payerInputWrap}>
+              <View style={[styles.payerInputWrap, { marginTop: Spacing.sm }]}>
                 <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceMuted} />
                 <TextInput
                   value={payerSearch}
