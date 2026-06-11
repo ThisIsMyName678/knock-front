@@ -55,15 +55,26 @@ function formatTodayDdMmYyyy(): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-export function DocumentUploadForm({ initialData, editId }: { initialData?: DocumentListRow; editId?: string } = {}) {
+type PreloadedLink = { id: string; name: string; address: string; kind: 'asset' | 'project' };
+
+export function DocumentUploadForm({ initialData, editId, preloadedLink }: { initialData?: DocumentListRow; editId?: string; preloadedLink?: PreloadedLink } = {}) {
   const insets = useSafeAreaInsets();
   const [fileName, setFileName] = useState(() => initialData?.displayName ?? '');
   const [documentType, setDocumentType] = useState<DocumentType>(() => initialData?.documentType ?? 'other');
   const [accessLevel, setAccessLevel] = useState<DocumentAccessLevel>(() => initialData?.accessLevel ?? 'owner_only');
-  const [linkQuery, setLinkQuery] = useState(() => initialData?.linkLabel ?? '');
-  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() =>
-    initialData ? { id: initialData.linkId, name: initialData.linkLabel, address: '', kind: initialData.linkKind } : null,
-  );
+  const [linkQuery, setLinkQuery] = useState(() => {
+    if (preloadedLink) return `${preloadedLink.name}${preloadedLink.address ? ', ' + preloadedLink.address : ''}`;
+    return initialData?.linkLabel ?? '';
+  });
+  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() => {
+    if (preloadedLink) {
+      return { id: preloadedLink.id, name: preloadedLink.name, address: preloadedLink.address, kind: preloadedLink.kind };
+    }
+    if (initialData) {
+      return { id: initialData.linkId, name: initialData.linkLabel, address: '', kind: initialData.linkKind };
+    }
+    return null;
+  });
   const [showSuggest, setShowSuggest] = useState(false);
   const [taskModal, setTaskModal] = useState(false);
   const [pickSourceOpen, setPickSourceOpen] = useState(false);

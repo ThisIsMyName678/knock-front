@@ -929,7 +929,7 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
 
 // ─── Tab: Documents ───────────────────────────────────────────────────────────
 
-function DocumentsTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
+function DocumentsTab({ entityId, mode, entityName, entityAddress }: { entityId: string; mode: DetailMode; entityName: string; entityAddress: string }) {
   const catOptions = (Object.keys(DOCUMENT_CATEGORY_LABELS) as DocumentCategoryFilter[]).map((key) => ({
     key,
     label: DOCUMENT_CATEGORY_LABELS[key],
@@ -1066,7 +1066,12 @@ function DocumentsTab({ entityId, mode }: { entityId: string; mode: DetailMode }
         onPress={() =>
           router.push({
             pathname: '/(app)/documents/new',
-            params: { contextEntityId: entityId },
+            params: {
+              preloadLinkId: entityId,
+              preloadLinkLabel: entityName,
+              preloadLinkAddress: entityAddress,
+              preloadLinkKind: mode,
+            },
           })
         }
         accessibilityLabel="העלאת מסמך חדש"
@@ -1521,7 +1526,7 @@ export function DetailTabsScreen({
       case 'tasks':
         return <TasksTab entityId={id} mode={mode} />;
       case 'documents':
-        return <DocumentsTab entityId={id} mode={mode} />;
+        return <DocumentsTab entityId={id} mode={mode} entityName={headerTitle} entityAddress={headerAddress} />;
       case 'payments':
         return <PaymentsTab entityId={id} mode={mode} entityName={headerTitle} entityAddress={headerAddress} />;
       case 'contacts':
