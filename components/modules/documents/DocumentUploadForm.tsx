@@ -22,14 +22,20 @@ import {
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_ACCESS_LABELS,
   DOCUMENT_UPLOAD_TYPE_ORDER,
-  queueNewDocument,
-  updateDocumentInSnapshot,
   tasksForEntityLinkId,
   type DocumentType,
   type DocumentAccessLevel,
   type DocumentListRow,
   type DocumentFileKind,
 } from '@/lib/mocks/documents';
+import {
+  createDocument,
+  updateDocument,
+  clientDocumentTypeToBackend,
+  clientAccessLevelToBackend,
+  clientLinkKindToBackend,
+} from '@/lib/api/documents';
+import { BackendApiError } from '@/lib/backend';
 import {
   Colors,
   Spacing,
@@ -53,10 +59,6 @@ function formatTodayDdMmYyyy(): string {
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
-}
-
-function randomDocId() {
-  return `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
 export function DocumentUploadForm({ initialData, editId }: { initialData?: DocumentListRow; editId?: string } = {}) {
@@ -98,47 +100,55 @@ export function DocumentUploadForm({ initialData, editId }: { initialData?: Docu
     );
   };
 
-  const buildRow = (): DocumentListRow => {
-    const usePlaceholder = !linkSelected;
-    return {
-      id: randomDocId(),
-      displayName: fileName.trim(),
-      documentType,
-      linkKind: linkSelected?.kind ?? 'asset',
-      linkId: linkSelected?.id ?? '',
-      linkLabel: usePlaceholder ? 'ללא שיוך' : linkSelected!.name,
-      uploadedAt: formatTodayDdMmYyyy(),
-      accessLevel,
-      linkedTaskId: linkedTaskId ?? undefined,
-      fileKind,
-      sizeLabel: '—',
-      uploadedBy: 'אני',
-    };
-  };
-
   const [submitted, setSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const errors = useMemo(() => ({
     fileName: fileName.trim().length === 0 ? 'שדה חובה' : '',
-  }), [fileName]);
+    linkSelected: !linkSelected ? 'יש לבחור נכס או פרויקט' : '',
+  }), [fileName, linkSelected]);
 
-  const onSave = () => {
+  const hasErrors = Object.values(errors).some(Boolean);
+
+  const onSave = async () => {
     setSubmitted(true);
-    if (errors.fileName) return;
-    if (editId) {
-      updateDocumentInSnapshot(editId, {
-        displayName: fileName.trim(),
-        documentType,
-        accessLevel,
-        linkKind: linkSelected?.kind ?? initialData?.linkKind ?? 'asset',
-        linkId: linkSelected?.id ?? initialData?.linkId ?? '',
-        linkLabel: linkSelected ? linkSelected.name : (initialData?.linkLabel ?? 'ללא שיוך'),
-        linkedTaskId: linkedTaskId ?? undefined,
-        fileKind,
-      });
-    } else {
-      queueNewDocument(buildRow());
+    if (hasErrors || !linkSelected) return;
+
+    const linkScope = clientLinkKindToBackend(linkSelected.kind);
+    const projectId = linkSelected.kind === 'project' ? linkSelected.id : null;
+    const propertyId = linkSelected.kind === 'asset' ? linkSelected.id : null;
+
+    setIsSaving(true);
+    try {
+      if (editId) {
+        await updateDocument(editId, {
+          displayName: fileName.trim(),
+          documentType: clientDocumentTypeToBackend(documentType),
+          accessLevel: clientAccessLevelToBackend(accessLevel),
+          linkScope,
+          projectId,
+          propertyId,
+          linkedTaskId: linkedTaskId ?? null,
+        });
+      } else {
+        await createDocument({
+          displayName: fileName.trim(),
+          documentType: clientDocumentTypeToBackend(documentType),
+          linkScope,
+          projectId,
+          propertyId,
+          accessLevel: clientAccessLevelToBackend(accessLevel),
+          linkedTaskId: linkedTaskId ?? null,
+          fileType: fileKind,
+        });
+      }
+    } catch (error) {
+      setIsSaving(false);
+      const message = error instanceof BackendApiError ? error.message : 'שמירת המסמך נכשלה';
+      Alert.alert('שגיאה', message);
+      return;
     }
+    setIsSaving(false);
     router.back();
   };
 
@@ -185,10 +195,10 @@ export function DocumentUploadForm({ initialData, editId }: { initialData?: Docu
             </View>
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-              שיוך נכס / פרויקט (לא חובה)
+              שיוך נכס / פרויקט
             </AppText>
             <TextInput
-              style={styles.entityInput}
+              style={[styles.entityInput, submitted && errors.linkSelected ? { borderColor: Colors.error } : undefined]}
               placeholder="חיפוש..."
               placeholderTextColor={Colors.onSurfaceMuted}
               value={linkQuery}
@@ -202,6 +212,11 @@ export function DocumentUploadForm({ initialData, editId }: { initialData?: Docu
               }}
               textAlign="right"
             />
+            {submitted && errors.linkSelected ? (
+              <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>
+                {errors.linkSelected}
+              </AppText>
+            ) : null}
             {linkSelected && (
               <View style={styles.selectedPill}>
                 <AppText variant="bodySm" style={{ flex: 1 }}>
@@ -265,7 +280,7 @@ export function DocumentUploadForm({ initialData, editId }: { initialData?: Docu
             </View>
           </View>
 
-          <Button label={editId ? 'שמור שינויים' : 'שמור והעלה'} onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
+          <Button label={editId ? 'שמור שינויים' : 'שמור והעלה'} onPress={onSave} loading={isSaving} disabled={isSaving} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
         </ScrollView>
 
         <Modal visible={pickSourceOpen} transparent animationType="slide" onRequestClose={() => setPickSourceOpen(false)}>
