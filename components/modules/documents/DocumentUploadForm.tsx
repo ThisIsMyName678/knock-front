@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   ScrollView,
@@ -17,7 +17,7 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption } from '@/lib/mocks/contracts';
+import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
 import {
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_ACCESS_LABELS,
@@ -47,12 +47,6 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
-function filterEntities(query: string): EntityLinkOption[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return MOCK_ENTITY_LINKS;
-  return MOCK_ENTITY_LINKS.filter((e) => entitySearchText(e).includes(q));
-}
-
 function formatTodayDdMmYyyy(): string {
   const d = new Date();
   const dd = String(d.getDate()).padStart(2, '0');
@@ -68,7 +62,7 @@ export function DocumentUploadForm({ initialData, editId }: { initialData?: Docu
   const [accessLevel, setAccessLevel] = useState<DocumentAccessLevel>(() => initialData?.accessLevel ?? 'owner_only');
   const [linkQuery, setLinkQuery] = useState(() => initialData?.linkLabel ?? '');
   const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() =>
-    initialData ? (MOCK_ENTITY_LINKS.find((e) => e.id === initialData.linkId) ?? null) : null,
+    initialData ? { id: initialData.linkId, name: initialData.linkLabel, address: '', kind: initialData.linkKind } : null,
   );
   const [showSuggest, setShowSuggest] = useState(false);
   const [taskModal, setTaskModal] = useState(false);
@@ -76,7 +70,14 @@ export function DocumentUploadForm({ initialData, editId }: { initialData?: Docu
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(() => initialData?.linkedTaskId ?? null);
   const [fileKind, setFileKind] = useState<DocumentFileKind>(() => initialData?.fileKind ?? 'other');
 
-  const entities = useMemo(() => filterEntities(linkQuery), [linkQuery]);
+  const [entities, setEntities] = useState<EntityLinkOption[]>([]);
+  useEffect(() => {
+    if (!linkQuery.trim()) { setEntities([]); return; }
+    const t = setTimeout(() => {
+      searchEntityLinks(linkQuery).then(setEntities).catch(() => setEntities([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [linkQuery]);
   const taskOptions = useMemo(() => (linkSelected ? tasksForEntityLinkId(linkSelected.id) : []), [linkSelected]);
 
   const pickMock = (kind: 'file' | 'image' | 'camera') => {
