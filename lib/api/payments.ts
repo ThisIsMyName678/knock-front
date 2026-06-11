@@ -91,6 +91,29 @@ export function deletePayment(id: string): Promise<void> {
   return backendRequest<void>(`/payments/${id}`, { method: 'DELETE' });
 }
 
+export type CreatePaymentInput = {
+  name: string;
+  direction: BackendPaymentDirection;
+  paymentType: BackendPaymentTypeKey;
+  mode: BackendPaymentMode;
+  linkScope: BackendPaymentLinkScope;
+  projectId?: string | null;
+  propertyId?: string | null;
+  contractId?: string | null;
+  amountNet: number;
+  amountGross: number;
+  vatPercent: number;
+  paymentMethod: BackendPaymentMethod;
+  dueDate: string;
+  payerType?: string | null;
+  payerContactId?: string | null;
+  notes?: string | null;
+};
+
+export function createPayment(input: CreatePaymentInput): Promise<BackendPayment> {
+  return backendRequest<BackendPayment>('/payments', { method: 'POST', body: input });
+}
+
 const PAYMENT_METHOD_LABELS: Record<BackendPaymentMethod, string> = {
   CHECK: 'שיק',
   BANK_TRANSFER: 'העברה בנקאית',

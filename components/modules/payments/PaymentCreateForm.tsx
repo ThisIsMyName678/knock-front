@@ -30,7 +30,15 @@ import {
 } from '@/lib/mocks/payments';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
-import { PAYER_TYPE_OPTIONS } from '@/lib/api/payments';
+import {
+  PAYER_TYPE_OPTIONS,
+  createPayment,
+  clientDirectionToBackend,
+  clientPaymentTypeToBackend,
+  clientMeansToBackend,
+  ddMmYyyyToIso,
+} from '@/lib/api/payments';
+import { BackendApiError } from '@/lib/backend';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
 import {
   Colors,
@@ -376,6 +384,7 @@ export function PaymentCreateForm({
   };
 
   const [submitted, setSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const errors = useMemo(() => ({
     paymentName: paymentName.trim().length === 0 ? 'שדה חובה' : '',
@@ -385,9 +394,44 @@ export function PaymentCreateForm({
 
   const hasErrors = Object.values(errors).some(Boolean);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSubmitted(true);
     if (hasErrors) return;
+
+    if (paymentMode === 'full' && linkSelected) {
+      const amountNet = digitsToInt(amountExVat) || digitsToInt(amountIncVat);
+      const amountGross = digitsToInt(amountIncVat) || digitsToInt(amountExVat);
+      const dueDateIso = ddMmYyyyToIso(dueDate);
+
+      setIsSaving(true);
+      try {
+        await createPayment({
+          name: paymentName.trim(),
+          direction: clientDirectionToBackend(direction),
+          paymentType: clientPaymentTypeToBackend(paymentType),
+          mode: 'FULL',
+          linkScope: linkSelected.kind === 'project' ? 'PROJECT' : 'PROPERTY',
+          projectId: linkSelected.kind === 'project' ? linkSelected.id : null,
+          propertyId: linkSelected.kind === 'asset' ? linkSelected.id : null,
+          contractId: contractId,
+          amountNet,
+          amountGross,
+          vatPercent: parsePct(vatPct),
+          paymentMethod: clientMeansToBackend(means),
+          dueDate: dueDateIso ?? new Date().toISOString().slice(0, 10),
+          payerType,
+          payerContactId,
+          notes: notes.trim() || null,
+        });
+      } catch (error) {
+        setIsSaving(false);
+        const message = error instanceof BackendApiError ? error.message : 'שמירת התשלום נכשלה';
+        Alert.alert('שגיאה', message);
+        return;
+      }
+      setIsSaving(false);
+    }
+
     if (preloadedContractId) {
       router.replace('/(app)/contracts' as const);
     } else {
@@ -1026,7 +1070,7 @@ export function PaymentCreateForm({
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
-          <Button label="שמור תשלום" onPress={handleSave} fullWidth size="lg" />
+          <Button label="שמור תשלום" onPress={handleSave} loading={isSaving} disabled={isSaving} fullWidth size="lg" />
         </View>
       </View>
 
