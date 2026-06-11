@@ -22,7 +22,6 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import {
   PAYMENT_TYPE_LABELS,
-  contractsForLink,
   maintenanceCallsForLink,
   type PaymentTypeKey,
   type PaymentModeKey,
@@ -30,6 +29,7 @@ import {
 } from '@/lib/mocks/payments';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
+import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import {
   PAYER_TYPE_OPTIONS,
   createPayment,
@@ -233,10 +233,19 @@ export function PaymentCreateForm({
     }, 250);
     return () => clearTimeout(t);
   }, [linkQuery]);
-  const contracts = useMemo(
-    () => contractsForLink(linkSelected?.id ?? null, linkSelected?.kind ?? null),
-    [linkSelected],
-  );
+  const [contracts, setContracts] = useState<ContractListItem[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  useEffect(() => {
+    if (!linkSelected) { setContracts([]); return; }
+    setContractsLoading(true);
+    const filters = linkSelected.kind === 'project'
+      ? { projectId: linkSelected.id }
+      : { propertyId: linkSelected.id };
+    fetchContracts(filters)
+      .then(setContracts)
+      .catch(() => setContracts([]))
+      .finally(() => setContractsLoading(false));
+  }, [linkSelected]);
   const maintCalls = useMemo(() => maintenanceCallsForLink(linkSelected?.id ?? ''), [linkSelected]);
 
   // Contacts linked to the selected asset/project (for payer selection)
@@ -590,7 +599,7 @@ export function PaymentCreateForm({
               <Pressable onPress={() => setContractModal(true)} style={styles.dropdown}>
                 <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.onSurfaceVariant} />
                 <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                  {contractId ? contracts.find((c) => c.id === contractId)?.label ?? '—' : 'בחר חוזה'}
+                  {contractId ? contracts.find((c) => c.id === contractId)?.contractName ?? '—' : 'בחר חוזה'}
                 </AppText>
               </Pressable>
             </>
@@ -1111,11 +1120,21 @@ export function PaymentCreateForm({
             <Pressable onPress={() => { setContractId(null); setContractModal(false); }} style={styles.sheetRow}>
               <AppText variant="bodyMd">ללא</AppText>
             </Pressable>
-            {contracts.map((c) => (
-              <Pressable key={c.id} onPress={() => { setContractId(c.id); setContractModal(false); }} style={styles.sheetRow}>
-                <AppText variant="bodyMd">{c.label}</AppText>
-              </Pressable>
-            ))}
+            {!linkSelected ? (
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'center', paddingVertical: Spacing.md }}>
+                בחר נכס או פרויקט כדי לראות חוזים משויכים
+              </AppText>
+            ) : contractsLoading ? (
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'center', paddingVertical: Spacing.md }}>
+                טוען חוזים...
+              </AppText>
+            ) : (
+              contracts.map((c) => (
+                <Pressable key={c.id} onPress={() => { setContractId(c.id); setContractModal(false); }} style={styles.sheetRow}>
+                  <AppText variant="bodyMd">{c.contractName}</AppText>
+                </Pressable>
+              ))
+            )}
           </Pressable>
         </Pressable>
       </Modal>
