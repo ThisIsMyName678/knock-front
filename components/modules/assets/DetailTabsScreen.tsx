@@ -54,6 +54,15 @@ import { listTasks, backendTaskToListRow } from '@/lib/api/tasks';
 import { PAYMENT_TYPE_LABELS, type PaymentListRow } from '@/lib/mocks/payments';
 import { listPayments, paymentToListRow } from '@/lib/api/payments';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
+import {
+  DOCUMENT_TYPE_LABELS,
+  DOCUMENT_CATEGORY_LABELS,
+  categoryOfDocumentType,
+  type DocumentListRow,
+  type DocumentCategoryFilter,
+  type DocumentFileKind,
+} from '@/lib/mocks/documents';
+import { listDocuments, documentToListRow } from '@/lib/api/documents';
 import { getProperty, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
 import { getProject, type BackendProject } from '@/lib/api/projects';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
@@ -75,14 +84,6 @@ type FeedItem = {
 };
 
 // TaskItem is no longer used — TasksTab uses TaskListRow from lib/mocks/tasks
-
-type DocItem = {
-  id: string;
-  name: string;
-  category: string;
-  uploadDate: string;
-  kind: 'pdf' | 'image';
-};
 
 type ContactItem = {
   id: string;
@@ -132,12 +133,6 @@ function makeFeed(): FeedItem[] {
 }
 
 // MOCK_TASKS replaced by MOCK_TASKS_LIST imported from lib/mocks/tasks
-
-const MOCK_DOCS: DocItem[] = [
-  { id: 'doc1', name: 'חוזה שכירות 2024.pdf', category: 'חוזה', uploadDate: '01/01/2024', kind: 'pdf' },
-  { id: 'doc2', name: 'תמונת נזק.jpg', category: 'נזקים', uploadDate: '10/03/2026', kind: 'image' },
-  { id: 'doc3', name: 'אישור עירייה.pdf', category: 'רשויות', uploadDate: '15/12/2023', kind: 'pdf' },
-];
 
 const MOCK_CONTACTS: ContactItem[] = [
   { id: 'ct1', name: 'יוסי כהן', role: 'דייר', phone: '050-1234567', email: 'yossi.cohen@example.com' },
@@ -207,6 +202,18 @@ function feedIcon(kind: FeedKind): React.ComponentProps<typeof MaterialCommunity
   if (kind === 'payment') return 'cash-check';
   if (kind === 'message') return 'message-outline';
   return 'file-sign';
+}
+
+function docFileIconName(kind: DocumentFileKind): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (kind === 'pdf') return 'file-pdf-box';
+  if (kind === 'image') return 'file-image-outline';
+  return 'file-outline';
+}
+
+function docFileIconColor(kind: DocumentFileKind): string {
+  if (kind === 'pdf') return Colors.error;
+  if (kind === 'image') return Colors.info;
+  return Colors.onSurfaceVariant;
 }
 
 function taskStatusPreset(s: WorkflowStatus): React.ComponentProps<typeof Badge>['preset'] {
@@ -922,26 +929,43 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
 
 // ─── Tab: Documents ───────────────────────────────────────────────────────────
 
-function DocumentsTab({ entityId }: { entityId: string }) {
-  const catOptions = [
-    { key: 'all', label: 'הכל' },
-    { key: 'חוזה', label: 'חוזים' },
-    { key: 'נזקים', label: 'נזקים' },
-    { key: 'רשויות', label: 'רשויות' },
-  ];
-  const typeOptions = [
+function DocumentsTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
+  const catOptions = (Object.keys(DOCUMENT_CATEGORY_LABELS) as DocumentCategoryFilter[]).map((key) => ({
+    key,
+    label: DOCUMENT_CATEGORY_LABELS[key],
+  }));
+  const typeOptions: { key: 'all' | DocumentFileKind; label: string }[] = [
     { key: 'all', label: 'הכל' },
     { key: 'pdf', label: 'PDF' },
     { key: 'image', label: 'תמונה' },
+    { key: 'other', label: 'אחר' },
   ];
 
-  const [catFilter, setCatFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [documents, setDocuments] = useState<DocumentListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [catFilter, setCatFilter] = useState<DocumentCategoryFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | DocumentFileKind>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [menuDoc, setMenuDoc] = useState<(typeof MOCK_DOCS)[0] | null>(null);
+  const [menuDoc, setMenuDoc] = useState<DocumentListRow | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!entityId) return;
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      const params = mode === 'asset' ? { propertyId: entityId } : { projectId: entityId };
+      listDocuments(params)
+        .then((docs) => { if (!cancelled) setDocuments(docs.map(documentToListRow)); })
+        .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת מסמכים'); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+      return () => { cancelled = true; };
+    }, [mode, entityId]),
+  );
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
@@ -957,7 +981,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
       label: 'סוג קובץ',
       options: typeOptions,
       value: typeFilter,
-      onChange: setTypeFilter,
+      onChange: (k: string) => setTypeFilter(k as 'all' | DocumentFileKind),
     },
     {
       kind: 'dateRange',
@@ -976,15 +1000,15 @@ function DocumentsTab({ entityId }: { entityId: string }) {
   }, []);
 
   const filtered = useMemo(() => {
-    return MOCK_DOCS.filter((d) => {
-      if (catFilter !== 'all' && d.category !== catFilter) return false;
-      if (typeFilter !== 'all' && d.kind !== typeFilter) return false;
-      if (!inDateRange(d.uploadDate, dateFrom, dateTo)) return false;
+    return documents.filter((d) => {
+      if (catFilter !== 'all' && categoryOfDocumentType(d.documentType) !== catFilter) return false;
+      if (typeFilter !== 'all' && d.fileKind !== typeFilter) return false;
+      if (!inDateRange(d.uploadedAt, dateFrom, dateTo)) return false;
       const q = search.trim().toLowerCase();
-      if (q && !(d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q))) return false;
+      if (q && !(d.displayName.toLowerCase().includes(q) || DOCUMENT_TYPE_LABELS[d.documentType].toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [catFilter, typeFilter, dateFrom, dateTo, search]);
+  }, [documents, catFilter, typeFilter, dateFrom, dateTo, search]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -995,31 +1019,37 @@ function DocumentsTab({ entityId }: { entityId: string }) {
         onFilterPress={() => setSheetOpen(true)}
         activeFilterCount={activeFilterCount}
       />
-      <FilterRow options={catOptions} active={catFilter} onSelect={setCatFilter} />
+      <FilterRow options={catOptions} active={catFilter} onSelect={(k) => setCatFilter(k as DocumentCategoryFilter)} />
       <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <ScrollView contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]} showsVerticalScrollIndicator={false}>
         <RecommendedDocChecklistPanel />
 
         {/* Document list */}
-        {filtered.length === 0 && <InlineEmpty text="אין מסמכים להצגה" />}
-        {filtered.map((doc, i) => (
+        {loading ? (
+          <InlineEmpty text="טוען מסמכים..." />
+        ) : error ? (
+          <InlineEmpty text={error} />
+        ) : filtered.length === 0 ? (
+          <InlineEmpty text="אין מסמכים להצגה" />
+        ) : null}
+        {!loading && !error && filtered.map((doc, i) => (
           <Pressable
             key={doc.id}
             onPress={() => router.push(`/(app)/documents/${doc.id}`)}
             style={({ pressed }) => [listStyles.docRow, i > 0 && { marginTop: Spacing.md }, pressed && { opacity: 0.88 }]}
             accessibilityRole="button"
-            accessibilityLabel={`פתח מסמך: ${doc.name}`}
+            accessibilityLabel={`פתח מסמך: ${doc.displayName}`}
           >
-            <View style={[listStyles.docIcon, { backgroundColor: doc.kind === 'pdf' ? Colors.errorContainer : Colors.infoContainer }]}>
+            <View style={[listStyles.docIcon, { backgroundColor: `${docFileIconColor(doc.fileKind)}18` }]}>
               <MaterialCommunityIcons
-                name={doc.kind === 'pdf' ? 'file-pdf-box' : 'file-image-outline'}
+                name={docFileIconName(doc.fileKind)}
                 size={22}
-                color={doc.kind === 'pdf' ? Colors.error : Colors.info}
+                color={docFileIconColor(doc.fileKind)}
               />
             </View>
             <View style={{ flex: 1 }}>
-              <AppText variant="bodyMd" weight="semiBold" numberOfLines={2}>{doc.name}</AppText>
-              <AppText variant="bodySm" color="muted">{doc.category} · {doc.uploadDate}</AppText>
+              <AppText variant="bodyMd" weight="semiBold" numberOfLines={2}>{doc.displayName}</AppText>
+              <AppText variant="bodySm" color="muted">{DOCUMENT_TYPE_LABELS[doc.documentType]} · {doc.uploadedAt}</AppText>
             </View>
             <Pressable
               onPress={() => setMenuDoc(doc)}
@@ -1048,7 +1078,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
             <View style={listStyles.menuHandle} />
             {menuDoc && (
               <AppText variant="labelMd" weight="bold" numberOfLines={1} style={listStyles.menuTitle}>
-                {menuDoc.name}
+                {menuDoc.displayName}
               </AppText>
             )}
             {[
@@ -1067,7 +1097,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
                 label: 'שיתוף',
                 color: Colors.onBackground,
                 onPress: () => {
-                  if (menuDoc) Share.share({ title: menuDoc.name, message: `${menuDoc.name}\nקטגוריה: ${menuDoc.category}\nתאריך: ${menuDoc.uploadDate}` });
+                  if (menuDoc) Share.share({ title: menuDoc.displayName, message: `${menuDoc.displayName}\nסוג: ${DOCUMENT_TYPE_LABELS[menuDoc.documentType]}\nתאריך: ${menuDoc.uploadedAt}` });
                   setMenuDoc(null);
                 },
               },
@@ -1491,7 +1521,7 @@ export function DetailTabsScreen({
       case 'tasks':
         return <TasksTab entityId={id} mode={mode} />;
       case 'documents':
-        return <DocumentsTab entityId={id} />;
+        return <DocumentsTab entityId={id} mode={mode} />;
       case 'payments':
         return <PaymentsTab entityId={id} mode={mode} entityName={headerTitle} entityAddress={headerAddress} />;
       case 'contacts':
