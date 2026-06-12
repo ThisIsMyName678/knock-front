@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -18,7 +18,7 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption } from '@/lib/mocks/contracts';
+import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
 import {
   defaultTenantPermissions,
   inviteUrlForToken,
@@ -30,12 +30,6 @@ import { BackendApiError } from '@/lib/backend';
 import { ContactPermissionsEditor } from '@/components/modules/contacts/ContactPermissionsEditor';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
-
-function filterEntities(query: string): EntityLinkOption[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return MOCK_ENTITY_LINKS;
-  return MOCK_ENTITY_LINKS.filter((e) => entitySearchText(e).includes(q));
-}
 
 export function ContactTenantCreateForm() {
   const insets = useSafeAreaInsets();
@@ -50,7 +44,14 @@ export function ContactTenantCreateForm() {
   const [permissions, setPermissions] = useState<ContactPermissions>(() => defaultTenantPermissions());
   const [saving, setSaving] = useState(false);
 
-  const entities = useMemo(() => filterEntities(linkQuery), [linkQuery]);
+  const [entities, setEntities] = useState<EntityLinkOption[]>([]);
+  useEffect(() => {
+    if (!linkQuery.trim()) { setEntities([]); return; }
+    const t = setTimeout(() => {
+      searchEntityLinks(linkQuery).then(setEntities).catch(() => setEntities([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [linkQuery]);
 
   const projectNote =
     linkSelected?.kind === 'project'

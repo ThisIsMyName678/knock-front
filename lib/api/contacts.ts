@@ -70,7 +70,12 @@ export type InviteContactResponse = {
   token: string;
 };
 
-export function listContacts(filters: ContactFilters = {}): Promise<ContactListItem[]> {
+export type ContactListResponse = {
+  data: ContactListItem[];
+  meta: { page: number; limit: number; total: number };
+};
+
+export async function listContacts(filters: ContactFilters = {}): Promise<ContactListItem[]> {
   const query = new URLSearchParams();
   if (filters.search?.trim()) query.set('search', filters.search.trim());
   if (filters.linkKind) query.set('linkKind', filters.linkKind);
@@ -81,7 +86,8 @@ export function listContacts(filters: ContactFilters = {}): Promise<ContactListI
   if (filters.page != null) query.set('page', String(filters.page));
   if (filters.limit != null) query.set('limit', String(filters.limit));
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return backendRequest<ContactListItem[]>(`/contacts${suffix}`);
+  const response = await backendRequest<ContactListResponse>(`/contacts${suffix}`);
+  return response.data;
 }
 
 export function getContact(id: string): Promise<ContactDetail> {

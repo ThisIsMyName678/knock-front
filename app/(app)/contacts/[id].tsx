@@ -17,13 +17,13 @@ import {
   type PermissionActionKey,
   type ContactListRow,
   inviteUrlForToken,
-  removeContactFromSnapshot,
   telUrl,
   whatsappUrlFromPhone,
 } from '@/lib/mocks/contacts';
-import { getContact } from '@/lib/api/contacts';
+import { getContact, archiveContact } from '@/lib/api/contacts';
 import { listProperties, type BackendProperty } from '@/lib/api/properties';
 import { contactDetailToRow } from '@/lib/adapters/contact-permissions';
+import { BackendApiError } from '@/lib/backend';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
@@ -128,14 +128,18 @@ export default function ContactDetailScreen() {
   };
 
   const onDelete = () => {
-    Alert.alert('מחיקה', 'להסיר את איש הקשר מהרשימה המקומית?', [
+    Alert.alert('מחיקה', 'למחוק את איש הקשר?', [
       { text: 'ביטול', style: 'cancel' },
       {
         text: 'מחק',
         style: 'destructive',
         onPress: () => {
-          removeContactFromSnapshot(contact.id);
-          router.back();
+          archiveContact(contact.id)
+            .then(() => router.back())
+            .catch((error) => {
+              const message = error instanceof BackendApiError ? error.message : 'מחיקת איש הקשר נכשלה.';
+              Alert.alert('שגיאה', message);
+            });
         },
       },
     ]);

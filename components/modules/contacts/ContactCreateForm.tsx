@@ -7,7 +7,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Share,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -16,46 +16,25 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { MOCK_ENTITY_LINKS, type EntityLinkOption } from '@/lib/mocks/contracts';
 import {
   emptyPermissions,
   defaultTenantPermissions,
-  expandPermissionsToProjectAssets,
-  assetsUnderProject,
-  inviteUrlForToken,
-  queueNewContact,
   checkEmailInSystem,
   type ContactListRow,
   type ContactPermissions,
   type ContactKind,
   CONTACT_KIND_LABELS,
 } from '@/lib/mocks/contacts';
-import { updateContact } from '@/lib/api/contacts';
-import { toApiContactKind } from '@/lib/adapters/contact-permissions';
+import { createContact, updateContact } from '@/lib/api/contacts';
+import { toApiContactKind, toApiLinkKind } from '@/lib/adapters/contact-permissions';
+import { listProjects, projectAddressLabel, type BackendProject } from '@/lib/api/projects';
+import { listProperties, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
 import { BackendApiError } from '@/lib/backend';
 import { ContactPermissionsEditor } from '@/components/modules/contacts/ContactPermissionsEditor';
 import {
   Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function randomId() {
-  return `ct_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
-}
-
-const PROJECTS = MOCK_ENTITY_LINKS.filter((e) => e.kind === 'project');
-const STANDALONE_ASSETS = MOCK_ENTITY_LINKS.filter((e) => e.kind === 'asset');
-
-// Assets grouped under projects
-const PROJECT_ASSET_MAP: Record<string, EntityLinkOption[]> = {};
-for (const p of PROJECTS) {
-  PROJECT_ASSET_MAP[p.id] = assetsUnderProject(p.id);
-}
-// Assets not under any project
-const assetsInProjects = new Set(Object.values(PROJECT_ASSET_MAP).flat().map((a) => a.id));
-const ORPHAN_ASSETS = STANDALONE_ASSETS.filter((a) => !assetsInProjects.has(a.id));
 
 // ─── Asset Picker ─────────────────────────────────────────────────────────────
 
@@ -71,9 +50,17 @@ function selectionKey(s: AssetSelection): string {
 function AssetPicker({
   value,
   onChange,
+  loading,
+  projects,
+  propertiesByProject,
+  orphanProperties,
 }: {
   value: AssetSelection | null;
   onChange: (s: AssetSelection | null) => void;
+  loading: boolean;
+  projects: BackendProject[];
+  propertiesByProject: Record<string, BackendProperty[]>;
+  orphanProperties: BackendProperty[];
 }) {
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
 
@@ -124,6 +111,14 @@ function AssetPicker({
     </Pressable>
   );
 
+  if (loading) {
+    return (
+      <View style={styles.pickerLoading}>
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.pickerWrap}>
       {/* כל הנכסים */}
@@ -135,8 +130,8 @@ function AssetPicker({
       />
 
       {/* Projects + their assets */}
-      {PROJECTS.map((p) => {
-        const projectAssets = PROJECT_ASSET_MAP[p.id] ?? [];
+      {projects.map((p) => {
+        const projectAssets = propertiesByProject[p.id] ?? [];
         const expanded = !!expandedProjects[p.id];
         const projectActive = isActive({ kind: 'project', id: p.id });
         return (
@@ -157,7 +152,7 @@ function AssetPicker({
                     {p.name}
                   </AppText>
                   <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
-                    פרויקט · {p.address}
+                    פרויקט · {projectAddressLabel(p)}
                   </AppText>
                 </View>
                 <MaterialCommunityIcons name="briefcase-outline" size={18} color={projectActive ? Colors.primary : Colors.onSurfaceMuted} />
@@ -172,7 +167,7 @@ function AssetPicker({
               <Row
                 key={a.id}
                 label={a.name}
-                sub={a.address}
+                sub={propertyAddressLabel(a)}
                 icon="home-outline"
                 active={isActive({ kind: 'asset', id: a.id })}
                 onPress={() => select({ kind: 'asset', id: a.id })}
@@ -184,11 +179,11 @@ function AssetPicker({
       })}
 
       {/* Standalone assets */}
-      {ORPHAN_ASSETS.map((a) => (
+      {orphanProperties.map((a) => (
         <Row
           key={a.id}
           label={a.name}
-          sub={a.address}
+          sub={propertyAddressLabel(a)}
           icon="home-outline"
           active={isActive({ kind: 'asset', id: a.id })}
           onPress={() => select({ kind: 'asset', id: a.id })}
@@ -272,33 +267,67 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
     if (k === 'tenant_buyer') setNickname('');
   };
 
-  const emailStatus = email.trim().includes('@')
-    ? checkEmailInSystem(email.trim())
-    : null;
-  const hasUserInSystem = emailStatus === true;
-
-  const resolveLink = (): { linkKind: 'asset' | 'project'; linkId: string; linkLabel: string; permsByAsset?: Record<string, ContactPermissions> } | null => {
-    if (!assetSelection) return null;
-    if (assetSelection.kind === 'all') {
-      // Use first project as primary link (mock: no real "all" concept in data model)
-      const first = PROJECTS[0];
-      if (!first) return null;
-      return { linkKind: 'project', linkId: first.id, linkLabel: `כל הנכסים (${first.name})`, permsByAsset: expandPermissionsToProjectAssets(first.id, permissions) };
-    }
-    if (assetSelection.kind === 'project') {
-      const p = PROJECTS.find((x) => x.id === assetSelection.id);
-      if (!p) return null;
-      return { linkKind: 'project', linkId: p.id, linkLabel: p.name, permsByAsset: expandPermissionsToProjectAssets(p.id, permissions) };
-    }
-    // asset
-    const a = STANDALONE_ASSETS.find((x) => x.id === assetSelection.id);
-    if (!a) return null;
-    return { linkKind: 'asset', linkId: a.id, linkLabel: a.name };
-  };
-
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const isEdit = !!initialData;
+
+  // Projects/properties for the asset picker (create flow only)
+  const [projects, setProjects] = useState<BackendProject[]>([]);
+  const [properties, setProperties] = useState<BackendProperty[]>([]);
+  const [assetsLoading, setAssetsLoading] = useState(!isEdit);
+
+  useEffect(() => {
+    if (isEdit) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [projectsRes, propertiesRes] = await Promise.all([listProjects(), listProperties()]);
+        if (cancelled) return;
+        setProjects(projectsRes);
+        setProperties(propertiesRes);
+      } catch (e) {
+        if (cancelled) return;
+        const message = e instanceof BackendApiError ? e.message : 'טעינת רשימת הנכסים והפרויקטים נכשלה.';
+        Alert.alert('שגיאה', message);
+      } finally {
+        if (!cancelled) setAssetsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isEdit]);
+
+  const propertiesByProject = useMemo(() => {
+    const map: Record<string, BackendProperty[]> = {};
+    for (const p of properties) {
+      if (!p.projectId) continue;
+      (map[p.projectId] ??= []).push(p);
+    }
+    return map;
+  }, [properties]);
+
+  const orphanProperties = useMemo(
+    () => properties.filter((p) => !p.projectId),
+    [properties],
+  );
+
+  const resolveLink = (): { linkKind: 'asset' | 'project'; linkId: string; linkLabel: string } | null => {
+    if (!assetSelection) return null;
+    if (assetSelection.kind === 'all') {
+      // Use first project as primary link (no real "all" concept in the data model)
+      const first = projects[0];
+      if (!first) return null;
+      return { linkKind: 'project', linkId: first.id, linkLabel: `כל הנכסים (${first.name})` };
+    }
+    if (assetSelection.kind === 'project') {
+      const p = projects.find((x) => x.id === assetSelection.id);
+      if (!p) return null;
+      return { linkKind: 'project', linkId: p.id, linkLabel: p.name };
+    }
+    // asset
+    const a = properties.find((x) => x.id === assetSelection.id);
+    if (!a) return null;
+    return { linkKind: 'asset', linkId: a.id, linkLabel: a.name };
+  };
 
   const fieldErrors = useMemo(() => ({
     nickname: contactKind === 'role_holder' && !nickname.trim() ? 'שדה חובה' : '',
@@ -331,41 +360,34 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
     }
   };
 
-  const onSaveCreate = () => {
+  const onSaveCreate = async () => {
     const link = resolveLink();
     if (!link) return;
 
-    const inviteToken = hasUserInSystem ? undefined : `inv_${randomId()}`;
-    const row: ContactListRow = {
-      id: randomId(),
-      contactKind,
-      nickname: nickname.trim(),
-      displayName: displayName.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      notes: notes.trim() || undefined,
-      linkKind: link.linkKind,
-      linkId: link.linkId,
-      linkLabel: link.linkLabel,
-      hasUserInSystem,
-      inviteToken,
-      permissions,
-      permissionsByAssetId: link.permsByAsset,
-    };
-    queueNewContact(row);
+    setSaving(true);
+    try {
+      const created = await createContact({
+        contactKind: toApiContactKind(contactKind),
+        nickname: nickname.trim() || undefined,
+        displayName: displayName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+        linkKind: toApiLinkKind(link.linkKind),
+        linkId: link.linkId,
+        permissions,
+      });
 
-    if (inviteToken) {
-      Alert.alert('נשמר', `לינק הזמנה (דמה):\n${inviteUrlForToken(inviteToken)}`, [
-        { text: 'סגור', onPress: () => router.back() },
-        {
-          text: 'שתף לינק',
-          onPress: () => {
-            Share.share({ message: inviteUrlForToken(inviteToken), title: 'הזמנת איש קשר' }).finally(() => router.back());
-          },
-        },
-      ]);
-    } else {
-      router.back();
+      router.replace(`/(app)/contacts/${created.id}`);
+
+      if (created.inviteToken) {
+        Alert.alert('נשמר', 'איש הקשר נוצר ונשלחה הזמנה להתחבר למערכת.');
+      }
+    } catch (e) {
+      const message = e instanceof BackendApiError ? e.message : 'שמירת איש הקשר נכשלה.';
+      Alert.alert('שגיאה', message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -465,7 +487,14 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
               <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
                 בחר פרויקט (לכל נכסיו), נכס בודד, או "כל הנכסים". לחץ על החץ להרחבת נכסי פרויקט.
               </AppText>
-              <AssetPicker value={assetSelection} onChange={setAssetSelection} />
+              <AssetPicker
+                value={assetSelection}
+                onChange={setAssetSelection}
+                loading={assetsLoading}
+                projects={projects}
+                propertiesByProject={propertiesByProject}
+                orphanProperties={orphanProperties}
+              />
               {submitted && fieldErrors.assetSelection ? (
                 <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: Spacing.xs }}>{fieldErrors.assetSelection}</AppText>
               ) : null}
@@ -540,6 +569,7 @@ const styles = StyleSheet.create({
 
   // Asset picker
   pickerWrap: { gap: Spacing.xs },
+  pickerLoading: { paddingVertical: Spacing.lg, alignItems: 'center' },
   pickRow: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
