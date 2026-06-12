@@ -378,7 +378,7 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
         permissions,
       });
 
-      router.replace(`/(app)/contacts/${created.id}`);
+      router.replace('/(app)/contacts');
 
       if (created.inviteToken) {
         Alert.alert('נשמר', 'איש הקשר נוצר ונשלחה הזמנה להתחבר למערכת.');
