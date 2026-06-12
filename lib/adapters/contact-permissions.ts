@@ -1,7 +1,7 @@
-import type { ContactKind } from '@/lib/mocks/contacts';
+import type { ContactKind, ContactPermissions } from '@/lib/mocks/contacts';
 import { emptyPermissions, type ContactListRow } from '@/lib/mocks/contacts';
 import type { LinkKind } from '@/lib/mocks/contracts';
-import type { ContactKindDto, ContactLinkKindDto, ContactListItem } from '@/lib/api/contacts';
+import type { ContactKindDto, ContactLinkKindDto, ContactListItem, ContactDetail } from '@/lib/api/contacts';
 
 export function toApiContactKind(kind: ContactKind): ContactKindDto {
   return kind === 'role_holder' ? 'ROLE_HOLDER' : 'TENANT_BUYER';
@@ -32,5 +32,24 @@ export function contactItemToRow(item: ContactListItem): ContactListRow {
     linkLabel: item.linkLabel ?? '',
     hasUserInSystem: item.hasUserInSystem,
     permissions: emptyPermissions(),
+  };
+}
+
+export function contactDetailToRow(detail: ContactDetail): ContactListRow {
+  return {
+    id: detail.id,
+    contactKind: fromApiContactKind(detail.contactKind),
+    nickname: detail.nickname ?? '',
+    displayName: detail.displayName,
+    phone: detail.phone,
+    email: detail.email ?? '',
+    notes: detail.notes ?? undefined,
+    linkKind: detail.linkKind ? fromApiLinkKind(detail.linkKind) : 'asset',
+    linkId: detail.linkId ?? '',
+    linkLabel: detail.linkLabel ?? '',
+    hasUserInSystem: detail.hasUserInSystem,
+    inviteToken: detail.inviteToken ?? undefined,
+    permissions: detail.permissions as ContactPermissions,
+    permissionsByAssetId: detail.permissionsByAssetId as Record<string, ContactPermissions> | undefined,
   };
 }

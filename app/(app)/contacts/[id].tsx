@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, Linking, Alert, Share } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, ScrollView, StyleSheet, Pressable, Linking, Alert, Share, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
@@ -10,18 +10,20 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import {
-  getContactDetailMock,
   CONTACT_KIND_LABELS,
   MODULE_LABELS,
   ALL_MODULE_KEYS,
   PERMISSION_ACTION_LABELS,
   type PermissionActionKey,
+  type ContactListRow,
   inviteUrlForToken,
   removeContactFromSnapshot,
   telUrl,
   whatsappUrlFromPhone,
   assetsUnderProject,
 } from '@/lib/mocks/contacts';
+import { getContact } from '@/lib/api/contacts';
+import { contactDetailToRow } from '@/lib/adapters/contact-permissions';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
@@ -38,7 +40,7 @@ async function openUrl(url: string) {
   }
 }
 
-function summarizePermissions(contact: ReturnType<typeof getContactDetailMock>) {
+function summarizePermissions(contact: ContactListRow | null) {
   if (!contact) return [];
   const lines: string[] = [];
   for (const m of ALL_MODULE_KEYS) {
@@ -54,12 +56,47 @@ function summarizePermissions(contact: ReturnType<typeof getContactDetailMock>) 
 export default function ContactDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const contact = useMemo(() => getContactDetailMock(String(id ?? '')), [id]);
+  const [contact, setContact] = useState<ContactListRow | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      getContact(String(id ?? ''))
+        .then((detail) => {
+          if (!active) return;
+          setContact(contactDetailToRow(detail));
+        })
+        .catch((error) => {
+          if (!active) return;
+          console.warn(error instanceof Error ? error.message : 'Failed to load contact');
+          setContact(null);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }, [id]),
+  );
 
   const permLines = useMemo(() => summarizePermissions(contact), [contact]);
 
   const projectAssets =
     contact?.linkKind === 'project' && contact.linkId ? assetsUnderProject(contact.linkId) : [];
+
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="איש קשר" showBack />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   if (!contact) {
     return (
