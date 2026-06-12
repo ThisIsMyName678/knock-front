@@ -66,6 +66,7 @@ import { listDocuments, documentToListRow } from '@/lib/api/documents';
 import { getProperty, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
 import { getProject, type BackendProject } from '@/lib/api/projects';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
+import { listPropertyContacts, listProjectContacts, type ContactListItem } from '@/lib/api/contacts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -134,11 +135,15 @@ function makeFeed(): FeedItem[] {
 
 // MOCK_TASKS replaced by MOCK_TASKS_LIST imported from lib/mocks/tasks
 
-const MOCK_CONTACTS: ContactItem[] = [
-  { id: 'ct1', name: 'יוסי כהן', role: 'דייר', phone: '050-1234567', email: 'yossi.cohen@example.com' },
-  { id: 'ct2', name: 'מיכל לוי', role: 'מנהל נכס', phone: '052-9876543', email: 'michal.property@example.com' },
-  { id: 'ct3', name: 'שירות חרום', role: 'בעל תפקיד', phone: '054-1111222', email: 'emergency.service@example.com' },
-];
+function contactToItem(c: ContactListItem): ContactItem {
+  return {
+    id: c.id,
+    name: c.displayName,
+    role: c.nickname?.trim() || (c.contactKind === 'TENANT_BUYER' ? 'שוכר / רוכש' : 'בעל תפקיד'),
+    phone: c.phone,
+    email: c.email ?? undefined,
+  };
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1279,21 +1284,40 @@ function PaymentsTab({ entityId, mode, entityName, entityAddress }: { entityId: 
 
 // ─── Tab: Contacts ────────────────────────────────────────────────────────────
 
-function ContactsTab({ entityId }: { entityId: string }) {
+function ContactsTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
+  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!entityId) return;
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      const fetcher = mode === 'asset' ? listPropertyContacts(entityId) : listProjectContacts(entityId);
+      fetcher
+        .then((rows) => { if (!cancelled) setContacts(rows.map(contactToItem)); })
+        .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת אנשי קשר'); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+      return () => { cancelled = true; };
+    }, [mode, entityId]),
+  );
+
   const roleOptions = useMemo((): { key: string; label: string }[] => {
-    const roles = Array.from(new Set(MOCK_CONTACTS.map((c) => c.role))).sort((a, b) => a.localeCompare(b, 'he'));
+    const roles = Array.from(new Set(contacts.map((c) => c.role))).sort((a, b) => a.localeCompare(b, 'he'));
     return [{ key: 'all', label: 'הכל' }, ...roles.map((r) => ({ key: r, label: r }))];
-  }, []);
+  }, [contacts]);
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const filteredContacts = useMemo(() => {
-    const byRole = roleFilter === 'all' ? MOCK_CONTACTS : MOCK_CONTACTS.filter((c) => c.role === roleFilter);
+    const byRole = roleFilter === 'all' ? contacts : contacts.filter((c) => c.role === roleFilter);
     const q = search.trim().toLowerCase();
     if (!q) return byRole;
     return byRole.filter(
       (c) => c.name.toLowerCase().includes(q) || c.phone.replace(/\s/g, '').includes(q) || c.role.toLowerCase().includes(q),
     );
-  }, [roleFilter, search]);
+  }, [contacts, roleFilter, search]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -1306,7 +1330,13 @@ function ContactsTab({ entityId }: { entityId: string }) {
         contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
         ListEmptyComponent={
-          <EmptyState title="אין אנשי קשר" icon={<MaterialCommunityIcons name="account-group-outline" size={28} color={Colors.primary} />} />
+          loading ? (
+            <InlineEmpty text="טוען אנשי קשר..." />
+          ) : error ? (
+            <InlineEmpty text={error} />
+          ) : (
+            <EmptyState title="אין אנשי קשר" icon={<MaterialCommunityIcons name="account-group-outline" size={28} color={Colors.primary} />} />
+          )
         }
         renderItem={({ item }) => (
           <Card>
@@ -1364,8 +1394,8 @@ function ContactsTab({ entityId }: { entityId: string }) {
       <TabFab
         onPress={() =>
           router.push({
-            pathname: '/(app)/contacts/new-role',
-            params: { contextEntityId: entityId },
+            pathname: '/(app)/contacts/new',
+            params: { preloadLinkId: entityId, preloadLinkKind: mode },
           })
         }
         accessibilityLabel="הוספת בעל תפקיד"
@@ -1530,7 +1560,7 @@ export function DetailTabsScreen({
       case 'payments':
         return <PaymentsTab entityId={id} mode={mode} entityName={headerTitle} entityAddress={headerAddress} />;
       case 'contacts':
-        return <ContactsTab entityId={id} />;
+        return <ContactsTab entityId={id} mode={mode} />;
       default:
         return null;
     }
