@@ -64,6 +64,17 @@ function AssetPicker({
 }) {
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
 
+  // Auto-expand the project containing the preselected asset so its checkmark is visible
+  useEffect(() => {
+    if (value?.kind !== 'asset') return;
+    for (const [projectId, assets] of Object.entries(propertiesByProject)) {
+      if (assets.some((a) => a.id === value.id)) {
+        setExpandedProjects((p) => (p[projectId] ? p : { ...p, [projectId]: true }));
+        break;
+      }
+    }
+  }, [value, propertiesByProject]);
+
   const toggleProject = (pid: string) =>
     setExpandedProjects((p) => ({ ...p, [pid]: !p[pid] }));
 
@@ -229,7 +240,15 @@ function EmailStatusBadge({ email }: { email: string }) {
 
 // ─── Main Form ────────────────────────────────────────────────────────────────
 
-export function ContactCreateForm({ initialData }: { initialData?: ContactListRow } = {}) {
+export function ContactCreateForm({
+  initialData,
+  preloadLinkId,
+  preloadLinkKind,
+}: {
+  initialData?: ContactListRow;
+  preloadLinkId?: string;
+  preloadLinkKind?: 'asset' | 'project';
+} = {}) {
   const insets = useSafeAreaInsets();
 
   // Contact kind
@@ -244,9 +263,12 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
 
   // Asset selection
   const [assetSelection, setAssetSelection] = useState<AssetSelection | null>(() => {
-    if (!initialData) return null;
-    if (initialData.linkKind === 'project') return { kind: 'project', id: initialData.linkId };
-    if (initialData.linkKind === 'asset') return { kind: 'asset', id: initialData.linkId };
+    if (initialData) {
+      if (initialData.linkKind === 'project') return { kind: 'project', id: initialData.linkId };
+      if (initialData.linkKind === 'asset') return { kind: 'asset', id: initialData.linkId };
+      return null;
+    }
+    if (preloadLinkId && preloadLinkKind) return { kind: preloadLinkKind, id: preloadLinkId };
     return null;
   });
 
@@ -378,7 +400,7 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
         permissions,
       });
 
-      router.replace('/(app)/contacts');
+      router.back();
 
       if (created.inviteToken) {
         Alert.alert('נשמר', 'איש הקשר נוצר ונשלחה הזמנה להתחבר למערכת.');
