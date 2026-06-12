@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -7,6 +7,7 @@ import {
   FlatList,
   Linking,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -21,13 +22,9 @@ import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
-  MOCK_CONTACTS_LIST,
   filterContactRows,
   sortContactRows,
   roleDisplayLabel,
-  setActiveContactRowsSnapshot,
-  getActiveContactRowsSnapshot,
-  consumePendingContacts,
   telUrl,
   whatsappUrlFromPhone,
   type ContactListRow,
@@ -35,6 +32,8 @@ import {
   type SortDir,
 } from '@/lib/mocks/contacts';
 import type { LinkKind } from '@/lib/mocks/contracts';
+import { listContacts } from '@/lib/api/contacts';
+import { contactItemToRow } from '@/lib/adapters/contact-permissions';
 import {
   Colors,
   Spacing,
@@ -82,7 +81,8 @@ async function openUrl(url: string) {
 
 export function ContactsListScreen() {
   const insets = useSafeAreaInsets();
-  const [rows, setRows] = useState<ContactListRow[]>(() => [...MOCK_CONTACTS_LIST]);
+  const [rows, setRows] = useState<ContactListRow[]>([]);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<ScopeFilter>('all');
   const [entityId, setEntityId] = useState<string | null>(null);
@@ -92,24 +92,23 @@ export function ContactsListScreen() {
 
   const linkScope = linkScopeFromScope(scope);
 
+  const loadContacts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const items = await listContacts();
+      setRows(items.map(contactItemToRow));
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to load contacts');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      setRows((prev) => {
-        const pending = consumePendingContacts();
-        const snap = getActiveContactRowsSnapshot();
-        if (pending.length) {
-          const base = snap ?? prev;
-          return [...pending, ...base];
-        }
-        if (snap) return [...snap];
-        return prev;
-      });
-    }, []),
+      void loadContacts();
+    }, [loadContacts]),
   );
-
-  useEffect(() => {
-    setActiveContactRowsSnapshot(rows);
-  }, [rows]);
 
   const filtered = useMemo(
     () => filterContactRows(rows, { search, linkScope, entityId }),
@@ -221,6 +220,11 @@ export function ContactsListScreen() {
         sections={filterSections}
       />
 
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
       <FlatList
         data={sorted}
         keyExtractor={(item) => item.id}
@@ -267,6 +271,7 @@ export function ContactsListScreen() {
           </View>
         )}
       />
+      )}
 
       {/* FAB */}
       <Pressable
@@ -283,6 +288,7 @@ export function ContactsListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tableHeader: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
