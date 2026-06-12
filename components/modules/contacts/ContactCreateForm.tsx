@@ -30,6 +30,9 @@ import {
   type ContactKind,
   CONTACT_KIND_LABELS,
 } from '@/lib/mocks/contacts';
+import { updateContact } from '@/lib/api/contacts';
+import { toApiContactKind } from '@/lib/adapters/contact-permissions';
+import { BackendApiError } from '@/lib/backend';
 import { ContactPermissionsEditor } from '@/components/modules/contacts/ContactPermissionsEditor';
 import {
   Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING,
@@ -294,19 +297,41 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
   };
 
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const isEdit = !!initialData;
 
   const fieldErrors = useMemo(() => ({
     nickname: contactKind === 'role_holder' && !nickname.trim() ? 'שדה חובה' : '',
     displayName: !displayName.trim() ? 'שדה חובה' : '',
     phone: !phone.trim() ? 'שדה חובה' : '',
-    assetSelection: !assetSelection ? 'יש לבחור נכס או פרויקט' : '',
-  }), [contactKind, nickname, displayName, phone, assetSelection]);
+    assetSelection: !isEdit && !assetSelection ? 'יש לבחור נכס או פרויקט' : '',
+  }), [contactKind, nickname, displayName, phone, assetSelection, isEdit]);
 
   const valid = useMemo(() => Object.values(fieldErrors).every((e) => !e), [fieldErrors]);
 
-  const onSave = () => {
-    setSubmitted(true);
-    if (!valid) return;
+  const onSaveEdit = async () => {
+    if (!initialData) return;
+    setSaving(true);
+    try {
+      await updateContact(initialData.id, {
+        contactKind: toApiContactKind(contactKind),
+        nickname: nickname.trim() || undefined,
+        displayName: displayName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+        permissions,
+      });
+      router.back();
+    } catch (e) {
+      const message = e instanceof BackendApiError ? e.message : 'שמירת איש הקשר נכשלה.';
+      Alert.alert('שגיאה', message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onSaveCreate = () => {
     const link = resolveLink();
     if (!link) return;
 
@@ -341,6 +366,16 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
       ]);
     } else {
       router.back();
+    }
+  };
+
+  const onSave = () => {
+    setSubmitted(true);
+    if (!valid) return;
+    if (isEdit) {
+      onSaveEdit();
+    } else {
+      onSaveCreate();
     }
   };
 
@@ -413,19 +448,29 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
           </View>
 
           {/* ─── שיוך נכס / פרויקט ─── */}
-          <View style={[styles.card, { marginTop: Spacing.md, borderColor: submitted && fieldErrors.assetSelection ? Colors.error : Colors.outlineVariant }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginBottom: Spacing.md }}>
-              <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginBottom: 0 }]}>שיוך נכס / פרויקט</AppText>
-              <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+          {isEdit ? (
+            <View style={[styles.card, { marginTop: Spacing.md }]}>
+              <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>שיוך נכס / פרויקט</AppText>
+              <AppText variant="bodyMd" style={{ textAlign: 'right' }}>{initialData?.linkLabel}</AppText>
+              <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.xs }}>
+                שינוי השיוך אינו נתמך כאן.
+              </AppText>
             </View>
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
-              בחר פרויקט (לכל נכסיו), נכס בודד, או "כל הנכסים". לחץ על החץ להרחבת נכסי פרויקט.
-            </AppText>
-            <AssetPicker value={assetSelection} onChange={setAssetSelection} />
-            {submitted && fieldErrors.assetSelection ? (
-              <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: Spacing.xs }}>{fieldErrors.assetSelection}</AppText>
-            ) : null}
-          </View>
+          ) : (
+            <View style={[styles.card, { marginTop: Spacing.md, borderColor: submitted && fieldErrors.assetSelection ? Colors.error : Colors.outlineVariant }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginBottom: Spacing.md }}>
+                <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginBottom: 0 }]}>שיוך נכס / פרויקט</AppText>
+                <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+              </View>
+              <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                בחר פרויקט (לכל נכסיו), נכס בודד, או "כל הנכסים". לחץ על החץ להרחבת נכסי פרויקט.
+              </AppText>
+              <AssetPicker value={assetSelection} onChange={setAssetSelection} />
+              {submitted && fieldErrors.assetSelection ? (
+                <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: Spacing.xs }}>{fieldErrors.assetSelection}</AppText>
+              ) : null}
+            </View>
+          )}
 
           {/* ─── הרשאות ─── */}
           <View style={[styles.card, { marginTop: Spacing.md }]}>
@@ -437,6 +482,7 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
             onPress={onSave}
             fullWidth
             size="lg"
+            disabled={saving}
             style={{ marginTop: Spacing.md }}
           />
         </ScrollView>
