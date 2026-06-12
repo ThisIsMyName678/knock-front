@@ -20,9 +20,9 @@ import {
   removeContactFromSnapshot,
   telUrl,
   whatsappUrlFromPhone,
-  assetsUnderProject,
 } from '@/lib/mocks/contacts';
 import { getContact } from '@/lib/api/contacts';
+import { listProperties, type BackendProperty } from '@/lib/api/properties';
 import { contactDetailToRow } from '@/lib/adapters/contact-permissions';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
@@ -58,6 +58,7 @@ export default function ContactDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [contact, setContact] = useState<ContactListRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [projectAssets, setProjectAssets] = useState<BackendProperty[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -66,12 +67,20 @@ export default function ContactDetailScreen() {
       getContact(String(id ?? ''))
         .then((detail) => {
           if (!active) return;
-          setContact(contactDetailToRow(detail));
+          const row = contactDetailToRow(detail);
+          setContact(row);
+          if (row.linkKind === 'project' && row.linkId) {
+            return listProperties({ projectId: row.linkId }).then((properties) => {
+              if (active) setProjectAssets(properties);
+            });
+          }
+          setProjectAssets([]);
         })
         .catch((error) => {
           if (!active) return;
           console.warn(error instanceof Error ? error.message : 'Failed to load contact');
           setContact(null);
+          setProjectAssets([]);
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -83,9 +92,6 @@ export default function ContactDetailScreen() {
   );
 
   const permLines = useMemo(() => summarizePermissions(contact), [contact]);
-
-  const projectAssets =
-    contact?.linkKind === 'project' && contact.linkId ? assetsUnderProject(contact.linkId) : [];
 
   if (loading) {
     return (
