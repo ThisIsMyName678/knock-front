@@ -71,7 +71,13 @@ export function listProperties(params: ListPropertiesParams = {}): Promise<Backe
   }
 
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return backendRequest<BackendProperty[]>(`/properties${suffix}`);
+  const path = `/properties${suffix}`;
+
+  if (__DEV__) {
+    console.log('[listProperties] request', { path, params });
+  }
+
+  return backendRequest<BackendProperty[]>(path);
 }
 
 export function getProperty(id: string): Promise<BackendProperty> {

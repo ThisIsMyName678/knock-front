@@ -37,6 +37,7 @@ import {
   type DocumentCategoryFilter,
   type DocumentSortKey,
   type DocumentType,
+  type DocumentAccessLevel,
   type SortDir,
 } from '@/lib/mocks/documents';
 import {

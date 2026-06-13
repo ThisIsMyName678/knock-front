@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -20,6 +20,15 @@ import {
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
+import { useAuth } from '@/lib/auth';
+import { BackendApiError, updateBackendProfile } from '@/lib/backend';
+import { supabase } from '@/lib/supabase';
+import {
+  canEditOrganizationName,
+  resolveOrganizationRoleLabel,
+  resolveProfileDisplayName,
+  resolveProfilePhone,
+} from '@/lib/profile-labels';
 
 type UiLang = 'he' | 'en';
 
@@ -33,32 +42,26 @@ const LANG_OPTIONS: {
     id: 'he',
     title: 'עברית',
     hint: 'ממשק מימין לשמאל',
-    icon: 'format-textdirection-r-to-l',
+    icon: 'format-align-right' as React.ComponentProps<typeof MaterialCommunityIcons>['name'],
   },
   {
     id: 'en',
     title: 'English',
     hint: 'Left-to-right interface',
-    icon: 'format-textdirection-l-to-r',
+    icon: 'format-align-left' as React.ComponentProps<typeof MaterialCommunityIcons>['name'],
   },
 ];
 
-/** ערכי התחלה — תואמים למסך ההגדרות (תצוגה בלבד) */
-const INITIAL = {
-  fullName: 'ניר',
-  email: 'manager@knocknock.co.il',
-  phone: '050-1234567',
-  role: 'מנהל נכסים',
-  company: 'Knock Asset Management',
-};
-
 export default function ProfileEditScreen() {
   const insets = useSafeAreaInsets();
-  const [fullName, setFullName] = useState(INITIAL.fullName);
-  const [email, setEmail] = useState(INITIAL.email);
-  const [phone, setPhone] = useState(INITIAL.phone);
-  const [role, setRole] = useState(INITIAL.role);
-  const [company, setCompany] = useState(INITIAL.company);
+  const { backendUser, user, refreshBackendUser } = useAuth();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState('');
+  const [company, setCompany] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -68,15 +71,63 @@ export default function ProfileEditScreen() {
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [uiLang, setUiLang] = useState<UiLang>('he');
 
-  const onChangePhoto = () => {
-    Alert.alert('תמונת פרופיל', 'בחירת תמונה מהמצלמה או מהגלריה תתווסף בהמשך.');
-  };
+  const canEditCompany = canEditOrganizationName(backendUser?.organizationRole);
 
-  const onSave = () => {
-    Alert.alert(
-      'שמירת פרופיל',
-      'הטופס מוצג לצורך עיצוב בלבד. שמירה לשרת תחובר בהמשך.',
-    );
+  useEffect(() => {
+    if (!backendUser || hydrated) {
+      return;
+    }
+
+    setFullName(resolveProfileDisplayName(backendUser, user));
+    setEmail(backendUser.email ?? user?.email ?? '');
+    setPhone(resolveProfilePhone(backendUser, user));
+    setRole(resolveOrganizationRoleLabel(backendUser.organizationRole));
+    setCompany(backendUser.organization?.name ?? '');
+    setUiLang(backendUser.profile?.settings?.language === 'EN' ? 'en' : 'he');
+    setHydrated(true);
+  }, [backendUser, user, hydrated]);
+
+  const onSave = async () => {
+    if (!fullName.trim()) {
+      Alert.alert('חסרים פרטים', 'יש להזין שם מלא.');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      await updateBackendProfile({
+        displayName: fullName.trim(),
+        organizationName: canEditCompany ? company.trim() : undefined,
+        language: uiLang === 'en' ? 'EN' : 'HE',
+      });
+
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName.trim(),
+          phone: phone.trim() || null,
+        },
+      });
+
+      if (metadataError) {
+        throw metadataError;
+      }
+
+      await refreshBackendUser();
+      setHydrated(false);
+      Alert.alert('נשמר', 'הפרופיל עודכן בהצלחה.');
+    } catch (error) {
+      const message =
+        error instanceof BackendApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'לא ניתן לשמור את הפרופיל כרגע.';
+
+      Alert.alert('שגיאה', message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const onUpdatePassword = () => {
@@ -92,7 +143,7 @@ export default function ProfileEditScreen() {
         title="עריכת פרופיל"
         subtitle="פרטים אישיים, תמונה, שפה וסיסמה"
         showBack
-        onBack={() => router.replace('/(app)/')}
+        onBack={() => router.replace('/(app)/settings')}
       />
 
       <ScrollView
@@ -111,26 +162,18 @@ export default function ProfileEditScreen() {
             <View style={styles.avatar}>
               <MaterialCommunityIcons name="account" size={48} color={Colors.primary} />
             </View>
-            <Pressable
-              onPress={onChangePhoto}
-              style={styles.cameraFab}
-              accessibilityRole="button"
-              accessibilityLabel="החלפת תמונת פרופיל"
-            >
-              <MaterialCommunityIcons name="camera" size={18} color={Colors.onPrimary} />
-            </Pressable>
           </View>
           <Button
             label="החלף תמונה"
             variant="secondary"
             size="sm"
-            onPress={onChangePhoto}
+            disabled
             icon={
-              <MaterialCommunityIcons name="image-edit-outline" size={18} color={Colors.primary} />
+              <MaterialCommunityIcons name="image-edit-outline" size={18} color={Colors.onSurfaceMuted} />
             }
           />
           <AppText variant="caption" color="muted" style={styles.photoHint}>
-            JPG או PNG, עד 5MB (יופעל עם חיבור לשרת)
+            העלאת תמונת פרופיל תהיה זמינה בגרסה הבאה
           </AppText>
         </View>
 
@@ -148,11 +191,12 @@ export default function ProfileEditScreen() {
           <Input
             label="אימייל"
             value={email}
-            onChangeText={setEmail}
+            editable={false}
             placeholder="name@example.com"
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
+            hint="לא ניתן לשנות את כתובת האימייל"
           />
           <Input
             label="טלפון"
@@ -161,18 +205,26 @@ export default function ProfileEditScreen() {
             placeholder="050-0000000"
             keyboardType="phone-pad"
             autoComplete="tel"
+            hint="נשמר בפרופיל האישי שלך"
           />
           <Input
-            label="תפקיד"
+            label="תפקיד בארגון"
             value={role}
-            onChangeText={setRole}
-            placeholder="למשל: מנהל נכסים"
+            editable={false}
+            placeholder="—"
+            hint="תפקיד המערכת בארגון — לא ניתן לעריכה"
           />
           <Input
             label="חברה / ארגון"
             value={company}
             onChangeText={setCompany}
+            editable={canEditCompany}
             placeholder="שם הארגון"
+            hint={
+              canEditCompany
+                ? undefined
+                : 'רק בעל הארגון יכול לערוך את שם החברה'
+            }
           />
         </View>
 
@@ -215,7 +267,7 @@ export default function ProfileEditScreen() {
           })}
         </View>
         <AppText variant="caption" color="muted" style={styles.langFootnote}>
-          החלפת שפת המערכת המלאה (כולל תרגום מסכים) תתחבר לשכבת i18n בהמשך.
+          שפת הממשק נשמרת בהגדרות החשבון. תרגום מלא של המסכים יתווסף בהמשך.
         </AppText>
 
         <AppText variant="labelSm" weight="semiBold" color="muted" style={styles.sectionLabel}>
@@ -230,11 +282,12 @@ export default function ProfileEditScreen() {
             secureTextEntry={!showCurrentPw}
             textContentType="password"
             autoComplete="password"
+            editable={false}
             iconRight={
               <MaterialCommunityIcons
                 name={showCurrentPw ? 'eye-off-outline' : 'eye-outline'}
                 size={20}
-                color={Colors.onSurfaceVariant}
+                color={Colors.onSurfaceMuted}
               />
             }
             onIconRightPress={() => setShowCurrentPw((v) => !v)}
@@ -247,11 +300,12 @@ export default function ProfileEditScreen() {
             secureTextEntry={!showNewPw}
             textContentType="newPassword"
             autoComplete="password-new"
+            editable={false}
             iconRight={
               <MaterialCommunityIcons
                 name={showNewPw ? 'eye-off-outline' : 'eye-outline'}
                 size={20}
-                color={Colors.onSurfaceVariant}
+                color={Colors.onSurfaceMuted}
               />
             }
             onIconRightPress={() => setShowNewPw((v) => !v)}
@@ -264,21 +318,28 @@ export default function ProfileEditScreen() {
             secureTextEntry={!showConfirmPw}
             textContentType="newPassword"
             autoComplete="password-new"
+            editable={false}
             iconRight={
               <MaterialCommunityIcons
                 name={showConfirmPw ? 'eye-off-outline' : 'eye-outline'}
                 size={20}
-                color={Colors.onSurfaceVariant}
+                color={Colors.onSurfaceMuted}
               />
             }
             onIconRightPress={() => setShowConfirmPw((v) => !v)}
             containerStyle={styles.lastField}
-            hint="השתמש בסיסמה חזקה שאינה בשימוש באתרים אחרים."
+            hint="שינוי סיסמה יתווסף בגרסה הבאה"
           />
         </View>
 
-        <Button label="עדכן סיסמה" variant="secondary" fullWidth onPress={onUpdatePassword} />
-        <Button label="שמור שינויים בפרופיל" onPress={onSave} fullWidth />
+        <Button label="עדכן סיסמה" variant="secondary" fullWidth disabled onPress={onUpdatePassword} />
+        <Button
+          label="שמור שינויים בפרופיל"
+          onPress={onSave}
+          fullWidth
+          loading={saving}
+          disabled={saving || !hydrated}
+        />
       </ScrollView>
     </View>
   );
@@ -316,19 +377,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.outlineLight,
   },
-  cameraFab: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.surface,
-  },
   photoHint: { textAlign: 'center' },
   fieldsCard: {
     backgroundColor: Colors.surface,
@@ -364,4 +412,3 @@ const styles = StyleSheet.create({
   langFootnote: { textAlign: 'right', paddingHorizontal: 4 },
   lastField: { marginBottom: 0 },
 });
-

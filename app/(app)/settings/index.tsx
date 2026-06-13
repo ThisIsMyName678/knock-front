@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { useAuth } from '@/lib/auth';
+import { resolveOrganizationRoleLabel, resolveProfileDisplayName } from '@/lib/profile-labels';
 
 type SettingItem = { label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; route?: string };
 
@@ -39,10 +40,9 @@ const SECTIONS: { title: string; items: SettingItem[] }[] = [
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { backendUser, user, signOut } = useAuth();
-  const userMetadata = backendUser?.userMetadata ?? user?.user_metadata;
-  const displayName = resolveDisplayName(userMetadata, backendUser?.email ?? user?.email);
+  const displayName = resolveProfileDisplayName(backendUser, user);
   const displayEmail = backendUser?.email ?? user?.email ?? 'לא הוגדר אימייל';
-  const displayRole = backendUser?.role ?? 'משתמש';
+  const displayRole = resolveOrganizationRoleLabel(backendUser?.organizationRole);
 
   const onLogout = () => {
     Alert.alert(
@@ -173,19 +173,3 @@ const styles = StyleSheet.create({
   },
 });
 
-function resolveDisplayName(
-  metadata: Record<string, unknown> | undefined,
-  email: string | undefined,
-): string {
-  const candidateKeys = ['full_name', 'name', 'display_name', 'given_name'];
-
-  for (const key of candidateKeys) {
-    const value = metadata?.[key];
-
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return email?.split('@')[0] || 'משתמש';
-}

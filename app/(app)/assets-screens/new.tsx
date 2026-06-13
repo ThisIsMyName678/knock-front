@@ -34,7 +34,7 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
-import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
+import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendOccupancyStatus, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
 import { consumePreloadedProject } from '@/lib/navigation-state';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,6 +54,8 @@ type AirDirection = 'north' | 'south' | 'east' | 'west';
 
 type PropertyCondition = 'new' | 'renovated' | 'good' | 'requires_renovation';
 
+type FormOccupancyStatus = 'VACANT' | 'OCCUPIED' | 'UNDER_CONSTRUCTION';
+
 type MeterType = 'electricity' | 'water' | 'gas' | 'other';
 
 type MeterEntry = {
@@ -66,6 +68,7 @@ type MeterEntry = {
 
 type Step1Data = {
   kind: AssetKind | null;
+  occupancyStatus: FormOccupancyStatus;
   address: string;
   addressSuggestion: AddressSuggestion | null;
   apartmentNumber: string;
@@ -153,6 +156,12 @@ const PROPERTY_CONDITIONS: { key: PropertyCondition; label: string }[] = [
   { key: 'requires_renovation', label: 'דורש שיפוץ' },
 ];
 
+const OCCUPANCY_STATUSES: { key: FormOccupancyStatus; label: string }[] = [
+  { key: 'VACANT', label: 'פנוי' },
+  { key: 'OCCUPIED', label: 'מושכר' },
+  { key: 'UNDER_CONSTRUCTION', label: 'בבנייה' },
+];
+
 const METER_TYPES: { key: MeterType; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
   { key: 'electricity', label: 'חשמל', icon: 'lightning-bolt' },
   { key: 'water', label: 'מים', icon: 'water-outline' },
@@ -176,6 +185,12 @@ function backendTypeToAssetKind(type: BackendPropertyType): AssetKind {
   if (type === 'APARTMENT') return 'apartment';
   if (type === 'HOUSE' || type === 'PRIVATE_HOME') return 'house';
   return 'commercial';
+}
+
+function occupancyStatusForForm(status: BackendOccupancyStatus | null): FormOccupancyStatus {
+  if (status === 'OCCUPIED' || status === 'PARTIALLY_OCCUPIED') return 'OCCUPIED';
+  if (status === 'UNDER_CONSTRUCTION') return 'UNDER_CONSTRUCTION';
+  return 'VACANT';
 }
 
 function buildPropertyName(step1: Step1Data): string {
@@ -236,6 +251,7 @@ function step1FromProperty(property: BackendProperty): Step1Data {
 
   return {
     kind: backendTypeToAssetKind(property.propertyType),
+    occupancyStatus: occupancyStatusForForm(property.occupancyStatus),
     address: propertyAddressLabel(property),
     addressSuggestion: addressSuggestionFromProperty(property),
     apartmentNumber: typeof addressJson?.apartmentNumber === 'string' ? addressJson.apartmentNumber : '',
@@ -349,7 +365,6 @@ function FieldInput({
           placeholder={placeholder}
           placeholderTextColor={Colors.onSurfaceMuted}
           keyboardType={keyboardType}
-          textAlign="right"
         />
         {suffix && <AppText variant="bodyMd" color="variant" style={fieldStyles.suffix}>{suffix}</AppText>}
       </View>
@@ -376,6 +391,8 @@ const fieldStyles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     fontSize: FontSize.base,
     color: Colors.onBackground,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   suffix: { paddingHorizontal: Spacing.md, color: Colors.onSurfaceVariant },
 });
@@ -514,22 +531,21 @@ function AddressAutocomplete({
   return (
     <View>
       <View style={autoStyles.inputWrap}>
-        <MaterialCommunityIcons name="map-search-outline" size={18} color={Colors.onSurfaceVariant} />
         <TextInput
           style={autoStyles.input}
           value={value}
           onChangeText={(t) => { onChange(t); }}
           placeholder="חפש כתובת..."
           placeholderTextColor={Colors.onSurfaceMuted}
-          textAlign="right"
           returnKeyType="search"
         />
-        {loading && <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 6 }} />}
+        {loading && <ActivityIndicator size="small" color={Colors.primary} />}
         {!loading && value.length > 0 && (
           <Pressable onPress={() => { onChange(''); setSuggestions([]); setShowSuggestions(false); }} accessibilityRole="button" accessibilityLabel="נקה" hitSlop={8}>
             <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
           </Pressable>
         )}
+        <MaterialCommunityIcons name="map-search-outline" size={18} color={Colors.onSurfaceVariant} />
       </View>
       {showSuggestions && suggestions.length > 0 && (
         <View style={autoStyles.dropdown}>
@@ -576,6 +592,8 @@ const autoStyles = StyleSheet.create({
     fontSize: FontSize.base,
     color: Colors.onBackground,
     paddingVertical: 4,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   dropdown: {
     borderWidth: 1,
@@ -765,14 +783,12 @@ function ProjectSearchField({
   return (
     <View>
       <View style={projSearchStyles.inputRow}>
-        <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
         <TextInput
           style={projSearchStyles.input}
           value={query}
           onChangeText={onQueryChange}
           placeholder="חפש שם פרויקט..."
           placeholderTextColor={Colors.onSurfaceMuted}
-          textAlign="right"
           returnKeyType="search"
         />
         {query.length > 0 && (
@@ -780,6 +796,7 @@ function ProjectSearchField({
             <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
           </Pressable>
         )}
+        <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
       </View>
       {filtered.length > 0 && (
         <View style={projSearchStyles.dropdown}>
@@ -830,6 +847,8 @@ const projSearchStyles = StyleSheet.create({
     fontSize: FontSize.base,
     color: Colors.onBackground,
     paddingVertical: 4,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   dropdown: {
     borderWidth: 1,
@@ -972,6 +991,26 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
         keyboardType="decimal-pad"
         suffix="מ״ר"
       />
+
+      {/* Occupancy status */}
+      <View style={{ gap: Spacing.sm }}>
+        <AppText variant="labelMd" weight="semiBold" style={s1.label}>סטטוס איכלוס</AppText>
+        <View style={s1.chipRow}>
+          {OCCUPANCY_STATUSES.map((o) => (
+            <Pressable
+              key={o.key}
+              onPress={() => update('occupancyStatus', o.key)}
+              style={[s1.chip, data.occupancyStatus === o.key && s1.chipActive]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: data.occupancyStatus === o.key }}
+            >
+              <AppText variant="labelMd" style={{ color: data.occupancyStatus === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                {o.label}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
 
       {/* Project link */}
       <View style={{ gap: Spacing.xs }}>
@@ -1499,20 +1538,19 @@ function Step3({
             <>
               {/* Search input */}
               <View style={s3.searchWrap}>
-                <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
                 <TextInput
                   style={s3.searchInput}
                   value={data.contractSearch}
                   onChangeText={(t) => update('contractSearch', t)}
                   placeholder="חפש שם חוזה, נכס, שוכר..."
                   placeholderTextColor={Colors.onSurfaceMuted}
-                  textAlign="right"
                 />
                 {data.contractSearch.length > 0 && (
                   <Pressable onPress={() => update('contractSearch', '')} hitSlop={8} accessibilityRole="button">
                     <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
                   </Pressable>
                 )}
+                <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
               </View>
 
               {/* Results */}
@@ -1579,6 +1617,8 @@ const s3 = StyleSheet.create({
   searchInput: {
     flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.base,
     color: Colors.onBackground, paddingVertical: 4,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   contractRow: {
     flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md,
@@ -1606,6 +1646,7 @@ export default function NewAssetScreen() {
 
   const [step1, setStep1] = useState<Step1Data>({
     kind: null,
+    occupancyStatus: 'VACANT',
     address: '',
     addressSuggestion: null,
     apartmentNumber: '',
@@ -1709,7 +1750,7 @@ export default function NewAssetScreen() {
           apartmentNumber: step1.apartmentNumber || undefined,
         },
         propertyType: assetKindToBackendType(step1.kind),
-        occupancyStatus: editProperty?.occupancyStatus ?? 'VACANT',
+        occupancyStatus: step1.occupancyStatus,
         projectId: uuidOrNull(step1.linkedProjectId),
         metadata: {
           floorNumber: step1.floorNumber,

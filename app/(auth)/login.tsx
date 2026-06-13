@@ -17,6 +17,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Shadow } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { useAuth } from '@/lib/auth';
+import {
+  hasFieldErrors,
+  isEmailConfirmationRequired,
+  isValidEmail,
+  RESEND_CONFIRMATION_SUCCESS_MESSAGE,
+  validateLoginFields,
+  type LoginFieldErrors,
+} from '@/lib/auth-validation';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -26,44 +34,62 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
 
-  const handleLogin = async () => {
-    console.log('[Login] Button clicked');
-    if (!email.trim() || !password) {
-      Alert.alert('חסרים פרטים', 'יש להזין אימייל וסיסמה כדי להתחבר.');
+  const handleResendConfirmation = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        email: !trimmedEmail
+          ? 'יש להזין כתובת אימייל.'
+          : 'יש להזין כתובת אימייל תקינה.',
+      }));
       return;
     }
 
+    setResending(true);
+
+    try {
+      await resendConfirmationEmail(trimmedEmail);
+      Alert.alert('בקשה נשלחה', RESEND_CONFIRMATION_SUCCESS_MESSAGE);
+    } catch (error) {
+      Alert.alert(
+        'שגיאה',
+        error instanceof Error ? error.message : 'לא ניתן לשלוח מייל אישור כרגע.',
+      );
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    const errors = validateLoginFields(email, password);
+    if (hasFieldErrors(errors)) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
     setLoading(true);
 
     try {
-      console.log('[Login] Starting signInWithPassword for:', email);
       await signInWithPassword(email, password);
-      console.log('[Login] signInWithPassword completed successfully');
     } catch (error) {
-      console.error('[Login] Error during login:', error);
-      
-      if (error instanceof Error && error.message.includes('לאשר את כתובת האימייל')) {
+      if (isEmailConfirmationRequired(error)) {
         Alert.alert(
           'אישור אימייל נדרש',
-          error.message,
+          error instanceof Error ? error.message : 'יש לאשר את כתובת האימייל לפני ההתחברות.',
           [
             { text: 'ביטול', style: 'cancel' },
-            { 
-              text: 'שלח שוב מייל אישור', 
-              onPress: async () => {
-                setResending(true);
-                try {
-                  await resendConfirmationEmail(email);
-                  Alert.alert('נשלח!', 'מייל אישור חדש נשלח לכתובת שלך.');
-                } catch (e) {
-                  Alert.alert('שגיאה', 'לא ניתן לשלוח מייל אישור כרגע.');
-                } finally {
-                  setResending(false);
-                }
-              }
-            }
-          ]
+            {
+              text: resending ? 'שולח...' : 'שלח שוב מייל אישור',
+              onPress: () => {
+                void handleResendConfirmation();
+              },
+            },
+          ],
         );
       } else {
         Alert.alert(
@@ -78,7 +104,6 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Top brand strip */}
       <View style={styles.brandStrip}>
         <View style={styles.logoCircle}>
           <MaterialCommunityIcons name="home-city-outline" size={32} color={Colors.accent} />
@@ -91,7 +116,6 @@ export default function LoginScreen() {
         </AppText>
       </View>
 
-      {/* Card */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.cardWrapper}
@@ -119,10 +143,16 @@ export default function LoginScreen() {
               label="כתובת אימייל"
               placeholder="you@example.com"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(value) => {
+                setEmail(value);
+                if (fieldErrors.email) {
+                  setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                }
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
               textContentType="emailAddress"
+              error={fieldErrors.email}
               containerStyle={{ marginBottom: Spacing.md }}
             />
 
@@ -130,9 +160,15 @@ export default function LoginScreen() {
               label="סיסמה"
               placeholder="הזן סיסמה"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(value) => {
+                setPassword(value);
+                if (fieldErrors.password) {
+                  setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                }
+              }}
               secureTextEntry={!showPassword}
               textContentType="password"
+              error={fieldErrors.password}
               iconRight={
                 <MaterialCommunityIcons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -146,8 +182,9 @@ export default function LoginScreen() {
 
             <Pressable
               style={styles.forgotRow}
-              onPress={() => {}}
+              onPress={() => router.push('/(auth)/forgot-password')}
               accessibilityRole="button"
+              disabled={loading || resending}
             >
               <AppText variant="bodySm" color="primary" weight="semiBold">
                 שכחת סיסמה?
@@ -158,7 +195,7 @@ export default function LoginScreen() {
               label="התחברות"
               onPress={handleLogin}
               disabled={loading || resending}
-              loading={loading || resending}
+              loading={loading}
               fullWidth
               size="lg"
               style={{ marginTop: Spacing.lg }}
@@ -178,6 +215,7 @@ export default function LoginScreen() {
               variant="secondary"
               fullWidth
               size="lg"
+              disabled={loading || resending}
               icon={<MaterialCommunityIcons name="google" size={20} color={Colors.primary} />}
             />
 
@@ -186,7 +224,7 @@ export default function LoginScreen() {
                 אין לך חשבון?{' '}
               </AppText>
               <Link href="/(auth)/register" asChild>
-                <Pressable>
+                <Pressable disabled={loading || resending}>
                   <AppText variant="bodySm" color="primary" weight="bold">
                     הירשם כאן
                   </AppText>

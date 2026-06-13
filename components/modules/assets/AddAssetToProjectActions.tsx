@@ -6,6 +6,8 @@ import {
   Modal,
   FlatList,
   useWindowDimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -27,8 +29,8 @@ import { setPreloadedProject } from '@/lib/navigation-state';
 type Props = {
   projectId: string;
   projectName: string;
-  /** לאחר שיוך נכס מרשימה (לרענון רשימת נכסים באב) */
-  onAssetsChanged?: () => void;
+  /** Called after a property is linked; receives the updated property from PATCH. */
+  onAssetsChanged?: (linkedAsset: AssetEntity) => void;
   /** FAB במסך פרויקט / כפתורים בשורה באשף */
   variant?: 'fab' | 'inline';
 };
@@ -45,6 +47,7 @@ export function AddAssetToProjectActions({
   const [pickOpen, setPickOpen] = useState(false);
   const [unassigned, setUnassigned] = useState<AssetEntity[]>([]);
   const [loading, setLoading] = useState(false);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
 
   const openMenu = useCallback(() => setMenuOpen(true), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -68,14 +71,38 @@ export function AddAssetToProjectActions({
 
   const handleLinkAsset = useCallback(
     (asset: AssetEntity) => {
+      if (linkingId) return;
+
+      if (__DEV__) {
+        console.log('[AddAssetToProject] link start', {
+          propertyId: asset.id,
+          projectId,
+          projectName,
+        });
+      }
+
+      setLinkingId(asset.id);
       updateProperty(asset.id, { projectId })
         .then(() => {
-          closePick();
-          onAssetsChanged?.();
+          setUnassigned((prev) => prev.filter((row) => row.id !== asset.id));
+          onAssetsChanged?.({ ...asset, projectId });
+          Alert.alert('נשמר', `«${asset.name}» שויך לפרויקט «${projectName}».`);
         })
-        .catch(() => {});
+        .catch((error) => {
+          if (__DEV__) {
+            console.warn('[AddAssetToProject] PATCH failed', {
+              propertyId: asset.id,
+              projectId,
+              error: error instanceof Error ? error.message : error,
+            });
+          }
+          Alert.alert('שגיאה', 'לא ניתן לשייך את הנכס לפרויקט. נסה שוב.');
+        })
+        .finally(() => {
+          setLinkingId(null);
+        });
     },
-    [projectId, closePick, onAssetsChanged],
+    [projectId, projectName, linkingId, onAssetsChanged],
   );
 
   const trigger =
@@ -165,23 +192,35 @@ export function AddAssetToProjectActions({
                   אין נכסים פנויים לשיוך
                 </AppText>
               }
-              renderItem={({ item }) => (
-                <Pressable
-                  style={({ pressed }) => [styles.pickRow, pressed && { opacity: 0.85 }]}
-                  onPress={() => handleLinkAsset(item)}
-                  accessibilityRole="button"
-                >
-                  <MaterialCommunityIcons name="home-outline" size={20} color={Colors.primaryLight} />
-                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <AppText variant="bodyMd" weight="semiBold">
-                      {item.name}
-                    </AppText>
-                    <AppText variant="caption" color="variant" numberOfLines={2}>
-                      {item.address}
-                    </AppText>
-                  </View>
-                </Pressable>
-              )}
+              renderItem={({ item }) => {
+                const isLinking = linkingId === item.id;
+                return (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.pickRow,
+                      (pressed || isLinking) && { opacity: 0.85 },
+                    ]}
+                    onPress={() => handleLinkAsset(item)}
+                    disabled={!!linkingId}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !!linkingId, busy: isLinking }}
+                  >
+                    {isLinking ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <MaterialCommunityIcons name="home-outline" size={20} color={Colors.primaryLight} />
+                    )}
+                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                      <AppText variant="bodyMd" weight="semiBold">
+                        {item.name}
+                      </AppText>
+                      <AppText variant="caption" color="variant" numberOfLines={2}>
+                        {item.address}
+                      </AppText>
+                    </View>
+                  </Pressable>
+                );
+              }}
             />
             )}
           </Pressable>

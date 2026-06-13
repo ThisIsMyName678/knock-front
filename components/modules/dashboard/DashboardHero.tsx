@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, Text, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { DrawerMenu } from '@/components/ui/DrawerMenu';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import type { TasksDashboardPreset } from '@/lib/mocks/dashboard';
+import { useAuth } from '@/lib/auth';
+import { resolveFirstName } from '@/lib/user-display-name';
 
 type Props = {
   payments7d: number;
@@ -20,15 +23,22 @@ type Props = {
 };
 
 export function DashboardHero(props: Props) {
+  const insets = useSafeAreaInsets();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { backendUser, user } = useAuth();
+  const firstName = resolveFirstName({
+    profileDisplayName: backendUser?.profile?.displayName,
+    userMetadata: backendUser?.userMetadata ?? user?.user_metadata,
+    email: backendUser?.email ?? user?.email,
+  });
   const occupancyPct = props.assetsXY.total > 0 ? Math.round((props.assetsXY.rented / props.assetsXY.total) * 100) : 0;
 
   return (
     <>
-      <View style={styles.hero}>
+      <View style={[styles.hero, { paddingTop: insets.top + Spacing.md }]}>
         <View style={styles.heroTop}>
           <View style={styles.heroCopy}>
-            <AppText style={styles.greeting}>שלום, ניר 👋</AppText>
+            <AppText style={styles.greeting}>שלום, {firstName} 👋</AppText>
             <AppText variant="bodyMd" color="variant" style={styles.dateLine}>{props.dateLabel}</AppText>
           </View>
           <Pressable onPress={() => setDrawerOpen(true)} style={styles.menuBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
@@ -37,7 +47,11 @@ export function DashboardHero(props: Props) {
         </View>
         <Pressable onPress={props.onPaymentsPress} style={({ pressed }) => [styles.primaryMetric, pressed && styles.pressed]} accessibilityRole="button">
           <AppText style={styles.metricEyebrow}>תשלומים בשבוע הקרוב</AppText>
-          <AppText style={styles.metricValue}>{props.payments7d}</AppText>
+          <View style={styles.metricValueWrap}>
+            <Text style={styles.metricValue} allowFontScaling={false}>
+              {props.payments7d}
+            </Text>
+          </View>
           <AppText variant="bodySm" color="variant">עתידיים / באיחור (לא התקבלו)</AppText>
         </Pressable>
         <View style={styles.secondaryStrip}>
@@ -84,7 +98,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: Radius['2xl'],
     borderBottomRightRadius: Radius['2xl'],
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingTop: Spacing.md,
     paddingBottom: Spacing.xl,
     gap: Spacing.lg,
     borderBottomWidth: 1,
@@ -93,12 +106,48 @@ const styles = StyleSheet.create({
   },
   heroTop: { flexDirection: RTL_ROW, alignItems: 'flex-start', justifyContent: 'space-between', gap: Spacing.md },
   heroCopy: { flex: 1, gap: 4 },
-  greeting: { fontFamily: FontFamily.extraBold, fontSize: FontSize['3xl'], color: Colors.onBackground, textAlign: 'right', letterSpacing: -0.5 },
+  greeting: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: FontSize['3xl'],
+    lineHeight: FontSize['3xl'] * 1.25,
+    color: Colors.onBackground,
+    textAlign: 'right',
+    letterSpacing: -0.5,
+  },
   dateLine: { textAlign: 'right' },
   menuBtn: { width: 44, height: 44, borderRadius: Radius.lg, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
-  primaryMetric: { backgroundColor: Colors.background, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.lg, gap: 6, ...Shadow.sm },
-  metricEyebrow: { fontFamily: FontFamily.semiBold, fontSize: FontSize.xs, color: Colors.onSurfaceMuted, textAlign: 'right', letterSpacing: 1, textTransform: 'uppercase' },
-  metricValue: { fontFamily: FontFamily.extraBold, fontSize: 52, lineHeight: 56, color: Colors.onBackground, textAlign: 'right', letterSpacing: -1.5 },
+  primaryMetric: {
+    backgroundColor: Colors.background,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    padding: Spacing.lg,
+    ...Shadow.sm,
+  },
+  metricEyebrow: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: FontSize.xs,
+    color: Colors.onSurfaceMuted,
+    textAlign: 'right',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: Spacing.sm,
+  },
+  metricValueWrap: {
+    minHeight: 72,
+    justifyContent: 'center',
+    overflow: 'visible',
+    marginBottom: Spacing.xs,
+  },
+  metricValue: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 52,
+    lineHeight: Platform.OS === 'ios' ? 62 : 68,
+    color: Colors.onBackground,
+    textAlign: 'right',
+    paddingBottom: Platform.OS === 'ios' ? 4 : 0,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false, textAlignVertical: 'center' as const } : {}),
+  },
   secondaryStrip: { flexDirection: RTL_ROW, gap: Spacing.sm, alignItems: 'stretch' },
   tasksStrip: { flex: 1.4, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.md, gap: Spacing.sm },
   stripLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.sm, color: Colors.onSurfaceVariant, textAlign: 'right' },

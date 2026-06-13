@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -307,6 +307,8 @@ type Props = {
   scopedProjectName?: string;
   /** העלאה מזהה מחדש של רשימה אחרי שינוי mock (למשל שיוך נכס) */
   refreshNonce?: number;
+  /** נכס שזה עתה שויך — מוצג מיד לפני שהרשימה מתרעננת מהשרת */
+  linkedAssetPatch?: AssetEntity | null;
 };
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -316,7 +318,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'construction', label: 'בבנייה' },
 ];
 
-export function EntityListScreen({ mode, embedded = false, scopedProjectId, scopedProjectName, refreshNonce = 0 }: Props) {
+export function EntityListScreen({ mode, embedded = false, scopedProjectId, scopedProjectName, refreshNonce = 0, linkedAssetPatch = null }: Props) {
   const insets = useSafeAreaInsets();
   const plan = useSubscriptionPlan();
   const [search, setSearch] = useState('');
@@ -327,15 +329,39 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
   const [loading, setLoading] = useState(true);
 
   const loadProperties = useCallback(async () => {
+    if (__DEV__) {
+      console.log('[EntityListScreen] listProperties start', { scopedProjectId });
+    }
     try {
       const rows = await listProperties({
         projectId: scopedProjectId,
       });
+      if (__DEV__) {
+        console.log('[EntityListScreen] listProperties result', {
+          scopedProjectId,
+          count: rows.length,
+          ids: rows.map((row) => row.id),
+        });
+      }
       setBackendAssets(rows.map(propertyToAssetEntity));
     } catch (error) {
       console.warn(error instanceof Error ? error.message : 'Failed to load properties');
     }
   }, [scopedProjectId]);
+
+  useEffect(() => {
+    if (!linkedAssetPatch || !scopedProjectId) return;
+    if (linkedAssetPatch.projectId !== scopedProjectId) return;
+    setBackendAssets((prev) => {
+      if (prev.some((row) => row.id === linkedAssetPatch.id)) return prev;
+      return [linkedAssetPatch, ...prev];
+    });
+  }, [linkedAssetPatch, scopedProjectId]);
+
+  useEffect(() => {
+    if (refreshNonce === 0) return;
+    void loadProperties();
+  }, [refreshNonce, loadProperties]);
 
   const loadProjects = useCallback(async () => {
     if (mode !== 'projects' || scopedProjectId) return;
@@ -357,7 +383,7 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
       return () => {
         cancelled = true;
       };
-    }, [loadProperties, loadProjects, refreshNonce]),
+    }, [loadProperties, loadProjects]),
   );
 
   const showSkeleton = useSkeletonGate(loading);

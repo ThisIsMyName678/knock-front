@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, Text, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize } from '@/constants/tokens';
@@ -24,7 +24,9 @@ export function DashboardAttentionLane({ payments7d, taskCounts, onPaymentsPress
           <View style={styles.cardBody}>
             <MaterialCommunityIcons name="calendar-clock" size={22} color={Colors.warning} />
             <AppText variant="labelMd" weight="bold">תשלומים (7 ימים)</AppText>
-            <AppText style={styles.cardValue}>{payments7d}</AppText>
+            <Text style={styles.cardValue} allowFontScaling={false}>
+              {payments7d}
+            </Text>
           </View>
         </Pressable>
         <Pressable onPress={() => onTasksPreset('total_open')} style={({ pressed }) => [styles.card, pressed && styles.pressed]} accessibilityRole="button">
@@ -51,8 +53,22 @@ const styles = StyleSheet.create({
   row: { gap: Spacing.md },
   card: { flexDirection: RTL_ROW, backgroundColor: Colors.surface, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.outlineLight, overflow: 'hidden', ...Shadow.sm },
   rail: { width: 4, alignSelf: 'stretch' },
-  cardBody: { flex: 1, padding: Spacing.lg, gap: Spacing.sm, alignItems: 'flex-end' },
-  cardValue: { fontFamily: FontFamily.extraBold, fontSize: FontSize['3xl'], color: Colors.onBackground },
+  cardBody: {
+    flex: 1,
+    paddingTop: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg + 4,
+    gap: Spacing.sm,
+    alignItems: 'flex-end',
+  },
+  cardValue: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: FontSize['3xl'],
+    lineHeight: FontSize['3xl'] * 1.35,
+    color: Colors.onBackground,
+    textAlign: 'right',
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+  },
   pipeline: { flexDirection: RTL_ROW, height: 8, borderRadius: 4, overflow: 'hidden', width: '100%', backgroundColor: Colors.surfaceVariant },
   seg: { minWidth: 4 },
   pressed: { opacity: 0.92 },

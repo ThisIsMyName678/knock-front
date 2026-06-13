@@ -389,7 +389,7 @@ export function DashboardScreen() {
   );
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={styles.screen}>
       {showSkeleton ? (
         <DashboardSkeleton />
       ) : (

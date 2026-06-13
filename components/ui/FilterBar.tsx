@@ -24,14 +24,12 @@ export function FilterBar({ search, onSearchChange, tabs, activeTab, onTabChange
   return (
     <View style={styles.container}>
       <View style={styles.searchRow}>
-        <MaterialCommunityIcons name="magnify" size={19} color={Colors.onSurfaceMuted} />
         <TextInput
           style={styles.searchInput}
           placeholder="חיפוש..."
           placeholderTextColor={Colors.onSurfaceMuted}
           value={search}
           onChangeText={onSearchChange}
-          textAlign="right"
           returnKeyType="search"
         />
         {search.length > 0 && (
@@ -39,6 +37,7 @@ export function FilterBar({ search, onSearchChange, tabs, activeTab, onTabChange
             <MaterialCommunityIcons name="close-circle" size={17} color={Colors.onSurfaceMuted} />
           </Pressable>
         )}
+        <MaterialCommunityIcons name="magnify" size={19} color={Colors.onSurfaceMuted} />
       </View>
       {((tabs && tabs.length > 0) || hasFiltersBtn) && (
         <View style={styles.tabsRow}>
@@ -101,7 +100,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.outlineLight,
   },
-  searchInput: { flex: 1, fontFamily: FontFamily.regular, fontSize: 14, color: Colors.onBackground, padding: 0, textAlign: 'right' },
+  searchInput: { flex: 1, fontFamily: FontFamily.regular, fontSize: 14, color: Colors.onBackground, padding: 0, textAlign: 'right', writingDirection: 'rtl' },
   tabsRow: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
   tabsScroll: { flexDirection: RTL_ROW, gap: Spacing.xs, paddingHorizontal: 2 },
   tab: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.outlineLight, backgroundColor: Colors.surface },

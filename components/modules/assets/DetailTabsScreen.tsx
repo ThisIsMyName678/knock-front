@@ -35,7 +35,7 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import { EntityListScreen } from './EntityListScreen';
 import { AddAssetToProjectActions } from './AddAssetToProjectActions';
-import { MOCK_PROJECTS } from '@/lib/mocks/assets';
+import { MOCK_PROJECTS, type AssetEntity } from '@/lib/mocks/assets';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
@@ -635,6 +635,20 @@ function FeedTab() {
 
 function ProjectMainAssetsTab({ entityId, projectName }: { entityId: string; projectName: string }) {
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [linkedAssetPatch, setLinkedAssetPatch] = useState<AssetEntity | null>(null);
+
+  const handleAssetsChanged = useCallback((linkedAsset: AssetEntity) => {
+    if (__DEV__) {
+      console.log('[ProjectMainAssetsTab] asset linked', {
+        entityId,
+        linkedAssetId: linkedAsset.id,
+        linkedAssetProjectId: linkedAsset.projectId,
+      });
+    }
+    setLinkedAssetPatch(linkedAsset);
+    setRefreshNonce((n) => n + 1);
+  }, [entityId]);
+
   return (
     <View style={{ flex: 1 }}>
       <EntityListScreen
@@ -643,11 +657,12 @@ function ProjectMainAssetsTab({ entityId, projectName }: { entityId: string; pro
         scopedProjectId={entityId}
         scopedProjectName={projectName}
         refreshNonce={refreshNonce}
+        linkedAssetPatch={linkedAssetPatch}
       />
       <AddAssetToProjectActions
         projectId={entityId}
         projectName={projectName}
-        onAssetsChanged={() => setRefreshNonce((n) => n + 1)}
+        onAssetsChanged={handleAssetsChanged}
         variant="fab"
       />
     </View>

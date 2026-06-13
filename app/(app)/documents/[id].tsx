@@ -8,6 +8,7 @@ import {
   Alert,
   Modal,
   TouchableWithoutFeedback,
+  type DimensionValue,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -83,7 +84,7 @@ function PdfPreview({ name }: { name: string }) {
         ) : (
           <View
             key={i}
-            style={[preview.pdfLine, { width: line.width as `${string}%`, height: line.height, marginBottom: 5, borderRadius: 2 }]}
+            style={[preview.pdfLine, { width: line.width as DimensionValue, height: line.height, marginBottom: 5, borderRadius: 2 }]}
           />
         ),
       )}
