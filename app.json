@@ -41,6 +41,12 @@
         }
       ],
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ff7ecbb5-3099-4296-858e-eb17f496bb3e"
+      }
+    }
   }
 }
