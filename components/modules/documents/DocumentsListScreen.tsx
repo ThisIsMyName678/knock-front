@@ -107,6 +107,7 @@ export function DocumentsListScreen() {
   const [menuRow, setMenuRow] = useState<DocumentListRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentListRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const showSkeleton = useSkeletonGate(loading);
 
   const linkScope = linkScopeFromScope(scope);
 
