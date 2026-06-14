@@ -10,6 +10,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -19,9 +20,7 @@ import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
-  getTaskDetailMock,
   TASK_KIND_LABELS,
   TASK_KIND_ICONS,
   TASK_PRIORITY_LABELS,
@@ -31,11 +30,22 @@ import {
   type TaskMessage,
   type WorkflowStatus,
   type TaskKind,
+  type TaskListRow,
 } from '@/lib/mocks/tasks';
+import {
+  getTask,
+  backendTaskDetailToRow,
+  updateTask,
+  clientStatusToBackend,
+  clientTaskTypeToBackend,
+  clientPriorityToBackendUrgency,
+  ddMmYyyyToIso,
+} from '@/lib/api/tasks';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, FontFamily, FontSize } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { Input } from '@/components/ui/Input';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 
 const STATUS_OPTIONS: WorkflowStatus[] = ['not_started', 'open', 'in_progress', 'completed', 'cancelled'];
 
@@ -61,38 +71,44 @@ function statusPreset(s: WorkflowStatus): React.ComponentProps<typeof Badge>['pr
 export default function TaskDetailRoute() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const base = useMemo(() => getTaskDetailMock(String(id ?? '')), [id]);
+  const [task, setTask] = useState<TaskListRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(base?.workflowStatus ?? null);
-  const [messages, setMessages] = useState<TaskMessage[]>(() => base?.messages ?? []);
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null);
+  const [messages, setMessages] = useState<TaskMessage[]>([]);
   const [showAllMessages, setShowAllMessages] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeText, setComposeText] = useState('');
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
 
   // Local display state (reflects saves from edit modal)
-  const [localTitle, setLocalTitle] = useState(base?.title ?? '');
-  const [localAssignee, setLocalAssignee] = useState(base?.assigneeName ?? '');
-  const [localDueDate, setLocalDueDate] = useState(base?.dueDate ?? '');
-  const [localStartDate, setLocalStartDate] = useState(base?.startDate ?? '');
-  const [localPriority, setLocalPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>(base?.priority ?? 'medium');
-  const [localTaskKind, setLocalTaskKind] = useState<TaskKind>(base?.taskKind ?? 'execution');
-  const [localEndDate, setLocalEndDate] = useState(base?.endDate ?? '');
-  const [localCostNotes, setLocalCostNotes] = useState(base?.costNotes ?? '');
-  const [localTimeNotes, setLocalTimeNotes] = useState(base?.timeNotes ?? '');
+  const [localTitle, setLocalTitle] = useState('');
+  const [localAssignee, setLocalAssignee] = useState('');
+  const [localDueDate, setLocalDueDate] = useState('');
+  const [localStartDate, setLocalStartDate] = useState('');
+  const [localPriority, setLocalPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>('medium');
+  const [localTaskKind, setLocalTaskKind] = useState<TaskKind>('execution');
+  const [localEndDate, setLocalEndDate] = useState('');
+  const [localCostNotes, setLocalCostNotes] = useState('');
+  const [localTimeNotes, setLocalTimeNotes] = useState('');
 
   // Edit modal draft state
   const [editOpen, setEditOpen] = useState(false);
-  const [editTitle, setEditTitle] = useState(base?.title ?? '');
-  const [editAssignee, setEditAssignee] = useState(base?.assigneeName ?? '');
-  const [editDueDate, setEditDueDate] = useState(base?.dueDate ?? '');
-  const [editStartDate, setEditStartDate] = useState(base?.startDate ?? '');
-  const [editPriority, setEditPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>(base?.priority ?? 'medium');
-  const [editTaskKind, setEditTaskKind] = useState<TaskKind>(base?.taskKind ?? 'execution');
-  const [editEndDate, setEditEndDate] = useState(base?.endDate ?? '');
-  const [editCostNotes, setEditCostNotes] = useState(base?.costNotes ?? '');
-  const [editTimeNotes, setEditTimeNotes] = useState(base?.timeNotes ?? '');
+  const [editTitle, setEditTitle] = useState('');
+  const [editAssignee, setEditAssignee] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editPriority, setEditPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>('medium');
+  const [editTaskKind, setEditTaskKind] = useState<TaskKind>('execution');
+  const [editCostNotes, setEditCostNotes] = useState('');
+  const [editTimeNotes, setEditTimeNotes] = useState('');
+  const [editDatePickerTarget, setEditDatePickerTarget] = useState<'start' | 'due' | null>(null);
+  const [editStatus, setEditStatus] = useState<WorkflowStatus>('open');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const openEdit = () => {
     setEditTitle(localTitle);
@@ -101,41 +117,79 @@ export default function TaskDetailRoute() {
     setEditStartDate(localStartDate);
     setEditPriority(localPriority);
     setEditTaskKind(localTaskKind);
-    setEditEndDate(localEndDate);
     setEditCostNotes(localCostNotes);
     setEditTimeNotes(localTimeNotes);
+    setEditStatus(workflowStatus ?? 'open');
     setEditOpen(true);
   };
 
-  const saveEdit = () => {
-    setLocalTitle(editTitle.trim() || (base?.title ?? ''));
-    setLocalAssignee(editAssignee.trim() || (base?.assigneeName ?? ''));
-    setLocalDueDate(editDueDate.trim() || (base?.dueDate ?? ''));
-    setLocalStartDate(editStartDate.trim() || (base?.startDate ?? ''));
-    setLocalPriority(editPriority);
-    setLocalTaskKind(editTaskKind);
-    setLocalEndDate(editEndDate.trim());
-    setLocalCostNotes(editCostNotes.trim());
-    setLocalTimeNotes(editTimeNotes.trim());
-    setEditOpen(false);
+  const saveEdit = async () => {
+    setEditError(null);
+    const newTitle = editTitle.trim() || localTitle;
+    setEditSaving(true);
+    try {
+      await updateTask(String(id ?? ''), {
+        title: newTitle,
+        taskType: clientTaskTypeToBackend(editTaskKind),
+        urgency: clientPriorityToBackendUrgency(editPriority),
+        status: clientStatusToBackend(editStatus) ?? undefined,
+        startDate: editStartDate.trim() ? ddMmYyyyToIso(editStartDate) : undefined,
+        dueDate: editDueDate.trim() ? ddMmYyyyToIso(editDueDate) : null,
+        cost: editCostNotes.trim() || null,
+        handlingTime: editTimeNotes.trim() ? parseInt(editTimeNotes.trim(), 10) : null,
+      });
+      setLocalTitle(newTitle);
+      setLocalAssignee(editAssignee.trim() || localAssignee);
+      setLocalDueDate(editDueDate.trim() || localDueDate);
+      setLocalStartDate(editStartDate.trim() || localStartDate);
+      setLocalPriority(editPriority);
+      setLocalTaskKind(editTaskKind);
+      setWorkflowStatus(editStatus);
+      setLocalCostNotes(editCostNotes.trim());
+      setLocalTimeNotes(editTimeNotes.trim());
+      setEditOpen(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'שגיאה בשמירת המשימה');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   useEffect(() => {
-    const t = getTaskDetailMock(String(id ?? ''));
-    if (t) {
-      setWorkflowStatus(t.workflowStatus);
-      setMessages([...t.messages]);
-    }
+    let active = true;
+    setLoading(true);
+    setLoadError(null);
+    getTask(String(id ?? ''))
+      .then((res) => {
+        if (!active) return;
+        const row = backendTaskDetailToRow(res);
+        setTask(row);
+        setWorkflowStatus(row.workflowStatus);
+        setMessages(row.messages);
+        setLocalTitle(row.title);
+        setLocalAssignee(row.assigneeName);
+        setLocalDueDate(row.dueDate);
+        setLocalStartDate(row.startDate);
+        setLocalPriority(row.priority);
+        setLocalTaskKind(row.taskKind);
+        setLocalEndDate(row.endDate ?? '');
+        setLocalCostNotes(row.costNotes ?? '');
+        setLocalTimeNotes(row.timeNotes ?? '');
+        setLoading(false);
+      })
+      .catch((err: Error) => {
+        if (!active) return;
+        setLoadError(err?.message ?? 'שגיאה בטעינת המשימה');
+        setLoading(false);
+      });
+    return () => { active = false; };
   }, [id]);
 
-  const task = base;
   const effectiveStatus = workflowStatus ?? task?.workflowStatus ?? 'open';
   const effectiveTaskKind = localTaskKind;
   const effectivePriority = localPriority;
 
   const lastFive = useMemo(() => lastMessages(messages, 5), [messages]);
-
-  const linkedPayment = task?.linkedPaymentId ? MOCK_PAYMENTS_LIST.find((p) => p.id === task.linkedPaymentId) : null;
 
   const sendMessage = useCallback(() => {
     const text = composeText.trim();
@@ -151,13 +205,25 @@ export default function TaskDetailRoute() {
     setComposeOpen(false);
   }, [composeText]);
 
-  if (!task) {
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="משימה" showBack />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  if (loadError || !task) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <AppHeader title="משימה" showBack />
         <View style={{ flex: 1, justifyContent: 'center', padding: CONTENT_HORIZONTAL_PADDING }}>
-          <AppText variant="bodyMd" align="center" color="variant">
-            לא נמצאה משימה
+          <MaterialCommunityIcons name="alert-circle-outline" size={36} color={Colors.error} style={{ alignSelf: 'center' }} />
+          <AppText variant="bodyMd" align="center" color="error" style={{ marginTop: Spacing.sm }}>
+            {loadError ?? 'לא נמצאה משימה'}
           </AppText>
           <Button label="חזרה" onPress={() => router.back()} fullWidth style={{ marginTop: Spacing.lg }} />
         </View>
@@ -272,16 +338,6 @@ export default function TaskDetailRoute() {
                 </AppText>
               </Pressable>
             ) : null}
-            {linkedPayment && (
-              <View style={styles.detailRow}>
-                <AppText variant="bodyMd" color="variant">
-                  תשלום מקושר
-                </AppText>
-                <AppText variant="bodyMd" weight="semiBold" style={{ flex: 1, textAlign: 'right' }} numberOfLines={2}>
-                  {linkedPayment.displayName} ({PAYMENT_TYPE_LABELS[linkedPayment.paymentType]})
-                </AppText>
-              </View>
-            )}
             {(localCostNotes || localTimeNotes || task.costNotes || task.timeNotes) && (
               <>
                 {(localCostNotes || task.costNotes) ? (
@@ -363,9 +419,22 @@ export default function TaskDetailRoute() {
               {STATUS_OPTIONS.map((s) => (
                 <Pressable
                   key={s}
-                  onPress={() => {
+                  disabled={statusSaving}
+                  onPress={async () => {
+                    const prev = workflowStatus;
                     setWorkflowStatus(s);
                     setStatusMenuOpen(false);
+                    const backendStatus = clientStatusToBackend(s);
+                    if (!backendStatus) return;
+                    setStatusSaving(true);
+                    try {
+                      await updateTask(String(id ?? ''), { status: backendStatus });
+                    } catch {
+                      setWorkflowStatus(prev);
+                      Alert.alert('שגיאה', 'לא ניתן לעדכן את הסטטוס. נסה שוב.');
+                    } finally {
+                      setStatusSaving(false);
+                    }
                   }}
                   style={[styles.modalOption, effectiveStatus === s && styles.modalOptionActive]}
                 >
@@ -481,12 +550,17 @@ export default function TaskDetailRoute() {
                   <AppText variant="headingSm" weight="bold" style={{ flex: 1, textAlign: 'right' }}>
                     עריכת משימה
                   </AppText>
-                  <Pressable onPress={saveEdit} style={styles.saveBtn} accessibilityRole="button">
-                    <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>שמור</AppText>
+                  <Pressable onPress={editSaving ? undefined : saveEdit} style={[styles.saveBtn, editSaving && { opacity: 0.6 }]} accessibilityRole="button">
+                    <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>{editSaving ? 'שומר...' : 'שמור'}</AppText>
                   </Pressable>
                 </View>
 
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editContent}>
+                {editError ? (
+                  <AppText variant="bodySm" style={{ color: Colors.error, textAlign: 'right', paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.sm }}>
+                    {editError}
+                  </AppText>
+                ) : null}
+                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editContent}>
 
                   {/* סוג משימה */}
                   <View style={styles.editSection}>
@@ -531,6 +605,25 @@ export default function TaskDetailRoute() {
                     </View>
                   </View>
 
+                  {/* סטטוס */}
+                  <View style={styles.editSection}>
+                    <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>סטטוס</AppText>
+                    <View style={styles.editChipsWrap}>
+                      {(['open', 'in_progress', 'completed', 'cancelled'] as const).map((s) => (
+                        <Pressable
+                          key={s}
+                          onPress={() => setEditStatus(s)}
+                          style={[styles.editChip, editStatus === s && styles.editChipActive]}
+                          accessibilityRole="button"
+                        >
+                          <AppText variant="caption" weight={editStatus === s ? 'bold' : 'regular'} style={{ color: editStatus === s ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                            {WORKFLOW_STATUS_LABELS[s]}
+                          </AppText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
                   {/* כותרת */}
                   <View style={styles.editSection}>
                     <Input label="כותרת המשימה" value={editTitle} onChangeText={setEditTitle} />
@@ -544,21 +637,31 @@ export default function TaskDetailRoute() {
                   {/* תאריכים */}
                   <View style={styles.editSection}>
                     <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>תאריכים</AppText>
-                    <Input label="תאריך התחלה (DD/MM/YYYY)" value={editStartDate} onChangeText={setEditStartDate} keyboardType="numeric" />
-                    <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="תאריך יעד (DD/MM/YYYY)" value={editDueDate} onChangeText={setEditDueDate} keyboardType="numeric" />
-                    </View>
-                    <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="תאריך סיום בפועל (DD/MM/YYYY)" value={editEndDate} onChangeText={setEditEndDate} keyboardType="numeric" />
-                    </View>
+
+                    <AppText variant="labelSm" weight="semiBold" style={styles.dateFieldLabel}>תאריך התחלה</AppText>
+                    <Pressable onPress={() => setEditDatePickerTarget('start')} style={styles.dateTrigger} accessibilityRole="button">
+                      <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                      <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: editStartDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                        {editStartDate || 'בחר תאריך'}
+                      </AppText>
+                    </Pressable>
+
+                    <AppText variant="labelSm" weight="semiBold" style={[styles.dateFieldLabel, { marginTop: Spacing.sm }]}>תאריך יעד</AppText>
+                    <Pressable onPress={() => setEditDatePickerTarget('due')} style={styles.dateTrigger} accessibilityRole="button">
+                      <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                      <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: editDueDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                        {editDueDate || 'בחר תאריך'}
+                      </AppText>
+                    </Pressable>
+
                   </View>
 
                   {/* עלות וזמן */}
                   <View style={styles.editSection}>
                     <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>עלות וזמן</AppText>
-                    <Input label="הערות עלות" value={editCostNotes} onChangeText={setEditCostNotes} />
+                    <Input label='עלות (ש"ח)' value={editCostNotes} onChangeText={setEditCostNotes} keyboardType="numeric" />
                     <View style={{ marginTop: Spacing.sm }}>
-                      <Input label="הערות זמן" value={editTimeNotes} onChangeText={setEditTimeNotes} />
+                      <Input label="זמן טיפול (שעות)" value={editTimeNotes} onChangeText={setEditTimeNotes} keyboardType="numeric" />
                     </View>
                   </View>
 
@@ -567,6 +670,17 @@ export default function TaskDetailRoute() {
             </Pressable>
           </KeyboardAvoidingView>
         </Modal>
+
+        <DatePickerModal
+          visible={editDatePickerTarget !== null}
+          value={editDatePickerTarget === 'start' ? editStartDate : editDueDate}
+          onSelect={(d) => {
+            if (editDatePickerTarget === 'start') setEditStartDate(d);
+            else setEditDueDate(d);
+          }}
+          onClose={() => setEditDatePickerTarget(null)}
+          title={editDatePickerTarget === 'start' ? 'תאריך התחלה' : 'תאריך יעד'}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -769,5 +883,20 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     flexWrap: 'wrap',
     gap: Spacing.sm,
+  },
+  dateFieldLabel: {
+    textAlign: 'right',
+    marginBottom: Spacing.xs,
+    color: Colors.onBackground,
+  },
+  dateTrigger: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.surfaceVariant,
   },
 });

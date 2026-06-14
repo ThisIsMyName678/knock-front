@@ -79,6 +79,7 @@ export type TaskMessage = {
 export type TaskListRow = {
   id: string;
   title: string;
+  description?: string;
   taskKind: TaskKind;
   priority: TaskPriority;
   workflowStatus: WorkflowStatus;
@@ -132,6 +133,7 @@ const BASE_TASKS: TaskListRow[] = [
   {
     id: 't1',
     title: 'נזילה בחדר רחצה — דירה 4B',
+    description: 'הברז הראשי בחדר האמבטיה דולף, יש להחליפו בהקדם.',
     taskKind: 'maintenance',
     priority: 'urgent',
     workflowStatus: 'in_progress',
@@ -154,6 +156,7 @@ const BASE_TASKS: TaskListRow[] = [
   {
     id: 't2',
     title: 'חידוש חוזה שכירות — דירה 7A',
+    description: 'החוזה פג ב-30/06/2026, יש לשלוח הצעה לדייר עד סוף החודש.',
     taskKind: 'contract_renewal',
     priority: 'high',
     workflowStatus: 'open',
@@ -171,6 +174,7 @@ const BASE_TASKS: TaskListRow[] = [
   {
     id: 't3',
     title: 'מעקב תשלום ארנונה — מגדלי הים',
+    description: 'לוודא שתשלום הארנונה לרבעון השני שולם ולתעד קבלה.',
     taskKind: 'collection_payment',
     priority: 'medium',
     workflowStatus: 'not_started',

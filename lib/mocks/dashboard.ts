@@ -3,7 +3,6 @@
  */
 
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
-import { MOCK_CONTRACTS_LIST, getContractDetailMock } from '@/lib/mocks/contracts';
 import { MOCK_PAYMENTS_LIST, type PaymentListRow } from '@/lib/mocks/payments';
 import { MOCK_TASKS_LIST, type TaskKind, type TaskListRow, type WorkflowStatus } from '@/lib/mocks/tasks';
 import { assetOccupancyStats } from '@/lib/mocks/assets';
@@ -239,41 +238,7 @@ function eventsFromPayments(): DashboardCalendarEvent[] {
 }
 
 function eventsFromContracts(): DashboardCalendarEvent[] {
-  const events: DashboardCalendarEvent[] = [];
-  MOCK_CONTRACTS_LIST.forEach((c, i) => {
-    // Signing date event
-    const dk = dateKeyFromDdMmYyyy(c.agreementDate);
-    if (dk) {
-      events.push({
-        id: `ctr-ev-${c.id}`,
-        source: 'contract' as const,
-        title: c.contractName,
-        dateKey: dk,
-        sortOrder: 100 + i,
-        statusLabel: c.status === 'ACTIVE' ? 'פעיל' : c.status === 'DRAFT' ? 'טיוטה' : 'פג תוקף',
-        detail: c.counterpartyName,
-        href: `/(app)/contracts/${c.id}`,
-      });
-    }
-    // Renewal/expiry date event (from detail)
-    const detail = getContractDetailMock(c.id);
-    if (detail?.endDate && detail.endDate !== '—') {
-      const renewDk = dateKeyFromDdMmYyyy(detail.endDate);
-      if (renewDk) {
-        events.push({
-          id: `ctr-ren-${c.id}`,
-          source: 'contract' as const,
-          title: `חידוש נדרש: ${c.contractName}`,
-          dateKey: renewDk,
-          sortOrder: 150 + i,
-          statusLabel: c.status === 'EXPIRED' ? 'פג תוקף' : 'חידוש קרוב',
-          detail: `${c.counterpartyName} · תוקף פג`,
-          href: `/(app)/contracts/${c.id}`,
-        });
-      }
-    }
-  });
-  return events;
+  return [];
 }
 
 function eventsFromTasks(): DashboardCalendarEvent[] {

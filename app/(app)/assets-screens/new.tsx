@@ -15,7 +15,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MOCK_PROJECTS } from '@/lib/mocks/assets';
-import { MOCK_CONTRACTS_LIST, CONTRACT_TYPE_LABELS } from '@/lib/mocks/contracts';
+import { CONTRACT_TYPE_LABELS } from '@/lib/constants/contracts';
+import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import { DocumentType, DOCUMENT_TYPE_LABELS } from '@/lib/mocks/documents';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
@@ -68,7 +69,7 @@ type MeterEntry = {
 
 type Step1Data = {
   kind: AssetKind | null;
-  occupancyStatus: FormOccupancyStatus;
+  occupancyStatus: BackendOccupancyStatus;
   address: string;
   addressSuggestion: AddressSuggestion | null;
   apartmentNumber: string;
@@ -149,17 +150,20 @@ const AMENITIES: { key: AmenityKey; label: string; icon: React.ComponentProps<ty
   { key: 'parking', label: 'חניה', icon: 'parking' },
 ];
 
+const OCCUPANCY_STATUSES: { key: BackendOccupancyStatus; label: string }[] = [
+  { key: 'VACANT', label: 'פנוי' },
+  { key: 'OCCUPIED', label: 'מושכר' },
+  { key: 'PARTIALLY_OCCUPIED', label: 'מאוכלס חלקית' },
+  { key: 'UNDER_CONSTRUCTION', label: 'בבנייה' },
+  { key: 'SOLD', label: 'נמכר' },
+  { key: 'OTHER', label: 'אחר' },
+];
+
 const PROPERTY_CONDITIONS: { key: PropertyCondition; label: string }[] = [
   { key: 'new', label: 'חדש מקבלן' },
   { key: 'renovated', label: 'משופץ' },
   { key: 'good', label: 'מצב טוב' },
   { key: 'requires_renovation', label: 'דורש שיפוץ' },
-];
-
-const OCCUPANCY_STATUSES: { key: FormOccupancyStatus; label: string }[] = [
-  { key: 'VACANT', label: 'פנוי' },
-  { key: 'OCCUPIED', label: 'מושכר' },
-  { key: 'UNDER_CONSTRUCTION', label: 'בבנייה' },
 ];
 
 const METER_TYPES: { key: MeterType; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
@@ -251,7 +255,7 @@ function step1FromProperty(property: BackendProperty): Step1Data {
 
   return {
     kind: backendTypeToAssetKind(property.propertyType),
-    occupancyStatus: occupancyStatusForForm(property.occupancyStatus),
+    occupancyStatus: property.occupancyStatus ?? 'VACANT',
     address: propertyAddressLabel(property),
     addressSuggestion: addressSuggestionFromProperty(property),
     apartmentNumber: typeof addressJson?.apartmentNumber === 'string' ? addressJson.apartmentNumber : '',
@@ -757,10 +761,10 @@ function ProjectSearchField({
 }) {
   const filtered = query.trim().length > 0
     ? MOCK_PROJECTS.filter(
-        (p) =>
-          p.name.includes(query) ||
-          p.address.includes(query),
-      ).slice(0, 6)
+      (p) =>
+        p.name.includes(query) ||
+        p.address.includes(query),
+    ).slice(0, 6)
     : [];
 
   if (selectedId && selectedName) {
@@ -949,6 +953,26 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
         {showErrors && errors?.kind ? (
           <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: 2 }}>{errors.kind}</AppText>
         ) : null}
+      </View>
+
+      {/* Occupancy status */}
+      <View style={{ gap: Spacing.sm }}>
+        <AppText variant="labelMd" weight="semiBold" style={s1.label}>סטטוס תפוסה</AppText>
+        <View style={s1.chipRow}>
+          {OCCUPANCY_STATUSES.map((o) => (
+            <Pressable
+              key={o.key}
+              onPress={() => update('occupancyStatus', o.key)}
+              style={[s1.chip, data.occupancyStatus === o.key && s1.chipActive]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: data.occupancyStatus === o.key }}
+            >
+              <AppText variant="labelMd" style={{ color: data.occupancyStatus === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                {o.label}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       {/* Address */}
@@ -1447,11 +1471,19 @@ function Step3({
   const update = <K extends keyof Step3Data>(key: K, val: Step3Data[K]) =>
     setData((prev) => ({ ...prev, [key]: val }));
 
-  const filteredContracts = MOCK_CONTRACTS_LIST.filter((c) => {
-    const q = data.contractSearch.trim().toLowerCase();
-    if (!q) return true;
-    return `${c.contractName} ${c.linkLabel} ${c.counterpartyName}`.toLowerCase().includes(q);
-  });
+  const [searchResults, setSearchResults] = useState<ContractListItem[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (data.choice !== 'link') return;
+    let cancelled = false;
+    setSearching(true);
+    fetchContracts(data.contractSearch.trim() ? { search: data.contractSearch.trim() } : {})
+      .then((results) => { if (!cancelled) setSearchResults(results); })
+      .catch(() => { if (!cancelled) setSearchResults([]); })
+      .finally(() => { if (!cancelled) setSearching(false); });
+    return () => { cancelled = true; };
+  }, [data.contractSearch, data.choice]);
 
   const handleCreateNew = () => {
     router.push({
@@ -1554,10 +1586,12 @@ function Step3({
               </View>
 
               {/* Results */}
-              {filteredContracts.length === 0 ? (
+              {searching ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ alignSelf: 'center' }} />
+              ) : searchResults.length === 0 ? (
                 <AppText variant="bodySm" color="variant" style={{ textAlign: 'right' }}>לא נמצאו חוזים תואמים.</AppText>
               ) : (
-                filteredContracts.map((c) => (
+                searchResults.map((c) => (
                   <Pressable
                     key={c.id}
                     onPress={() => setData((prev) => ({ ...prev, linkedContractId: c.id, linkedContractName: c.contractName, contractSearch: '' }))}
@@ -1570,7 +1604,7 @@ function Step3({
                         {c.counterpartyName} · {c.linkLabel}
                       </AppText>
                     </View>
-                    <Badge label={CONTRACT_TYPE_LABELS[c.contractType]} preset="neutral" />
+                    <Badge label={CONTRACT_TYPE_LABELS[c.contractType as keyof typeof CONTRACT_TYPE_LABELS] ?? c.contractType} preset="neutral" />
                   </Pressable>
                 ))
               )}

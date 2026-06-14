@@ -6,9 +6,10 @@ import {
   Pressable,
   FlatList,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -21,8 +22,6 @@ import { RTL_ROW } from '@/constants/rtl';
 import { CardSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
-  MOCK_TASKS_LIST,
-  MOCK_ASSIGNEE_NAMES,
   filterTaskRows,
   sortTaskRows,
   getRecentTasksForUser,
@@ -40,6 +39,12 @@ import {
   type TaskSortKey,
   type SortDir,
 } from '@/lib/mocks/tasks';
+import {
+  listTasks,
+  updateTask,
+  backendTaskToListRow,
+  clientStatusToBackend,
+} from '@/lib/api/tasks';
 import {
   Colors,
   Spacing,
@@ -124,7 +129,9 @@ export function TasksListScreen() {
     workflowStatus?: string;
     statusTab?: string;
   }>();
-  const [rows, setRows] = useState<TaskListRow[]>(() => [...MOCK_TASKS_LIST]);
+  const [rows, setRows] = useState<TaskListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<ScopeFilter>('all');
   const [entityId, setEntityId] = useState<string | null>(null);
@@ -139,14 +146,35 @@ export function TasksListScreen() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [statusModalTaskId, setStatusModalTaskId] = useState<string | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setLoading(false));
-    return () => cancelAnimationFrame(id);
-  }, []);
+  // useEffect(() => {
+  //   const id = requestAnimationFrame(() => setLoading(false));
+  //   return () => cancelAnimationFrame(id);
+  // }, []);
 
   const showSkeleton = useSkeletonGate(loading);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      setLoadError(null);
+      listTasks({ limit: 200 })
+        .then((res) => {
+          if (active) {
+            setRows(res.data.map(backendTaskToListRow));
+            setLoading(false);
+          }
+        })
+        .catch((err: Error) => {
+          if (active) {
+            setLoadError(err?.message ?? 'שגיאה בטעינת משימות');
+            setLoading(false);
+          }
+        });
+      return () => { active = false; };
+    }, []),
+  );
 
   useEffect(() => {
     const w = paramStr(params.workflowStatus);
@@ -194,10 +222,31 @@ export function TasksListScreen() {
 
   const statusModalTask = statusModalTaskId ? rows.find((r) => r.id === statusModalTaskId) : null;
 
-  const setWorkflowForTask = useCallback((id: string, workflowStatus: WorkflowStatus) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, workflowStatus } : r)));
-    setStatusModalTaskId(null);
-  }, []);
+  const assigneeNames = useMemo(
+    () =>
+      Array.from(new Set(rows.map((t) => t.assigneeName).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, 'he'),
+      ),
+    [rows],
+  );
+
+  const setWorkflowForTask = useCallback(
+    async (id: string, workflowStatus: WorkflowStatus) => {
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, workflowStatus } : r)));
+      setStatusModalTaskId(null);
+      const backendStatus = clientStatusToBackend(workflowStatus);
+      if (backendStatus) {
+        updateTask(id, { status: backendStatus }).catch(() => {
+          setRows((prev) =>
+            prev.map((r) =>
+              r.id === id ? { ...r, workflowStatus: r.workflowStatus } : r,
+            ),
+          );
+        });
+      }
+    },
+    [],
+  );
 
   const onSortPress = useCallback((key: TaskSortKey) => {
     setSortKey((prev) => {
@@ -268,7 +317,7 @@ export function TasksListScreen() {
       {
         kind: 'conditionalChips',
         label: 'עובד / אחראי',
-        options: MOCK_ASSIGNEE_NAMES.map((name) => ({ key: name, label: name })),
+        options: assigneeNames.map((name) => ({ key: name, label: name })),
         value: assignee,
         onChange: setAssignee,
         visible: true,
@@ -366,6 +415,13 @@ export function TasksListScreen() {
 
       {showSkeleton ? (
         <CardSkeletonList count={6} style={{ flex: 1 }} />
+      ) : loadError ? (
+        <View style={styles.centered}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={36} color={Colors.error} />
+          <AppText variant="bodyMd" color="error" style={{ textAlign: 'center', marginTop: Spacing.sm }}>
+            {loadError}
+          </AppText>
+        </View>
       ) : (
         <FadeInContent visible style={{ flex: 1 }}>
           <FlatList
@@ -413,6 +469,7 @@ export function TasksListScreen() {
                         </View>
                       </View>
                     </View>
+
 
                 {/* Row 2: priority + due date */}
                 <View style={[styles.cardRow, { marginTop: Spacing.sm }]}>
@@ -518,6 +575,7 @@ const PRIORITY_COLORS: Record<TaskListRow['priority'], string> = {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
 
   // ── Recent tasks strip ──
   recentBlock: {

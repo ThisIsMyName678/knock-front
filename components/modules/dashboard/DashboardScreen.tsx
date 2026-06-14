@@ -27,7 +27,6 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import {
-  assetsDashboardOccupancy,
   contactsDashboardCount,
   countOpenTasksByStage,
   countPaymentsDueNext7Days,
@@ -44,6 +43,8 @@ import { DashboardHero } from './DashboardHero';
 import { DashboardAttentionLane } from './DashboardAttentionLane';
 import { AgendaTimeline } from './AgendaTimeline';
 import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
+import { getPropertiesStats } from '@/lib/api/properties';
+import { AppHeader } from '@/components/ui/AppHeader';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
 
@@ -270,7 +271,26 @@ export function DashboardScreen() {
   const payments7d = useMemo(() => countPaymentsDueNext7Days(), []);
   const taskCounts = useMemo(() => countOpenTasksByStage(), []);
   const contactsN = useMemo(() => contactsDashboardCount(), []);
-  const assetsXY = useMemo(() => assetsDashboardOccupancy(), []);
+  const [assetsXY, setAssetsXY] = useState({ rented: 0, total: 0 });
+  const [assetsXYIsMock, setAssetsXYIsMock] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getPropertiesStats()
+      .then((stats) => {
+        if (cancelled) return;
+        setAssetsXY(stats);
+        setAssetsXYIsMock(false);
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load properties stats');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const calendarOpts = useMemo(
     () => ({ includeGoogle: googleSyncMock, manualEvents }),

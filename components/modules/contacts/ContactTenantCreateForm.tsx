@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -18,28 +18,18 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption } from '@/lib/mocks/contracts';
+import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
 import {
   defaultTenantPermissions,
-  expandPermissionsToProjectAssets,
   inviteUrlForToken,
-  queueNewContact,
-  type ContactListRow,
   type ContactPermissions,
 } from '@/lib/mocks/contacts';
+import { createContact } from '@/lib/api/contacts';
+import { toApiLinkKind } from '@/lib/adapters/contact-permissions';
+import { BackendApiError } from '@/lib/backend';
 import { ContactPermissionsEditor } from '@/components/modules/contacts/ContactPermissionsEditor';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
-
-function filterEntities(query: string): EntityLinkOption[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return MOCK_ENTITY_LINKS;
-  return MOCK_ENTITY_LINKS.filter((e) => entitySearchText(e).includes(q));
-}
-
-function randomId() {
-  return `ct_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
-}
 
 export function ContactTenantCreateForm() {
   const insets = useSafeAreaInsets();
@@ -52,50 +42,61 @@ export function ContactTenantCreateForm() {
   const [showSuggest, setShowSuggest] = useState(false);
   const [hasUserInSystem, setHasUserInSystem] = useState(false);
   const [permissions, setPermissions] = useState<ContactPermissions>(() => defaultTenantPermissions());
+  const [saving, setSaving] = useState(false);
 
-  const entities = useMemo(() => filterEntities(linkQuery), [linkQuery]);
+  const [entities, setEntities] = useState<EntityLinkOption[]>([]);
+  useEffect(() => {
+    if (!linkQuery.trim()) { setEntities([]); return; }
+    const t = setTimeout(() => {
+      searchEntityLinks(linkQuery).then(setEntities).catch(() => setEntities([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [linkQuery]);
 
   const projectNote =
     linkSelected?.kind === 'project'
       ? 'שיוך לפרויקט: אותן הרשאות יחולו אוטומטית על כל הנכסים בפרויקט (ב־mock).'
       : undefined;
 
-  const onSave = () => {
+  const onSave = async () => {
     if (!displayName.trim() || !phone.trim() || !linkSelected) {
       Alert.alert('חסר מידע', 'יש למלא שם, טלפון ושיוך נכס/פרויקט.');
       return;
     }
-    const inviteToken = hasUserInSystem ? undefined : `inv_${randomId()}`;
-    const row: ContactListRow = {
-      id: randomId(),
-      contactKind: 'tenant_buyer',
-      nickname: '',
-      displayName: displayName.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      notes: notes.trim() || undefined,
-      linkKind: linkSelected.kind,
-      linkId: linkSelected.id,
-      linkLabel: linkSelected.name,
-      hasUserInSystem,
-      inviteToken,
-      permissions,
-      permissionsByAssetId:
-        linkSelected.kind === 'project' ? expandPermissionsToProjectAssets(linkSelected.id, permissions) : undefined,
-    };
-    queueNewContact(row);
-    if (inviteToken) {
-      Alert.alert('נשמר', `לינק הזמנה (דמה):\n${inviteUrlForToken(inviteToken)}`, [
-        { text: 'סגור', onPress: () => router.back() },
-        {
-          text: 'שתף לינק',
-          onPress: () => {
-            Share.share({ message: inviteUrlForToken(inviteToken), title: 'הזמנת שוכר/רוכש' }).finally(() => router.back());
+    setSaving(true);
+    try {
+      const created = await createContact({
+        contactKind: 'TENANT_BUYER',
+        displayName: displayName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+        linkKind: toApiLinkKind(linkSelected.kind),
+        linkId: linkSelected.id,
+        hasUserInSystem,
+        permissions,
+      });
+      if (!hasUserInSystem && created.inviteToken) {
+        const inviteUrl = inviteUrlForToken(created.inviteToken);
+        Alert.alert('נשמר', `לינק הזמנה:\n${inviteUrl}`, [
+          { text: 'סגור', onPress: () => router.replace(`/(app)/contacts/${created.id}`) },
+          {
+            text: 'שתף לינק',
+            onPress: () => {
+              Share.share({ message: inviteUrl, title: 'הזמנת שוכר/רוכש' }).finally(() =>
+                router.replace(`/(app)/contacts/${created.id}`),
+              );
+            },
           },
-        },
-      ]);
-    } else {
-      router.back();
+        ]);
+      } else {
+        router.replace(`/(app)/contacts/${created.id}`);
+      }
+    } catch (e) {
+      const message = e instanceof BackendApiError ? e.message : 'שמירת איש הקשר נכשלה.';
+      Alert.alert('שגיאה', message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -172,7 +173,7 @@ export function ContactTenantCreateForm() {
             <ContactPermissionsEditor value={permissions} onChange={setPermissions} footerNote={projectNote} />
           </View>
 
-          <Button label="שמור" onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.md }} disabled={!valid} />
+          <Button label="שמור" onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.md }} disabled={!valid || saving} />
         </ScrollView>
       </View>
     </KeyboardAvoidingView>

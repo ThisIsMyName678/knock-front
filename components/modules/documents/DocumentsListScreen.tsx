@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -24,14 +24,10 @@ import { ListRowSkeletonList, FadeInContent, useSkeletonGate } from '@/component
 import type { LinkKind } from '@/lib/mocks/contracts';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
-  MOCK_DOCUMENTS_LIST,
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_CATEGORY_LABELS,
   filterDocumentRows,
   sortDocumentRows,
-  setActiveDocumentRowsSnapshot,
-  getActiveDocumentRowsSnapshot,
-  consumePendingDocuments,
   DOCUMENT_UPLOAD_TYPE_ORDER,
   type DocumentListRow,
   type DocumentCategoryFilter,
@@ -40,6 +36,7 @@ import {
   type DocumentAccessLevel,
   type SortDir,
 } from '@/lib/mocks/documents';
+import { listDocuments, deleteDocument, documentToListRow } from '@/lib/api/documents';
 import {
   Colors,
   Spacing,
@@ -99,7 +96,7 @@ function fileIconColor(kind: DocumentListRow['fileKind']): string {
 
 export function DocumentsListScreen() {
   const insets = useSafeAreaInsets();
-  const [rows, setRows] = useState<DocumentListRow[]>(() => [...MOCK_DOCUMENTS_LIST]);
+  const [rows, setRows] = useState<DocumentListRow[]>([]);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<ScopeFilter>('all');
   const [entityId, setEntityId] = useState<string | null>(null);
@@ -113,29 +110,42 @@ export function DocumentsListScreen() {
 
   const linkScope = linkScopeFromScope(scope);
 
+  const loadDocuments = useCallback(async () => {
+    try {
+      const docs = await listDocuments();
+      setRows(docs.map(documentToListRow));
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to load documents');
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      setRows((prev) => {
-        const pending = consumePendingDocuments();
-        const snap = getActiveDocumentRowsSnapshot();
-        if (pending.length) {
-          const base = snap ?? prev;
-          return [...pending, ...base];
-        }
-        if (snap) return [...snap];
-        return prev;
-      });
-      const id = requestAnimationFrame(() => setLoading(false));
-      return () => cancelAnimationFrame(id);
-    }, []),
+  //     setLoading(true);
+  //     setRows((prev) => {
+  //       const pending = consumePendingDocuments();
+  //       const snap = getActiveDocumentRowsSnapshot();
+  //       if (pending.length) {
+  //         const base = snap ?? prev;
+  //         return [...pending, ...base];
+  //       }
+  //       if (snap) return [...snap];
+  //       return prev;
+  //     });
+  //     const id = requestAnimationFrame(() => setLoading(false));
+  //     return () => cancelAnimationFrame(id);
+  //   }, []),
+  // );
+
+  // const showSkeleton = useSkeletonGate(loading);
+
+  // useEffect(() => {
+  //   setActiveDocumentRowsSnapshot(rows);
+  // }, [rows]);
+
+      void loadDocuments();
+    }, [loadDocuments]),
   );
-
-  const showSkeleton = useSkeletonGate(loading);
-
-  useEffect(() => {
-    setActiveDocumentRowsSnapshot(rows);
-  }, [rows]);
 
   const filtered = useMemo(
     () =>
@@ -169,11 +179,16 @@ export function DocumentsListScreen() {
     setTimeout(() => setDeleteTarget(row), 50);
   }, []);
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    setRows((prev) => prev.filter((r) => r.id !== deleteTarget.id));
+    try {
+      await deleteDocument(deleteTarget.id);
+      await loadDocuments();
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to delete document');
+    }
     setDeleteTarget(null);
-  }, [deleteTarget]);
+  }, [deleteTarget, loadDocuments]);
 
   const activeSecondaryCount = useMemo(() => {
     let count = 0;

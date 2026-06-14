@@ -7,7 +7,7 @@ import {
   FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -19,15 +19,16 @@ import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { CardSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import {
-  MOCK_ENTITY_LINKS,
   CONTRACT_TYPE_LABELS,
   CONTRACT_STATUS_LABELS,
   type ContractSortKey,
   type SortDir,
   type LinkScopeFilter,
   type ContractTypeFilter,
-} from '@/lib/mocks/contracts';
+} from '@/lib/constants/contracts';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
+import { listProjects } from '@/lib/api/projects';
+import { listProperties } from '@/lib/api/properties';
 import {
   Colors,
   Spacing,
@@ -159,10 +160,15 @@ export function ContractsListScreen() {
   const [agreementDateFrom, setAgreementDateFrom] = useState('');
   const [agreementDateTo, setAgreementDateTo] = useState('');
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const showSkeleton = useSkeletonGate(loading);
+  const [entityLinks, setEntityLinks] = useState<Array<{ id: string; kind: 'asset' | 'project'; name: string }>>([]);
+  const [focusCount, setFocusCount] = useState(0);
+
+  useFocusEffect(useCallback(() => { setFocusCount((n) => n + 1); }, []));
 
   useEffect(() => {
+    if (focusCount === 0) return;
     let cancelled = false;
     setLoading(true);
     const filters: Parameters<typeof fetchContracts>[0] = {};
@@ -177,7 +183,18 @@ export function ContractsListScreen() {
       .catch(() => { if (!cancelled) setContracts([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo]);
+  }, [focusCount, linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo]);
+
+  useEffect(() => {
+    Promise.all([listProjects(), listProperties()])
+      .then(([projects, properties]) => {
+        setEntityLinks([
+          ...projects.map((p) => ({ id: p.id, kind: 'project' as const, name: p.name })),
+          ...properties.map((p) => ({ id: p.id, kind: 'asset' as const, name: p.name })),
+        ]);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Fixed sort handler: no nested setState ──
   const handleSortKeyChange = useCallback((key: string) => {
@@ -226,14 +243,13 @@ export function ContractsListScreen() {
 
   const entityOptionsForScope = useMemo(
     () =>
-      MOCK_ENTITY_LINKS.filter((e) => {
-        if (linkScope === 'all') return true;
-        return e.kind === (linkScope === 'PROPERTY' ? 'asset' : 'project');
-      }).map((e) => ({
-        key: e.id,
-        label: e.name,
-      })),
-    [linkScope],
+      entityLinks
+        .filter((e) => {
+          if (linkScope === 'all') return true;
+          return e.kind === (linkScope === 'PROPERTY' ? 'asset' : 'project');
+        })
+        .map((e) => ({ key: e.id, label: e.name })),
+    [linkScope, entityLinks],
   );
 
   // ── Count: scope + entity (typeFilter is visible in tabs, not counted here) ──

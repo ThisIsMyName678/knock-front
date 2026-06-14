@@ -22,15 +22,26 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import {
   PAYMENT_TYPE_LABELS,
-  PAYMENT_ENTITY_OPTIONS,
-  contractsForLink,
   maintenanceCallsForLink,
-  filterEntitiesForPaymentQuery,
   type PaymentTypeKey,
   type PaymentModeKey,
   type PaymentDetailMock,
 } from '@/lib/mocks/payments';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
+import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
+import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
+import {
+  PAYER_TYPE_OPTIONS,
+  createPayment,
+  updatePayment,
+  clientDirectionToBackend,
+  clientPaymentTypeToBackend,
+  clientMeansToBackend,
+  clientCycleToBackend,
+  ddMmYyyyToIso,
+  type BackendPayment,
+} from '@/lib/api/payments';
+import { BackendApiError } from '@/lib/backend';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
 import {
   Colors,
@@ -157,6 +168,7 @@ export function PaymentCreateForm({
   preloadedContractName?: string;
 } = {}) {
   const insets = useSafeAreaInsets();
+  const isEdit = Boolean(initialData?.id);
 
   const [paymentName, setPaymentName] = useState(() => initialData?.displayName ?? '');
   const [direction, setDirection] = useState<'in' | 'out'>(() => initialData?.direction === 'inbound' ? 'in' : 'out');
@@ -164,12 +176,14 @@ export function PaymentCreateForm({
     if (preloadedLink) return `${preloadedLink.name}${preloadedLink.address ? ', ' + preloadedLink.address : ''}`;
     return initialData?.linkLabel ?? '';
   });
-  const [linkSelected, setLinkSelected] = useState<(typeof PAYMENT_ENTITY_OPTIONS)[0] | null>(() => {
+  const [linkSelected, setLinkSelected] = useState<EntityLinkOption | null>(() => {
     if (preloadedLink) {
-      const found = PAYMENT_ENTITY_OPTIONS.find((e) => e.id === preloadedLink.id);
-      return found ?? { id: preloadedLink.id, name: preloadedLink.name, address: preloadedLink.address, kind: preloadedLink.kind };
+      return { id: preloadedLink.id, name: preloadedLink.name, address: preloadedLink.address, kind: preloadedLink.kind };
     }
-    return initialData ? (PAYMENT_ENTITY_OPTIONS.find((e) => e.id === initialData.linkId) ?? null) : null;
+    if (initialData) {
+      return { id: initialData.linkId, name: initialData.linkLabel, address: '', kind: initialData.linkKind };
+    }
+    return null;
   });
   const [showSuggest, setShowSuggest] = useState(false);
 
@@ -188,7 +202,7 @@ export function PaymentCreateForm({
   const [amountIncVat, setAmountIncVat] = useState(() => initialData?.amountGross ? String(initialData.amountGross) : '');
   const [vatPct, setVatPct] = useState('18');
   const [vatSource, setVatSource] = useState<'ex' | 'inc'>('ex');
-  const [means, setMeans] = useState(() => initialData?.means ?? 'bank');
+  const [means, setMeans] = useState(() => initialData?.paymentMethodKey ?? 'bank');
   const [dueDate, setDueDate] = useState(() => initialData?.dueDate ?? todayDdMmYyyy());
   const [paymentMode, setPaymentMode] = useState<PaymentModeKey>(() => initialData?.mode ?? 'recurring');
   const [recCycle, setRecCycle] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
@@ -204,6 +218,7 @@ export function PaymentCreateForm({
   const [indexKind, setIndexKind] = useState<'cpi' | 'construction'>('cpi');
   const [indexAmount, setIndexAmount] = useState('');
   const [indexAsOf, setIndexAsOf] = useState('');
+  const [payerType, setPayerType] = useState<string | null>(null);
   const [payerContactId, setPayerContactId] = useState<string | null>(null);
   const [payerSearch, setPayerSearch] = useState('');
   const [notes, setNotes] = useState(() => initialData ? '' : '');
@@ -212,11 +227,27 @@ export function PaymentCreateForm({
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const entities = useMemo(() => filterEntitiesForPaymentQuery(linkQuery), [linkQuery]);
-  const contracts = useMemo(
-    () => contractsForLink(linkSelected?.id ?? null, linkSelected?.kind ?? null),
-    [linkSelected],
-  );
+  const [entities, setEntities] = useState<EntityLinkOption[]>([]);
+  useEffect(() => {
+    if (!linkQuery.trim()) { setEntities([]); return; }
+    const t = setTimeout(() => {
+      searchEntityLinks(linkQuery).then(setEntities).catch(() => setEntities([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [linkQuery]);
+  const [contracts, setContracts] = useState<ContractListItem[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  useEffect(() => {
+    if (!linkSelected) { setContracts([]); return; }
+    setContractsLoading(true);
+    const filters = linkSelected.kind === 'project'
+      ? { projectId: linkSelected.id }
+      : { propertyId: linkSelected.id };
+    fetchContracts(filters)
+      .then(setContracts)
+      .catch(() => setContracts([]))
+      .finally(() => setContractsLoading(false));
+  }, [linkSelected]);
   const maintCalls = useMemo(() => maintenanceCallsForLink(linkSelected?.id ?? ''), [linkSelected]);
 
   // Contacts linked to the selected asset/project (for payer selection)
@@ -366,6 +397,7 @@ export function PaymentCreateForm({
   };
 
   const [submitted, setSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const errors = useMemo(() => ({
     paymentName: paymentName.trim().length === 0 ? 'שדה חובה' : '',
@@ -375,9 +407,92 @@ export function PaymentCreateForm({
 
   const hasErrors = Object.values(errors).some(Boolean);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSubmitted(true);
     if (hasErrors) return;
+
+    const amountNet = digitsToInt(amountExVat) || digitsToInt(amountIncVat);
+    const amountGross = digitsToInt(amountIncVat) || digitsToInt(amountExVat);
+    const dueDateIso = ddMmYyyyToIso(dueDate);
+
+    if (isEdit && initialData?.id) {
+      setIsSaving(true);
+      try {
+        await updatePayment(initialData.id, {
+          name: paymentName.trim(),
+          paymentType: clientPaymentTypeToBackend(paymentType),
+          amountNet,
+          amountGross,
+          vatPercent: parsePct(vatPct),
+          paymentMethod: clientMeansToBackend(means),
+          dueDate: dueDateIso ?? undefined,
+          payerType,
+          payerContactId,
+          notes: notes.trim() || null,
+        });
+      } catch (error) {
+        setIsSaving(false);
+        const message = error instanceof BackendApiError ? error.message : 'עדכון התשלום נכשל';
+        Alert.alert('שגיאה', message);
+        return;
+      }
+      setIsSaving(false);
+      router.back();
+      return;
+    }
+
+    if ((paymentMode === 'full' || paymentMode === 'recurring' || paymentMode === 'installments' || paymentMode === 'shafif_plus') && linkSelected) {
+      setIsSaving(true);
+      let createdPayment: BackendPayment | BackendPayment[] | undefined;
+      try {
+        createdPayment = await createPayment({
+          name: paymentName.trim(),
+          direction: clientDirectionToBackend(direction),
+          paymentType: clientPaymentTypeToBackend(paymentType),
+          mode: paymentMode === 'recurring' ? 'RECURRING' : paymentMode === 'installments' ? 'INSTALLMENTS' : paymentMode === 'shafif_plus' ? 'SHAFIF_PLUS' : 'FULL',
+          linkScope: linkSelected.kind === 'project' ? 'PROJECT' : 'PROPERTY',
+          projectId: linkSelected.kind === 'project' ? linkSelected.id : null,
+          propertyId: linkSelected.kind === 'asset' ? linkSelected.id : null,
+          contractId: contractId,
+          amountNet,
+          amountGross,
+          vatPercent: parsePct(vatPct),
+          paymentMethod: clientMeansToBackend(means),
+          dueDate: dueDateIso ?? new Date().toISOString().slice(0, 10),
+          payerType,
+          payerContactId,
+          notes: notes.trim() || null,
+          ...(paymentMode === 'recurring'
+            ? { cycle: clientCycleToBackend(recCycle), count: Math.min(36, Math.max(1, parseInt(recCount, 10) || 1)) }
+            : {}),
+          ...(paymentMode === 'installments'
+            ? {
+                installments: instRows.map((row) => ({
+                  amount: digitsToInt(row.amountDigits),
+                  dueDate: ddMmYyyyToIso(row.dueDate) ?? dueDateIso ?? new Date().toISOString().slice(0, 10),
+                  paymentMethod: clientMeansToBackend(row.means),
+                  indexed: row.indexed,
+                })),
+              }
+            : {}),
+          ...(paymentMode === 'shafif_plus'
+            ? { shafifPlusDays: parseInt(shafifDays, 10) || 0 }
+            : {}),
+        });
+      } catch (error) {
+        setIsSaving(false);
+        const message = error instanceof BackendApiError ? error.message : 'שמירת התשלום נכשלה';
+        Alert.alert('שגיאה', message);
+        return;
+      }
+      setIsSaving(false);
+
+      if (createdPayment) {
+        router.back();
+        return;
+      }
+    }
+
     if (preloadedContractId) {
       router.replace('/(app)/contracts' as const);
     } else {
@@ -409,7 +524,7 @@ export function PaymentCreateForm({
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <AppHeader title={initialData ? 'עריכת תשלום' : 'יצירת תשלום'} showBack />
+        <AppHeader title={isEdit ? 'עריכת תשלום' : 'יצירת תשלום'} showBack />
 
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
@@ -441,8 +556,12 @@ export function PaymentCreateForm({
             {(['in', 'out'] as const).map((d) => (
               <Pressable
                 key={d}
-                onPress={() => setDirection(d)}
-                style={[styles.dirBtn, direction === d && { borderColor: d === 'in' ? Colors.inbound : Colors.outbound, backgroundColor: d === 'in' ? Colors.inboundBg : Colors.outboundBg }]}
+                onPress={isEdit ? undefined : () => setDirection(d)}
+                style={[
+                  styles.dirBtn,
+                  direction === d && { borderColor: d === 'in' ? Colors.inbound : Colors.outbound, backgroundColor: d === 'in' ? Colors.inboundBg : Colors.outboundBg },
+                  isEdit && direction !== d && styles.disabled,
+                ]}
               >
                 <MaterialCommunityIcons name={d === 'in' ? 'arrow-down' : 'arrow-up'} size={22} color={d === 'in' ? Colors.inbound : Colors.outbound} />
                 <AppText variant="bodyMd" weight="bold" style={{ color: d === 'in' ? Colors.inbound : Colors.outbound }}>
@@ -458,10 +577,11 @@ export function PaymentCreateForm({
             <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
           </View>
           <TextInput
-            style={[styles.entityInput, submitted && errors.linkSelected ? { borderColor: Colors.error } : undefined]}
+            style={[styles.entityInput, submitted && errors.linkSelected ? { borderColor: Colors.error } : undefined, isEdit && styles.disabled]}
             placeholder="חיפוש..."
             placeholderTextColor={Colors.onSurfaceMuted}
             value={linkQuery}
+            editable={!isEdit}
             onChangeText={(t) => {
               setLinkQuery(t);
               setShowSuggest(t.trim().length > 0);
@@ -474,12 +594,14 @@ export function PaymentCreateForm({
               <AppText variant="bodySm" style={{ flex: 1 }}>
                 {linkSelected.name} — {linkSelected.address}
               </AppText>
-              <Pressable onPress={() => { setLinkSelected(null); setLinkQuery(''); setContractId(null); setPayerContactId(null); }}>
-                <MaterialCommunityIcons name="close-circle" size={20} color={Colors.onSurfaceMuted} />
-              </Pressable>
+              {!isEdit && (
+                <Pressable onPress={() => { setLinkSelected(null); setLinkQuery(''); setContractId(null); setPayerContactId(null); }}>
+                  <MaterialCommunityIcons name="close-circle" size={20} color={Colors.onSurfaceMuted} />
+                </Pressable>
+              )}
             </View>
           )}
-          {showSuggest && !linkSelected && entities.length > 0 && (
+          {!isEdit && showSuggest && !linkSelected && entities.length > 0 && (
             <View style={styles.suggestBox}>
               {entities.map((e) => (
                 <Pressable
@@ -506,10 +628,10 @@ export function PaymentCreateForm({
               <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
                 שיוך לחוזה (לא חובה)
               </AppText>
-              <Pressable onPress={() => setContractModal(true)} style={styles.dropdown}>
+              <Pressable onPress={isEdit ? undefined : () => setContractModal(true)} style={[styles.dropdown, isEdit && styles.disabled]}>
                 <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.onSurfaceVariant} />
                 <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                  {contractId ? contracts.find((c) => c.id === contractId)?.label ?? '—' : 'בחר חוזה'}
+                  {contractId ? contracts.find((c) => c.id === contractId)?.contractName ?? '—' : 'בחר חוזה'}
                 </AppText>
               </Pressable>
             </>
@@ -525,7 +647,7 @@ export function PaymentCreateForm({
               {PAYMENT_TYPE_LABELS[paymentType]}
             </AppText>
           </Pressable>
-          {paymentType === 'rent' && (
+          {!isEdit && paymentType === 'rent' && (
             <View style={styles.hintRow}>
               <MaterialCommunityIcons name="information-outline" size={14} color={Colors.primary} />
               <AppText variant="caption" color="primary">שכירות: הוגדר אוטומטית כמחזורי חודשי × 12</AppText>
@@ -617,19 +739,23 @@ export function PaymentCreateForm({
           </Pressable>
 
           {/* ─── אופן תשלום ─── */}
-          <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>אופן תשלום</AppText>
-          <View style={styles.rowChips}>
-            {MODES.map((m) => (
-              <Pressable key={m.key} onPress={() => setPaymentMode(m.key)} style={[styles.miniChip, paymentMode === m.key && styles.miniChipActive]}>
-                <AppText variant="caption" weight={paymentMode === m.key ? 'bold' : 'regular'} style={{ color: paymentMode === m.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
-                  {m.label}
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
+          {!isEdit && (
+            <>
+              <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>אופן תשלום</AppText>
+              <View style={styles.rowChips}>
+                {MODES.map((m) => (
+                  <Pressable key={m.key} onPress={() => setPaymentMode(m.key)} style={[styles.miniChip, paymentMode === m.key && styles.miniChipActive]}>
+                    <AppText variant="caption" weight={paymentMode === m.key ? 'bold' : 'regular'} style={{ color: paymentMode === m.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                      {m.label}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
           {/* ─── מחזוריות ─── */}
-          {paymentMode === 'recurring' && (
+          {!isEdit && paymentMode === 'recurring' && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>מחזוריות</AppText>
               <View style={styles.rowChips}>
@@ -700,7 +826,7 @@ export function PaymentCreateForm({
           )}
 
           {/* ─── תשלומים מפוצלים ─── */}
-          {paymentMode === 'installments' && (
+          {!isEdit && paymentMode === 'installments' && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.sm }}>תשלומים מפוצלים</AppText>
               <AmountField label="סכום כולל" value={instTotal} onChangeValue={setInstTotal} />
@@ -756,7 +882,7 @@ export function PaymentCreateForm({
           )}
 
           {/* ─── שוטף+ ─── */}
-          {paymentMode === 'shafif_plus' && (
+          {!isEdit && paymentMode === 'shafif_plus' && (
             <View style={styles.card}>
               <Input label="ימים (שוטף+)" value={shafifDays} onChangeText={setShafifDays} keyboardType="number-pad" />
               <AppText variant="bodySm" color="primary" style={{ marginTop: Spacing.sm, textAlign: 'right' }}>
@@ -829,21 +955,38 @@ export function PaymentCreateForm({
             )}
           </View>
 
-          {/* ─── שולם על ידי (contacts autocomplete) ─── */}
+          {/* ─── שולם על ידי ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>שולם על ידי</AppText>
+
+          {/* סוג המשלם */}
+          <View style={styles.rowChips}>
+            {PAYER_TYPE_OPTIONS.map((p) => (
+              <Pressable
+                key={p.key}
+                onPress={() => setPayerType((prev) => (prev === p.key ? null : p.key))}
+                style={[styles.miniChip, payerType === p.key && styles.miniChipActive]}
+              >
+                <AppText variant="caption" weight={payerType === p.key ? 'bold' : 'regular'} style={{ color: payerType === p.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                  {p.label}
+                </AppText>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* איש קשר משויך (autocomplete) */}
           {!linkSelected ? (
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.sm }}>
               בחר נכס / פרויקט כדי לראות אנשי קשר משויכים
             </AppText>
           ) : linkedContacts.length === 0 ? (
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
+            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.sm }}>
               אין אנשי קשר משויכים לנכס זה
             </AppText>
           ) : payerContactId ? (
             /* Selected contact chip */
             <Pressable
               onPress={() => { setPayerContactId(null); setPayerSearch(''); }}
-              style={styles.payerSelected}
+              style={[styles.payerSelected, { marginTop: Spacing.sm }]}
               accessibilityRole="button"
             >
               <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
@@ -862,7 +1005,7 @@ export function PaymentCreateForm({
           ) : (
             /* Autocomplete search */
             <>
-              <View style={styles.payerInputWrap}>
+              <View style={[styles.payerInputWrap, { marginTop: Spacing.sm }]}>
                 <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceMuted} />
                 <TextInput
                   value={payerSearch}
@@ -920,7 +1063,7 @@ export function PaymentCreateForm({
 
           {/* ─── תזכורות ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>תזכורות לפני מועד התשלום</AppText>
-          {paymentMode === 'recurring' && (
+          {!isEdit && paymentMode === 'recurring' && (
             <View style={styles.hintRow}>
               <MaterialCommunityIcons name="information-outline" size={14} color={Colors.primary} />
               <AppText variant="caption" color="primary">
@@ -999,7 +1142,7 @@ export function PaymentCreateForm({
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
-          <Button label="שמור תשלום" onPress={handleSave} fullWidth size="lg" />
+          <Button label="שמור תשלום" onPress={handleSave} loading={isSaving} disabled={isSaving} fullWidth size="lg" />
         </View>
       </View>
 
@@ -1013,11 +1156,21 @@ export function PaymentCreateForm({
             <Pressable onPress={() => { setContractId(null); setContractModal(false); }} style={styles.sheetRow}>
               <AppText variant="bodyMd">ללא</AppText>
             </Pressable>
-            {contracts.map((c) => (
-              <Pressable key={c.id} onPress={() => { setContractId(c.id); setContractModal(false); }} style={styles.sheetRow}>
-                <AppText variant="bodyMd">{c.label}</AppText>
-              </Pressable>
-            ))}
+            {!linkSelected ? (
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'center', paddingVertical: Spacing.md }}>
+                בחר נכס או פרויקט כדי לראות חוזים משויכים
+              </AppText>
+            ) : contractsLoading ? (
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'center', paddingVertical: Spacing.md }}>
+                טוען חוזים...
+              </AppText>
+            ) : (
+              contracts.map((c) => (
+                <Pressable key={c.id} onPress={() => { setContractId(c.id); setContractModal(false); }} style={styles.sheetRow}>
+                  <AppText variant="bodyMd">{c.contractName}</AppText>
+                </Pressable>
+              ))
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -1098,6 +1251,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.md,
   },
+  disabled: { opacity: 0.5 },
   directionRow: { flexDirection: RTL_ROW, gap: Spacing.md },
   dirBtn: {
     flex: 1,

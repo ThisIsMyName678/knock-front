@@ -17,7 +17,8 @@ import { AppText } from '@/components/ui/Text';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { AppHeader } from '@/components/ui/AppHeader';
-import { MOCK_ENTITY_LINKS, entitySearchText, type EntityLinkOption, type LinkKind } from '@/lib/mocks/contracts';
+import { searchEntityLinks, type EntityLinkOption, type LinkKind } from '@/lib/api/entity-links';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
   TASK_KIND_LABELS,
@@ -26,18 +27,21 @@ import {
   MAINTENANCE_CATEGORY_LABELS,
   MAINTENANCE_CATEGORY_ICONS,
   MAINTENANCE_CATEGORY_ORDER,
-  MOCK_TASK_INVITE_URL,
   paymentsForTaskLink,
   type TaskKind,
   type TaskPriority,
-  type WorkflowStatus,
   type MaintenanceCategory,
 } from '@/lib/mocks/tasks';
+import {
+  createTask,
+  clientTaskTypeToBackend,
+  clientPriorityToBackendUrgency,
+  ddMmYyyyToIso,
+} from '@/lib/api/tasks';
 import {
   Colors,
   Spacing,
   Radius,
-  Shadow,
   FontFamily,
   FontSize,
   CONTENT_HORIZONTAL_PADDING,
@@ -50,7 +54,7 @@ const TASK_KINDS = (Object.keys(TASK_KIND_LABELS) as TaskKind[])
 
 const PRIORITIES: TaskPriority[] = ['urgent', 'high', 'medium', 'low'];
 
-type StartPreset = 'open' | 'in_progress' | 'urgent_flow';
+type StartPreset = 'open' | 'in_progress' | 'completed' | 'cancelled';
 
 function formatTodayDdMmYyyy(): string {
   const d = new Date();
@@ -60,11 +64,6 @@ function formatTodayDdMmYyyy(): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-function filterEntitiesForTaskQuery(query: string): EntityLinkOption[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return MOCK_ENTITY_LINKS;
-  return MOCK_ENTITY_LINKS.filter((e) => entitySearchText(e).includes(q));
-}
 
 function iconName(icon: string): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
   return icon as React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -91,9 +90,19 @@ export function TaskCreateForm() {
   const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState(formatTodayDdMmYyyy);
   const [endDate, setEndDate] = useState('');
+  const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
+  const [cost, setCost] = useState('');
+  const [handlingTime, setHandlingTime] = useState('');
   const [attachmentName, setAttachmentName] = useState('');
 
-  const entities = useMemo(() => filterEntitiesForTaskQuery(linkQuery), [linkQuery]);
+  const [entities, setEntities] = useState<EntityLinkOption[]>([]);
+  useEffect(() => {
+    if (!linkQuery.trim()) { setEntities([]); return; }
+    const t = setTimeout(() => {
+      searchEntityLinks(linkQuery).then(setEntities).catch(() => setEntities([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [linkQuery]);
   const paymentOptions = useMemo(() => paymentsForTaskLink(linkSelected?.id ?? ''), [linkSelected]);
 
   useEffect(() => {
@@ -107,37 +116,58 @@ export function TaskCreateForm() {
     const kindParam = params.preloadLinkKind;
     const kind: LinkKind | undefined =
       kindParam === 'project' || kindParam === 'asset' ? kindParam : undefined;
-    const opt = kind
-      ? MOCK_ENTITY_LINKS.find((e) => e.id === rawId && e.kind === kind)
-      : MOCK_ENTITY_LINKS.find((e) => e.id === rawId);
-    if (opt) setLinkSelected(opt);
+    searchEntityLinks('').then((links) => {
+      const opt = kind
+        ? links.find((e) => e.id === rawId && e.kind === kind)
+        : links.find((e) => e.id === rawId);
+      if (opt) setLinkSelected(opt);
+    }).catch(() => { });
   }, [params.preloadLinkId, params.preloadLinkKind, params.contextEntityId]);
 
-  const workflowFromPreset = (): WorkflowStatus => {
-    if (startPreset === 'in_progress') return 'in_progress';
-    return 'open';
-  };
-
-  const effectivePriority = (): TaskPriority => {
-    if (startPreset === 'urgent_flow') return 'urgent';
-    return priority;
-  };
-
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const errors = useMemo(() => ({
     title: title.trim().length === 0 ? 'שדה חובה' : '',
     startDate: startDate.trim().length === 0 ? 'שדה חובה' : '',
-  }), [title, startDate]);
+    link: !linkSelected ? 'נא לבחור נכס או פרויקט' : '',
+  }), [title, startDate, linkSelected]);
 
-  const onSave = () => {
+  const onSave = async () => {
     setSubmitted(true);
+    setSaveError(null);
     if (Object.values(errors).some(Boolean)) return;
-    router.back();
-  };
 
-  const onCopyInvite = () => {
-    Alert.alert('לינק הזמנה (דמה)', `${MOCK_TASK_INVITE_URL}\n\nשלחו לינק לשיוך בעל תפקיד למשימה.`);
+    const urgency = clientPriorityToBackendUrgency(priority);
+    const statusMap: Record<StartPreset, 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'> = {
+      open: 'OPEN',
+      in_progress: 'IN_PROGRESS',
+      completed: 'COMPLETED',
+      cancelled: 'CANCELLED',
+    };
+    const status = statusMap[startPreset];
+
+    setSubmitting(true);
+    try {
+      await createTask({
+        title: title.trim(),
+        taskType: clientTaskTypeToBackend(taskKind),
+        urgency,
+        status,
+        propertyId: linkSelected!.kind === 'asset' ? linkSelected!.id : null,
+        projectId: linkSelected!.kind === 'project' ? linkSelected!.id : null,
+        startDate: ddMmYyyyToIso(startDate),
+        dueDate: endDate.trim() ? ddMmYyyyToIso(endDate) : null,
+        cost: cost.trim() || null,
+        handlingTime: handlingTime.trim() ? parseInt(handlingTime.trim(), 10) : null,
+      });
+      router.back();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'שגיאה בשמירת המשימה');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const mockAttach = () => {
@@ -226,14 +256,15 @@ export function TaskCreateForm() {
             </View>
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-              סטטוס התחלה
+              סטטוס
             </AppText>
             <View style={styles.rowChips}>
               {(
                 [
                   { key: 'open' as const, label: 'פתוח' },
                   { key: 'in_progress' as const, label: 'בטיפול' },
-                  { key: 'urgent_flow' as const, label: 'דחוף' },
+                  { key: 'completed' as const, label: 'הושלם' },
+                  { key: 'cancelled' as const, label: 'בוטל' },
                 ] as const
               ).map((o) => (
                 <Pressable key={o.key} onPress={() => setStartPreset(o.key)} style={[styles.miniChip, startPreset === o.key && styles.miniChipActive]}>
@@ -243,9 +274,6 @@ export function TaskCreateForm() {
                 </Pressable>
               ))}
             </View>
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.xs }}>
-              דחוף: נשמר כעדיפות דחוף + סטטוס פתוח (תצוגה בלבד)
-            </AppText>
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
               שיוך נכס / פרויקט
@@ -318,8 +346,46 @@ export function TaskCreateForm() {
               </AppText>
             </Pressable>
 
-            <Input label="תאריך התחלה" required placeholder="DD/MM/YYYY" value={startDate} onChangeText={setStartDate} error={submitted ? errors.startDate : ''} containerStyle={{ marginTop: Spacing.md }} />
-            <Input label="תאריך סיום (אופציונלי)" placeholder="DD/MM/YYYY" value={endDate} onChangeText={setEndDate} containerStyle={{ marginTop: Spacing.sm }} />
+            <View style={{ marginTop: Spacing.md }}>
+              <AppText variant="labelSm" weight="semiBold" style={styles.dateLabel}>
+                תאריך התחלה <AppText variant="labelSm" style={{ color: Colors.error }}>*</AppText>
+              </AppText>
+              <Pressable
+                onPress={() => setDatePickerTarget('start')}
+                style={[styles.dateTrigger, submitted && errors.startDate ? styles.dateTriggerError : null]}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: startDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                  {startDate || 'בחר תאריך'}
+                </AppText>
+              </Pressable>
+              {submitted && errors.startDate ? (
+                <AppText variant="caption" style={{ color: Colors.error, textAlign: 'right', marginTop: 4 }}>{errors.startDate}</AppText>
+              ) : null}
+            </View>
+
+            <View style={{ marginTop: Spacing.sm }}>
+              <AppText variant="labelSm" weight="semiBold" style={styles.dateLabel}>
+                תאריך יעד (אופציונלי)
+              </AppText>
+              <Pressable
+                onPress={() => setDatePickerTarget('end')}
+                style={styles.dateTrigger}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
+                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: endDate ? Colors.onBackground : Colors.onSurfaceMuted }}>
+                  {endDate || 'בחר תאריך'}
+                </AppText>
+              </Pressable>
+            </View>
+
+            <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
+              עלות וזמן (אופציונלי)
+            </AppText>
+            <Input label='עלות (ש"ח)' value={cost} onChangeText={setCost} keyboardType="numeric" containerStyle={{ marginBottom: Spacing.sm }} />
+            <Input label="זמן טיפול (שעות)" value={handlingTime} onChangeText={setHandlingTime} keyboardType="numeric" />
 
             {/* ─── צרף קובץ ─── */}
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
@@ -351,13 +417,39 @@ export function TaskCreateForm() {
               </Pressable>
             </View>
 
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.md }}>
-              סטטוס שמור: {workflowFromPreset()} · עדיפות: {effectivePriority()} (תצוגה בלבד, ללא שמירה לשרת)
-            </AppText>
+            {submitted && errors.link ? (
+              <AppText variant="caption" style={{ color: Colors.error, textAlign: 'right', marginTop: Spacing.sm }}>
+                {errors.link}
+              </AppText>
+            ) : null}
           </View>
 
-          <Button label="שמור משימה" onPress={onSave} fullWidth size="lg" style={{ marginTop: Spacing.base }} />
+          {saveError ? (
+            <AppText variant="bodySm" style={{ color: Colors.error, textAlign: 'center', marginTop: Spacing.sm }}>
+              {saveError}
+            </AppText>
+          ) : null}
+
+          <Button
+            label={submitting ? 'שומר...' : 'שמור משימה'}
+            onPress={onSave}
+            fullWidth
+            size="lg"
+            style={{ marginTop: Spacing.base }}
+            disabled={submitting}
+          />
         </ScrollView>
+
+        <DatePickerModal
+          visible={datePickerTarget !== null}
+          value={datePickerTarget === 'start' ? startDate : endDate}
+          onSelect={(d) => {
+            if (datePickerTarget === 'start') setStartDate(d);
+            else setEndDate(d);
+          }}
+          onClose={() => setDatePickerTarget(null)}
+          title={datePickerTarget === 'start' ? 'תאריך התחלה' : 'תאריך סיום'}
+        />
 
         <Modal visible={paymentModal} transparent animationType="slide" onRequestClose={() => setPaymentModal(false)}>
           <Pressable style={styles.payModalBackdrop} onPress={() => setPaymentModal(false)}>
@@ -500,5 +592,23 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
     alignItems: 'flex-end',
     gap: 4,
+  },
+  dateLabel: {
+    textAlign: 'right',
+    marginBottom: Spacing.xs,
+    color: Colors.onBackground,
+  },
+  dateTrigger: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.surfaceVariant,
+  },
+  dateTriggerError: {
+    borderColor: Colors.error,
   },
 });

@@ -7,7 +7,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Share,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -16,43 +16,25 @@ import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { MOCK_ENTITY_LINKS, type EntityLinkOption } from '@/lib/mocks/contracts';
 import {
   emptyPermissions,
   defaultTenantPermissions,
-  expandPermissionsToProjectAssets,
-  assetsUnderProject,
-  inviteUrlForToken,
-  queueNewContact,
   checkEmailInSystem,
   type ContactListRow,
   type ContactPermissions,
   type ContactKind,
   CONTACT_KIND_LABELS,
 } from '@/lib/mocks/contacts';
+import { createContact, updateContact } from '@/lib/api/contacts';
+import { toApiContactKind, toApiLinkKind } from '@/lib/adapters/contact-permissions';
+import { listProjects, projectAddressLabel, type BackendProject } from '@/lib/api/projects';
+import { listProperties, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
+import { BackendApiError } from '@/lib/backend';
 import { ContactPermissionsEditor } from '@/components/modules/contacts/ContactPermissionsEditor';
 import {
   Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function randomId() {
-  return `ct_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
-}
-
-const PROJECTS = MOCK_ENTITY_LINKS.filter((e) => e.kind === 'project');
-const STANDALONE_ASSETS = MOCK_ENTITY_LINKS.filter((e) => e.kind === 'asset');
-
-// Assets grouped under projects
-const PROJECT_ASSET_MAP: Record<string, EntityLinkOption[]> = {};
-for (const p of PROJECTS) {
-  PROJECT_ASSET_MAP[p.id] = assetsUnderProject(p.id);
-}
-// Assets not under any project
-const assetsInProjects = new Set(Object.values(PROJECT_ASSET_MAP).flat().map((a) => a.id));
-const ORPHAN_ASSETS = STANDALONE_ASSETS.filter((a) => !assetsInProjects.has(a.id));
 
 // ─── Asset Picker ─────────────────────────────────────────────────────────────
 
@@ -68,11 +50,30 @@ function selectionKey(s: AssetSelection): string {
 function AssetPicker({
   value,
   onChange,
+  loading,
+  projects,
+  propertiesByProject,
+  orphanProperties,
 }: {
   value: AssetSelection | null;
   onChange: (s: AssetSelection | null) => void;
+  loading: boolean;
+  projects: BackendProject[];
+  propertiesByProject: Record<string, BackendProperty[]>;
+  orphanProperties: BackendProperty[];
 }) {
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+
+  // Auto-expand the project containing the preselected asset so its checkmark is visible
+  useEffect(() => {
+    if (value?.kind !== 'asset') return;
+    for (const [projectId, assets] of Object.entries(propertiesByProject)) {
+      if (assets.some((a) => a.id === value.id)) {
+        setExpandedProjects((p) => (p[projectId] ? p : { ...p, [projectId]: true }));
+        break;
+      }
+    }
+  }, [value, propertiesByProject]);
 
   const toggleProject = (pid: string) =>
     setExpandedProjects((p) => ({ ...p, [pid]: !p[pid] }));
@@ -121,6 +122,14 @@ function AssetPicker({
     </Pressable>
   );
 
+  if (loading) {
+    return (
+      <View style={styles.pickerLoading}>
+        <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.pickerWrap}>
       {/* כל הנכסים */}
@@ -132,8 +141,8 @@ function AssetPicker({
       />
 
       {/* Projects + their assets */}
-      {PROJECTS.map((p) => {
-        const projectAssets = PROJECT_ASSET_MAP[p.id] ?? [];
+      {projects.map((p) => {
+        const projectAssets = propertiesByProject[p.id] ?? [];
         const expanded = !!expandedProjects[p.id];
         const projectActive = isActive({ kind: 'project', id: p.id });
         return (
@@ -154,7 +163,7 @@ function AssetPicker({
                     {p.name}
                   </AppText>
                   <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
-                    פרויקט · {p.address}
+                    פרויקט · {projectAddressLabel(p)}
                   </AppText>
                 </View>
                 <MaterialCommunityIcons name="briefcase-outline" size={18} color={projectActive ? Colors.primary : Colors.onSurfaceMuted} />
@@ -169,7 +178,7 @@ function AssetPicker({
               <Row
                 key={a.id}
                 label={a.name}
-                sub={a.address}
+                sub={propertyAddressLabel(a)}
                 icon="home-outline"
                 active={isActive({ kind: 'asset', id: a.id })}
                 onPress={() => select({ kind: 'asset', id: a.id })}
@@ -181,11 +190,11 @@ function AssetPicker({
       })}
 
       {/* Standalone assets */}
-      {ORPHAN_ASSETS.map((a) => (
+      {orphanProperties.map((a) => (
         <Row
           key={a.id}
           label={a.name}
-          sub={a.address}
+          sub={propertyAddressLabel(a)}
           icon="home-outline"
           active={isActive({ kind: 'asset', id: a.id })}
           onPress={() => select({ kind: 'asset', id: a.id })}
@@ -231,7 +240,15 @@ function EmailStatusBadge({ email }: { email: string }) {
 
 // ─── Main Form ────────────────────────────────────────────────────────────────
 
-export function ContactCreateForm({ initialData }: { initialData?: ContactListRow } = {}) {
+export function ContactCreateForm({
+  initialData,
+  preloadLinkId,
+  preloadLinkKind,
+}: {
+  initialData?: ContactListRow;
+  preloadLinkId?: string;
+  preloadLinkKind?: 'asset' | 'project';
+} = {}) {
   const insets = useSafeAreaInsets();
 
   // Contact kind
@@ -246,9 +263,12 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
 
   // Asset selection
   const [assetSelection, setAssetSelection] = useState<AssetSelection | null>(() => {
-    if (!initialData) return null;
-    if (initialData.linkKind === 'project') return { kind: 'project', id: initialData.linkId };
-    if (initialData.linkKind === 'asset') return { kind: 'asset', id: initialData.linkId };
+    if (initialData) {
+      if (initialData.linkKind === 'project') return { kind: 'project', id: initialData.linkId };
+      if (initialData.linkKind === 'asset') return { kind: 'asset', id: initialData.linkId };
+      return null;
+    }
+    if (preloadLinkId && preloadLinkKind) return { kind: preloadLinkKind, id: preloadLinkId };
     return null;
   });
 
@@ -269,78 +289,137 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
     if (k === 'tenant_buyer') setNickname('');
   };
 
-  const emailStatus = email.trim().includes('@')
-    ? checkEmailInSystem(email.trim())
-    : null;
-  const hasUserInSystem = emailStatus === true;
+  const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const isEdit = !!initialData;
 
-  const resolveLink = (): { linkKind: 'asset' | 'project'; linkId: string; linkLabel: string; permsByAsset?: Record<string, ContactPermissions> } | null => {
+  // Projects/properties for the asset picker (create flow only)
+  const [projects, setProjects] = useState<BackendProject[]>([]);
+  const [properties, setProperties] = useState<BackendProperty[]>([]);
+  const [assetsLoading, setAssetsLoading] = useState(!isEdit);
+
+  useEffect(() => {
+    if (isEdit) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [projectsRes, propertiesRes] = await Promise.all([listProjects(), listProperties()]);
+        if (cancelled) return;
+        setProjects(projectsRes);
+        setProperties(propertiesRes);
+      } catch (e) {
+        if (cancelled) return;
+        const message = e instanceof BackendApiError ? e.message : 'טעינת רשימת הנכסים והפרויקטים נכשלה.';
+        Alert.alert('שגיאה', message);
+      } finally {
+        if (!cancelled) setAssetsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isEdit]);
+
+  const propertiesByProject = useMemo(() => {
+    const map: Record<string, BackendProperty[]> = {};
+    for (const p of properties) {
+      if (!p.projectId) continue;
+      (map[p.projectId] ??= []).push(p);
+    }
+    return map;
+  }, [properties]);
+
+  const orphanProperties = useMemo(
+    () => properties.filter((p) => !p.projectId),
+    [properties],
+  );
+
+  const resolveLink = (): { linkKind: 'asset' | 'project'; linkId: string; linkLabel: string } | null => {
     if (!assetSelection) return null;
     if (assetSelection.kind === 'all') {
-      // Use first project as primary link (mock: no real "all" concept in data model)
-      const first = PROJECTS[0];
+      // Use first project as primary link (no real "all" concept in the data model)
+      const first = projects[0];
       if (!first) return null;
-      return { linkKind: 'project', linkId: first.id, linkLabel: `כל הנכסים (${first.name})`, permsByAsset: expandPermissionsToProjectAssets(first.id, permissions) };
+      return { linkKind: 'project', linkId: first.id, linkLabel: `כל הנכסים (${first.name})` };
     }
     if (assetSelection.kind === 'project') {
-      const p = PROJECTS.find((x) => x.id === assetSelection.id);
+      const p = projects.find((x) => x.id === assetSelection.id);
       if (!p) return null;
-      return { linkKind: 'project', linkId: p.id, linkLabel: p.name, permsByAsset: expandPermissionsToProjectAssets(p.id, permissions) };
+      return { linkKind: 'project', linkId: p.id, linkLabel: p.name };
     }
     // asset
-    const a = STANDALONE_ASSETS.find((x) => x.id === assetSelection.id);
+    const a = properties.find((x) => x.id === assetSelection.id);
     if (!a) return null;
     return { linkKind: 'asset', linkId: a.id, linkLabel: a.name };
   };
-
-  const [submitted, setSubmitted] = useState(false);
 
   const fieldErrors = useMemo(() => ({
     nickname: contactKind === 'role_holder' && !nickname.trim() ? 'שדה חובה' : '',
     displayName: !displayName.trim() ? 'שדה חובה' : '',
     phone: !phone.trim() ? 'שדה חובה' : '',
-    assetSelection: !assetSelection ? 'יש לבחור נכס או פרויקט' : '',
-  }), [contactKind, nickname, displayName, phone, assetSelection]);
+    assetSelection: !isEdit && !assetSelection ? 'יש לבחור נכס או פרויקט' : '',
+  }), [contactKind, nickname, displayName, phone, assetSelection, isEdit]);
 
   const valid = useMemo(() => Object.values(fieldErrors).every((e) => !e), [fieldErrors]);
+
+  const onSaveEdit = async () => {
+    if (!initialData) return;
+    setSaving(true);
+    try {
+      await updateContact(initialData.id, {
+        contactKind: toApiContactKind(contactKind),
+        nickname: nickname.trim() || undefined,
+        displayName: displayName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+        permissions,
+      });
+      router.back();
+    } catch (e) {
+      const message = e instanceof BackendApiError ? e.message : 'שמירת איש הקשר נכשלה.';
+      Alert.alert('שגיאה', message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onSaveCreate = async () => {
+    const link = resolveLink();
+    if (!link) return;
+
+    setSaving(true);
+    try {
+      const created = await createContact({
+        contactKind: toApiContactKind(contactKind),
+        nickname: nickname.trim() || undefined,
+        displayName: displayName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+        linkKind: toApiLinkKind(link.linkKind),
+        linkId: link.linkId,
+        permissions,
+      });
+
+      router.back();
+
+      if (created.inviteToken) {
+        Alert.alert('נשמר', 'איש הקשר נוצר ונשלחה הזמנה להתחבר למערכת.');
+      }
+    } catch (e) {
+      const message = e instanceof BackendApiError ? e.message : 'שמירת איש הקשר נכשלה.';
+      Alert.alert('שגיאה', message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const onSave = () => {
     setSubmitted(true);
     if (!valid) return;
-    const link = resolveLink();
-    if (!link) return;
-
-    const inviteToken = hasUserInSystem ? undefined : `inv_${randomId()}`;
-    const row: ContactListRow = {
-      id: randomId(),
-      contactKind,
-      nickname: nickname.trim(),
-      displayName: displayName.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      notes: notes.trim() || undefined,
-      linkKind: link.linkKind,
-      linkId: link.linkId,
-      linkLabel: link.linkLabel,
-      hasUserInSystem,
-      inviteToken,
-      permissions,
-      permissionsByAssetId: link.permsByAsset,
-    };
-    queueNewContact(row);
-
-    if (inviteToken) {
-      Alert.alert('נשמר', `לינק הזמנה (דמה):\n${inviteUrlForToken(inviteToken)}`, [
-        { text: 'סגור', onPress: () => router.back() },
-        {
-          text: 'שתף לינק',
-          onPress: () => {
-            Share.share({ message: inviteUrlForToken(inviteToken), title: 'הזמנת איש קשר' }).finally(() => router.back());
-          },
-        },
-      ]);
+    if (isEdit) {
+      onSaveEdit();
     } else {
-      router.back();
+      onSaveCreate();
     }
   };
 
@@ -413,19 +492,36 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
           </View>
 
           {/* ─── שיוך נכס / פרויקט ─── */}
-          <View style={[styles.card, { marginTop: Spacing.md, borderColor: submitted && fieldErrors.assetSelection ? Colors.error : Colors.outlineVariant }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginBottom: Spacing.md }}>
-              <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginBottom: 0 }]}>שיוך נכס / פרויקט</AppText>
-              <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+          {isEdit ? (
+            <View style={[styles.card, { marginTop: Spacing.md }]}>
+              <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>שיוך נכס / פרויקט</AppText>
+              <AppText variant="bodyMd" style={{ textAlign: 'right' }}>{initialData?.linkLabel}</AppText>
+              <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginTop: Spacing.xs }}>
+                שינוי השיוך אינו נתמך כאן.
+              </AppText>
             </View>
-            <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
-              בחר פרויקט (לכל נכסיו), נכס בודד, או "כל הנכסים". לחץ על החץ להרחבת נכסי פרויקט.
-            </AppText>
-            <AssetPicker value={assetSelection} onChange={setAssetSelection} />
-            {submitted && fieldErrors.assetSelection ? (
-              <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: Spacing.xs }}>{fieldErrors.assetSelection}</AppText>
-            ) : null}
-          </View>
+          ) : (
+            <View style={[styles.card, { marginTop: Spacing.md, borderColor: submitted && fieldErrors.assetSelection ? Colors.error : Colors.outlineVariant }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginBottom: Spacing.md }}>
+                <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginBottom: 0 }]}>שיוך נכס / פרויקט</AppText>
+                <AppText variant="labelMd" weight="bold" style={{ color: Colors.error }}>*</AppText>
+              </View>
+              <AppText variant="caption" color="muted" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                בחר פרויקט (לכל נכסיו), נכס בודד, או "כל הנכסים". לחץ על החץ להרחבת נכסי פרויקט.
+              </AppText>
+              <AssetPicker
+                value={assetSelection}
+                onChange={setAssetSelection}
+                loading={assetsLoading}
+                projects={projects}
+                propertiesByProject={propertiesByProject}
+                orphanProperties={orphanProperties}
+              />
+              {submitted && fieldErrors.assetSelection ? (
+                <AppText variant="caption" color="error" style={{ textAlign: 'right', marginTop: Spacing.xs }}>{fieldErrors.assetSelection}</AppText>
+              ) : null}
+            </View>
+          )}
 
           {/* ─── הרשאות ─── */}
           <View style={[styles.card, { marginTop: Spacing.md }]}>
@@ -437,6 +533,7 @@ export function ContactCreateForm({ initialData }: { initialData?: ContactListRo
             onPress={onSave}
             fullWidth
             size="lg"
+            disabled={saving}
             style={{ marginTop: Spacing.md }}
           />
         </ScrollView>
@@ -494,6 +591,7 @@ const styles = StyleSheet.create({
 
   // Asset picker
   pickerWrap: { gap: Spacing.xs },
+  pickerLoading: { paddingVertical: Spacing.lg, alignItems: 'center' },
   pickRow: {
     flexDirection: RTL_ROW,
     alignItems: 'center',

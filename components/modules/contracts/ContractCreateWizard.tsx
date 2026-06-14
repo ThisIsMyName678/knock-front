@@ -24,9 +24,8 @@ import { Badge } from '@/components/ui/Badge';
 import {
   CONTRACT_TYPE_LABELS,
   CONTRACT_ACCESS_LABELS,
-  type EntityLinkOption,
-} from '@/lib/mocks/contracts';
-import { searchEntityLinks } from '@/lib/api/entity-links';
+} from '@/lib/constants/contracts';
+import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { createContract, updateContract } from '@/lib/api/contracts';
 import type { ContractType, ContractAccessLevel, ContractDetail, CreateContractInput } from '@/lib/api/contracts';
@@ -338,7 +337,11 @@ export function ContractCreateWizard({
       const result = contractId
         ? await updateContract(contractId, dto)
         : await createContract(dto);
-      router.replace(`/(app)/contracts/${result.id}`);
+      if (contractId) {
+        router.replace(`/(app)/contracts/${result.id}`);
+      } else {
+        router.back();
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'שגיאה בשמירת החוזה';
       setServerError(msg);

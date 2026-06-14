@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -26,14 +26,13 @@ import {
   PAYMENT_MODE_LABELS,
   filterPaymentRows,
   sortPaymentRows,
-  deletePaymentFromSession,
-  getActivePaymentsList,
   type PaymentListGroupFilter,
   type PaymentListRow,
   type PaymentSortKey,
   type SortDir,
   type StatusBucket,
 } from '@/lib/mocks/payments';
+import { listPayments, deletePayment, paymentToListRow } from '@/lib/api/payments';
 import type { LinkKind } from '@/lib/mocks/contracts';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
 import {
@@ -105,7 +104,7 @@ function linkScopeFromScope(scope: ScopeFilter): 'all' | LinkKind {
 }
 
 export function PaymentsListScreen() {
-  const [payments, setPayments] = useState(() => getActivePaymentsList());
+  const [payments, setPayments] = useState<PaymentListRow[]>([]);
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     dateFrom?: string;
@@ -133,6 +132,21 @@ export function PaymentsListScreen() {
   }, []);
 
   const showSkeleton = useSkeletonGate(loading);
+
+  const loadPayments = useCallback(async () => {
+    try {
+      const rows = await listPayments();
+      setPayments(rows.map(paymentToListRow));
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to load payments');
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadPayments();
+    }, [loadPayments]),
+  );
 
   useEffect(() => {
     const df = paramStr(params.dateFrom);
@@ -211,12 +225,16 @@ export function PaymentsListScreen() {
     setTimeout(() => setDeleteTarget(r), 50);
   }, []);
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    deletePaymentFromSession(deleteTarget.id);
-    setPayments(getActivePaymentsList());
+    try {
+      await deletePayment(deleteTarget.id);
+      await loadPayments();
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to delete payment');
+    }
     setDeleteTarget(null);
-  }, [deleteTarget]);
+  }, [deleteTarget, loadPayments]);
 
   const activeSecondaryCount = useMemo(() => {
     let count = 0;

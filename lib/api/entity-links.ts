@@ -1,6 +1,14 @@
 import { listProjects, projectAddressLabel } from './projects';
 import { listProperties, propertyAddressLabel } from './properties';
-import type { EntityLinkOption } from '@/lib/mocks/contracts';
+
+export type LinkKind = 'asset' | 'project';
+
+export type EntityLinkOption = {
+  id: string;
+  kind: LinkKind;
+  name: string;
+  address: string;
+};
 
 export async function searchEntityLinks(query: string): Promise<EntityLinkOption[]> {
   const [projects, properties] = await Promise.all([
