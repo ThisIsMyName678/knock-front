@@ -163,6 +163,15 @@ function feedIcon(kind: FeedKind): React.ComponentProps<typeof MaterialCommunity
   return 'file-sign';
 }
 
+function feedTargetRoute(item: FeedItem): string | null {
+  if (!item.targetId) return null;
+  if (item.kind === 'task') return `/(app)/tasks/${item.targetId}`;
+  if (item.kind === 'payment') return `/(app)/payments/${item.targetId}`;
+  if (item.kind === 'contract') return `/(app)/contracts/${item.targetId}`;
+  if (item.kind === 'document') return `/(app)/documents/${item.targetId}`;
+  return null;
+}
+
 function docFileIconName(kind: DocumentFileKind): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
   if (kind === 'pdf') return 'file-pdf-box';
   if (kind === 'image') return 'file-image-outline';
@@ -492,10 +501,23 @@ const fabStyle = StyleSheet.create({
 
 // ─── Tab: Feed ────────────────────────────────────────────────────────────────
 
+type FeedKindFilter = 'all' | FeedKind;
+
+const FEED_KIND_OPTIONS: { key: FeedKindFilter; label: string }[] = [
+  { key: 'all', label: 'הכל' },
+  { key: 'task', label: 'משימות' },
+  { key: 'payment', label: 'תשלומים' },
+  { key: 'message', label: 'הודעות' },
+  { key: 'contract', label: 'חוזים' },
+  { key: 'document', label: 'מסמכים' },
+];
+
 function FeedTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [kindFilter, setKindFilter] = useState<FeedKindFilter>('all');
 
   useFocusEffect(
     useCallback(() => {
@@ -518,6 +540,15 @@ function FeedTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
     }, [entityId, mode]),
   );
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter((item) => {
+      if (kindFilter !== 'all' && item.kind !== kindFilter) return false;
+      if (q && !item.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [items, kindFilter, search]);
+
   if (loading) return <InlineEmpty text="טוען פיד..." />;
   if (error) return <InlineEmpty text={error} />;
 
@@ -533,14 +564,26 @@ function FeedTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
   }
 
   return (
-    <FlatList
-      data={items}
+    <View style={{ flex: 1 }}>
+      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש בפיד..." />
+      <FilterRow options={FEED_KIND_OPTIONS} active={kindFilter} onSelect={setKindFilter} contentContainerStyle={filterStyles.feedChipsAlign} />
+      {filtered.length === 0 ? (
+        <EmptyState
+          title="אין תוצאות"
+          description="נסו לשנות את החיפוש או הסינון."
+          icon={<MaterialCommunityIcons name="magnify" size={28} color={Colors.primary} />}
+          style={{ paddingTop: Spacing.xl }}
+        />
+      ) : (
+      <FlatList
+      data={filtered}
       keyExtractor={(item) => item.id}
       scrollEnabled={false}
       contentContainerStyle={listStyles.content}
       ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
       renderItem={({ item }) => {
         const color = feedColor(item.kind);
+        const route = feedTargetRoute(item);
         return (
           <View style={listStyles.feedRow}>
             <View style={listStyles.feedLeft}>
@@ -548,7 +591,11 @@ function FeedTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
               <View style={[listStyles.feedLine, { backgroundColor: color }]} />
             </View>
             <View style={{ flex: 1 }}>
-              <View style={listStyles.feedCard}>
+              <Pressable
+                disabled={!route}
+                onPress={() => { if (route) router.push(route as any); }}
+                style={listStyles.feedCard}
+              >
                 <View style={listStyles.feedCardInner}>
                   <View style={[listStyles.feedIconWrap, { backgroundColor: `${color}18` }]}>
                     <MaterialCommunityIcons name={feedIcon(item.kind)} size={16} color={color} />
@@ -558,12 +605,14 @@ function FeedTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
                     <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>{fmtDateTime(item.dateIso)}</AppText>
                   </View>
                 </View>
-              </View>
+              </Pressable>
             </View>
           </View>
         );
       }}
-    />
+      />
+      )}
+    </View>
   );
 }
 
