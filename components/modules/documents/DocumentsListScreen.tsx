@@ -106,44 +106,25 @@ export function DocumentsListScreen() {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [menuRow, setMenuRow] = useState<DocumentListRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentListRow | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const showSkeleton = useSkeletonGate(loading);
 
   const linkScope = linkScopeFromScope(scope);
 
   const loadDocuments = useCallback(async () => {
+    setLoading(true);
     try {
       const docs = await listDocuments();
       setRows(docs.map(documentToListRow));
     } catch (error) {
       console.warn(error instanceof Error ? error.message : 'Failed to load documents');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-  //     setLoading(true);
-  //     setRows((prev) => {
-  //       const pending = consumePendingDocuments();
-  //       const snap = getActiveDocumentRowsSnapshot();
-  //       if (pending.length) {
-  //         const base = snap ?? prev;
-  //         return [...pending, ...base];
-  //       }
-  //       if (snap) return [...snap];
-  //       return prev;
-  //     });
-  //     const id = requestAnimationFrame(() => setLoading(false));
-  //     return () => cancelAnimationFrame(id);
-  //   }, []),
-  // );
-
-  // const showSkeleton = useSkeletonGate(loading);
-
-  // useEffect(() => {
-  //   setActiveDocumentRowsSnapshot(rows);
-  // }, [rows]);
-
       void loadDocuments();
     }, [loadDocuments]),
   );
