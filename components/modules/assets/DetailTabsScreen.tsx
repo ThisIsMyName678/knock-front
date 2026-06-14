@@ -112,25 +112,28 @@ function feedRoute(kind: FeedKind, targetId?: string): string | null {
 }
 
 function makeFeed(): FeedItem[] {
-  const now = Date.now();
-  const kinds: FeedKind[] = ['task', 'payment', 'message', 'contract'];
-  const rows = Array.from({ length: 30 }, (_, i) => {
-    const kind = kinds[i % 4]!;
-    const ids = TARGET_IDS[kind];
-    const targetId = ids.length ? ids[i % ids.length] : undefined;
-    return {
-      id: `f${i}`,
-      kind,
-      title:
-        kind === 'task' ? 'בדיקת מד מים בוצעה'
-          : kind === 'payment' ? 'תשלום שכירות התקבל'
-            : kind === 'message' ? 'הודעה מהדייר'
-              : 'חוזה עודכן',
-      dateIso: new Date(now - i * 1000 * 60 * 60 * 5).toISOString(),
-      targetId,
-    };
-  });
-  return rows.sort((a, b) => new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime());
+  // TODO: Activity feed should later be powered by real backend events
+  // (contracts, tasks, payments, documents, contacts) instead of mock data.
+  // const now = Date.now();
+  // const kinds: FeedKind[] = ['task', 'payment', 'message', 'contract'];
+  // const rows = Array.from({ length: 30 }, (_, i) => {
+  //   const kind = kinds[i % 4]!;
+  //   const ids = TARGET_IDS[kind];
+  //   const targetId = ids.length ? ids[i % ids.length] : undefined;
+  //   return {
+  //     id: `f${i}`,
+  //     kind,
+  //     title:
+  //       kind === 'task' ? 'בדיקת מד מים בוצעה'
+  //         : kind === 'payment' ? 'תשלום שכירות התקבל'
+  //           : kind === 'message' ? 'הודעה מהדייר'
+  //             : 'חוזה עודכן',
+  //     dateIso: new Date(now - i * 1000 * 60 * 60 * 5).toISOString(),
+  //     targetId,
+  //   };
+  // });
+  // return rows.sort((a, b) => new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime());
+  return [];
 }
 
 // MOCK_TASKS replaced by MOCK_TASKS_LIST imported from lib/mocks/tasks
@@ -539,79 +542,91 @@ const fabStyle = StyleSheet.create({
 // ─── Tab: Feed ────────────────────────────────────────────────────────────────
 
 function FeedTab() {
-  const items = useMemo(() => makeFeed(), []);
-  const filterOptions = [
-    { key: 'all' as const, label: 'הכל' },
-    { key: 'task' as const, label: 'משימות' },
-    { key: 'payment' as const, label: 'תשלומים' },
-    { key: 'message' as const, label: 'הודעות' },
-    { key: 'contract' as const, label: 'חוזים' },
-  ];
-  const [filter, setFilter] = useState<'all' | FeedKind>('all');
-  const [search, setSearch] = useState('');
-  const filtered = useMemo(() => {
-    const byKind = filter === 'all' ? items : items.filter((i) => i.kind === filter);
-    const q = search.trim().toLowerCase();
-    if (!q) return byKind;
-    return byKind.filter((i) => i.title.toLowerCase().includes(q));
-  }, [items, filter, search]);
-
+  // TODO: Activity feed should later be powered by real backend events
+  // (contracts, tasks, payments, documents, contacts) instead of mock data.
   return (
-    <View style={{ flex: 1 }}>
-      <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש בפיד..." />
-      <FilterRow
-        options={filterOptions}
-        active={filter}
-        onSelect={setFilter}
-        contentContainerStyle={filterStyles.feedChipsAlign}
-      />
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        contentContainerStyle={listStyles.content}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
-        ListEmptyComponent={<InlineEmpty text="אין פעילות להצגה" />}
-        renderItem={({ item }) => {
-          const color = feedColor(item.kind);
-          const route = feedRoute(item.kind, item.targetId);
-          const Inner = (
-            <View style={listStyles.feedCard}>
-              <View style={listStyles.feedCardInner}>
-                <View style={[listStyles.feedIconWrap, { backgroundColor: `${color}18` }]}>
-                  <MaterialCommunityIcons name={feedIcon(item.kind)} size={16} color={color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <AppText variant="bodyMd" weight="semiBold" numberOfLines={1} style={{ textAlign: 'right' }}>{item.title}</AppText>
-                  <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>{fmtDateTime(item.dateIso)}</AppText>
-                </View>
-                {route ? <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} /> : null}
-              </View>
-            </View>
-          );
-          return (
-            <View style={listStyles.feedRow}>
-              <View style={listStyles.feedLeft}>
-                <View style={[listStyles.feedDot, { backgroundColor: color }]} />
-                <View style={[listStyles.feedLine, { backgroundColor: color }]} />
-              </View>
-              {route ? (
-                <Pressable
-                  style={({ pressed }) => [{ flex: 1 }, pressed && { opacity: 0.82 }]}
-                  onPress={() => router.push(route as any)}
-                  accessibilityRole="button"
-                >
-                  {Inner}
-                </Pressable>
-              ) : (
-                <View style={{ flex: 1 }}>{Inner}</View>
-              )}
-            </View>
-          );
-        }}
-      />
-    </View>
+    <EmptyState
+      title="אין עדיין פעילות"
+      description="פעילות תופיע כאן כאשר יתווספו חוזים, משימות, תשלומים, מסמכים ואנשי קשר."
+      icon={<MaterialCommunityIcons name="history" size={28} color={Colors.primary} />}
+      style={{ paddingTop: Spacing.xl }}
+    />
   );
+
+  // --- Mock feed UI (disabled until backend events are available) ---
+  // const items = useMemo(() => makeFeed(), []);
+  // const filterOptions = [
+  //   { key: 'all' as const, label: 'הכל' },
+  //   { key: 'task' as const, label: 'משימות' },
+  //   { key: 'payment' as const, label: 'תשלומים' },
+  //   { key: 'message' as const, label: 'הודעות' },
+  //   { key: 'contract' as const, label: 'חוזים' },
+  // ];
+  // const [filter, setFilter] = useState<'all' | FeedKind>('all');
+  // const [search, setSearch] = useState('');
+  // const filtered = useMemo(() => {
+  //   const byKind = filter === 'all' ? items : items.filter((i) => i.kind === filter);
+  //   const q = search.trim().toLowerCase();
+  //   if (!q) return byKind;
+  //   return byKind.filter((i) => i.title.toLowerCase().includes(q));
+  // }, [items, filter, search]);
+  //
+  // return (
+  //   <View style={{ flex: 1 }}>
+  //     <TabSearchField value={search} onChangeText={setSearch} placeholder="חיפוש בפיד..." />
+  //     <FilterRow
+  //       options={filterOptions}
+  //       active={filter}
+  //       onSelect={setFilter}
+  //       contentContainerStyle={filterStyles.feedChipsAlign}
+  //     />
+  //     <FlatList
+  //       data={filtered}
+  //       keyExtractor={(item) => item.id}
+  //       scrollEnabled={false}
+  //       contentContainerStyle={listStyles.content}
+  //       ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
+  //       ListEmptyComponent={<InlineEmpty text="אין פעילות להצגה" />}
+  //       renderItem={({ item }) => {
+  //         const color = feedColor(item.kind);
+  //         const route = feedRoute(item.kind, item.targetId);
+  //         const Inner = (
+  //           <View style={listStyles.feedCard}>
+  //             <View style={listStyles.feedCardInner}>
+  //               <View style={[listStyles.feedIconWrap, { backgroundColor: `${color}18` }]}>
+  //                 <MaterialCommunityIcons name={feedIcon(item.kind)} size={16} color={color} />
+  //               </View>
+  //               <View style={{ flex: 1 }}>
+  //                 <AppText variant="bodyMd" weight="semiBold" numberOfLines={1} style={{ textAlign: 'right' }}>{item.title}</AppText>
+  //                 <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>{fmtDateTime(item.dateIso)}</AppText>
+  //               </View>
+  //               {route ? <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.onSurfaceMuted} /> : null}
+  //             </View>
+  //           </View>
+  //         );
+  //         return (
+  //           <View style={listStyles.feedRow}>
+  //             <View style={listStyles.feedLeft}>
+  //               <View style={[listStyles.feedDot, { backgroundColor: color }]} />
+  //               <View style={[listStyles.feedLine, { backgroundColor: color }]} />
+  //             </View>
+  //             {route ? (
+  //               <Pressable
+  //                 style={({ pressed }) => [{ flex: 1 }, pressed && { opacity: 0.82 }]}
+  //                 onPress={() => router.push(route as any)}
+  //                 accessibilityRole="button"
+  //               >
+  //                 {Inner}
+  //               </Pressable>
+  //             ) : (
+  //               <View style={{ flex: 1 }}>{Inner}</View>
+  //             )}
+  //           </View>
+  //         );
+  //       }}
+  //     />
+  //   </View>
+  // );
 }
 
 // ─── Tab: Main (asset = contracts / project = assets list) ────────────────────
