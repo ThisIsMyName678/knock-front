@@ -7,6 +7,7 @@ import { AppText } from './Text';
 import { Colors, Spacing, Radius, Shadow, FontFamily, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { useAuth } from '@/lib/auth';
+import { resolveOrganizationRoleLabel, resolveProfileDisplayName } from '@/lib/profile-labels';
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const ACCOUNT_ITEMS: NavItem[] = [
+  { label: 'פרופיל והגדרות', icon: 'account-cog-outline', route: '/(app)/settings' },
   { label: 'עריכת פרופיל', icon: 'camera-account', route: '/(app)/settings/profile-edit' },
   { label: 'הגדרות התראות', icon: 'bell-cog-outline', route: '/(app)/settings/notifications' },
   { label: 'מסלולי מנוי', icon: 'crown-outline', route: '/(app)/subscription' },
@@ -64,10 +66,9 @@ export function DrawerMenu({ visible, onClose }: Props) {
     }, 100);
   };
 
-  const userMetadata = backendUser?.userMetadata ?? user?.user_metadata;
-  const displayName = resolveDisplayName(userMetadata, backendUser?.email ?? user?.email);
+  const displayName = resolveProfileDisplayName(backendUser, user);
   const displayEmail = backendUser?.email ?? user?.email ?? 'לא הוגדר אימייל';
-  const displayRole = backendUser?.role ?? 'משתמש';
+  const displayRole = resolveOrganizationRoleLabel(backendUser?.organizationRole);
 
   const navigate = useCallback(
     (item: NavItem) => {
@@ -100,16 +101,23 @@ export function DrawerMenu({ visible, onClose }: Props) {
         >
           {/* ── Header ── */}
           <View style={styles.panelHeader}>
-            <View style={styles.avatar}>
-              <MaterialCommunityIcons name="account-circle" size={44} color={Colors.onPrimary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <AppText variant="headingSm" weight="bold" color="onPrimary">{displayName}</AppText>
-              <AppText variant="bodySm" color="onPrimary" style={{ opacity: 0.85 }}>{displayRole}</AppText>
-              <AppText variant="caption" color="onPrimary" style={{ opacity: 0.65 }}>{displayEmail}</AppText>
-            </View>
+            <Pressable
+              onPress={() => navigate({ label: 'פרופיל והגדרות', icon: 'account-cog-outline', route: '/(app)/settings' })}
+              style={styles.panelHeaderMain}
+              accessibilityRole="button"
+              accessibilityLabel="פרופיל והגדרות"
+            >
+              <View style={styles.avatar}>
+                <MaterialCommunityIcons name="account-circle" size={44} color={Colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppText variant="headingSm" weight="bold">{displayName}</AppText>
+                <AppText variant="bodySm" color="variant">{displayRole}</AppText>
+                <AppText variant="caption" color="muted">{displayEmail}</AppText>
+              </View>
+            </Pressable>
             <Pressable onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="סגור תפריט">
-              <MaterialCommunityIcons name="close" size={22} color={Colors.onPrimary} />
+              <MaterialCommunityIcons name="close" size={22} color={Colors.onBackground} />
             </Pressable>
           </View>
 
@@ -221,23 +229,6 @@ export function DrawerMenu({ visible, onClose }: Props) {
   );
 }
 
-function resolveDisplayName(
-  metadata: Record<string, unknown> | undefined,
-  email: string | undefined,
-): string {
-  const candidateKeys = ['full_name', 'name', 'display_name', 'given_name'];
-
-  for (const key of candidateKeys) {
-    const value = metadata?.[key];
-
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return email?.split('@')[0] || 'משתמש';
-}
-
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
@@ -261,23 +252,31 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     alignItems: 'center',
     gap: Spacing.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
     paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
     paddingVertical: Spacing.lg,
+  },
+  panelHeaderMain: {
+    flex: 1,
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
   },
   avatar: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: Colors.accentMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   closeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -294,10 +293,11 @@ const styles = StyleSheet.create({
   sectionCard: {
     backgroundColor: Colors.surface,
     marginHorizontal: CONTENT_HORIZONTAL_PADDING,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant,
+    borderColor: Colors.outlineLight,
     overflow: 'hidden',
+    ...Shadow.sm,
   },
   menuRow: {
     flexDirection: RTL_ROW,
@@ -340,8 +340,5 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.xs,
   },
-  footerLink: {
-    color: Colors.primary,
-    textDecorationLine: 'underline',
-  },
+  footerLink: { color: Colors.accent, textDecorationLine: 'underline' },
 });

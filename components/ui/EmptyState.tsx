@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { AppText } from './Text';
 import { Button } from './Button';
-import { Colors, Spacing } from '@/constants/tokens';
+import { Colors, Radius, Spacing } from '@/constants/tokens';
 
 type Props = {
   icon?: React.ReactNode;
@@ -45,8 +45,10 @@ const styles = StyleSheet.create({
   iconWrapper: {
     width: 72,
     height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.primaryContainer,
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.surfaceVariant,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,

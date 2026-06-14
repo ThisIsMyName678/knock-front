@@ -36,11 +36,7 @@ export function Input({
 }: Props) {
   const [focused, setFocused] = useState(false);
 
-  const borderColor = error
-    ? Colors.error
-    : focused
-      ? Colors.primary
-      : Colors.outlineVariant;
+  const borderColor = error ? Colors.error : focused ? Colors.accent : Colors.outlineLight;
 
   return (
     <View style={[styles.wrapper, containerStyle]}>
@@ -102,8 +98,8 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     alignItems: 'center',
     minHeight: MIN_TOUCH,
-    borderWidth: 1.5,
-    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
     backgroundColor: Colors.surface,
     paddingHorizontal: Spacing.md,
   },

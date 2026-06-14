@@ -4,7 +4,7 @@ import { isAuthDisabled } from '@/lib/auth-config';
 import { useAuth } from '@/lib/auth';
 
 export default function AuthLayout() {
-  const { session, backendUser } = useAuth();
+  const { session, backendUser, passwordRecoveryPending } = useAuth();
 
   useEffect(() => {
     if (isAuthDisabled()) {
@@ -12,7 +12,7 @@ export default function AuthLayout() {
     }
   }, []);
 
-  if (session && backendUser) {
+  if (session && backendUser && !passwordRecoveryPending) {
     console.log('[AuthLayout] User authenticated and backend user ready, redirecting to app');
     return <Redirect href="/(app)" />;
   }

@@ -86,10 +86,30 @@ export type BackendCurrentUser = {
       defaultOrganizationId?: string;
     };
   };
+  organization?: {
+    id: string;
+    name: string;
+  } | null;
+  organizationRole?: string | null;
+};
+
+export type UpdateProfilePayload = {
+  displayName?: string;
+  organizationName?: string;
+  language?: 'HE' | 'EN';
 };
 
 export function getBackendCurrentUser(): Promise<BackendCurrentUser> {
   return backendRequest<BackendCurrentUser>('/auth/me');
+}
+
+export function updateBackendProfile(
+  payload: UpdateProfilePayload,
+): Promise<BackendCurrentUser> {
+  return backendRequest<BackendCurrentUser>('/auth/me', {
+    method: 'PATCH',
+    body: payload,
+  });
 }
 
 function normalizePath(path: string): string {

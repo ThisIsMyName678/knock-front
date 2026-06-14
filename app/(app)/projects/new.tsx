@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useFocusEffect } from 'expo-router';
 import {
   View,
   ScrollView,
@@ -32,7 +31,7 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AddAssetToProjectActions } from '@/components/modules/assets/AddAssetToProjectActions';
-import { assetsForProject } from '@/lib/mocks/assets';
+import type { AssetEntity } from '@/lib/mocks/assets';
 import { createProject } from '@/lib/api/projects';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -106,15 +105,21 @@ const STEP_TITLES = ['פרטי הפרויקט', 'הוספת קבצים', 'הוס
 function Step3ProjectAssets({
   draftProjectId,
   projectName,
-  refreshNonce,
-  onAssetsChanged,
 }: {
   draftProjectId: string;
   projectName: string;
-  refreshNonce: number;
-  onAssetsChanged: () => void;
 }) {
-  const linked = useMemo(() => assetsForProject(draftProjectId), [draftProjectId, refreshNonce]);
+  const [linked, setLinked] = useState<AssetEntity[]>([]);
+
+  const handleAssetLinked = useCallback(
+    (asset: AssetEntity) => {
+      setLinked((prev) => {
+        if (prev.some((row) => row.id === asset.id)) return prev;
+        return [{ ...asset, projectId: draftProjectId }, ...prev];
+      });
+    },
+    [draftProjectId],
+  );
 
   return (
     <View style={{ gap: Spacing.lg }}>
@@ -125,7 +130,7 @@ function Step3ProjectAssets({
       <AddAssetToProjectActions
         projectId={draftProjectId}
         projectName={projectName}
-        onAssetsChanged={onAssetsChanged}
+        onAssetsChanged={handleAssetLinked}
         variant="inline"
       />
 
@@ -1038,7 +1043,6 @@ export default function NewProjectScreen() {
   });
 
   const [draftProjectId, setDraftProjectId] = useState<string | null>(null);
-  const [step3Refresh, setStep3Refresh] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
 
   const [step1Submitted, setStep1Submitted] = useState(false);
@@ -1050,16 +1054,6 @@ export default function NewProjectScreen() {
   }), [step1.kind, step1.name, step1.address]);
 
   const step1Valid = Object.values(step1Errors).every((e) => !e);
-
-  const bumpStep3List = useCallback(() => {
-    setStep3Refresh((n) => n + 1);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (step === 3) bumpStep3List();
-    }, [step, bumpStep3List]),
-  );
 
   const handleNext = async () => {
     if (step === 1) {
@@ -1139,8 +1133,6 @@ export default function NewProjectScreen() {
           <Step3ProjectAssets
             draftProjectId={draftProjectId}
             projectName={step1.name.trim() || 'פרויקט חדש'}
-            refreshNonce={step3Refresh}
-            onAssetsChanged={bumpStep3List}
           />
         ) : null}
       </ScrollView>

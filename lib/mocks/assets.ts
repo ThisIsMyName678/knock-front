@@ -12,6 +12,7 @@ export type ProjectEntity = {
   name: string;
   address: string;
   assetCount: number;
+  rentedCount: number;
   occupancy: OccupancyStatus;
   role: UserRole;
 };
@@ -34,12 +35,12 @@ export type AssetEntity = {
 export type Entity = ProjectEntity | AssetEntity;
 
 export const MOCK_PROJECTS: ProjectEntity[] = [
-  { id: 'p1', kind: 'project', name: 'מגדלי הים', address: 'הרצל 10, תל אביב', assetCount: 12, occupancy: 'rented', role: { kind: 'owner' } },
-  { id: 'p2', kind: 'project', name: 'גני הדר', address: 'ביאליק 3, ר״ג', assetCount: 7, occupancy: 'rented', role: { kind: 'custom', label: 'מנהל פרויקט' } },
-  { id: 'p3', kind: 'project', name: 'בית ספיר', address: 'המלך ג׳ורג׳ 5, ירושלים', assetCount: 4, occupancy: 'vacant', role: { kind: 'owner' } },
-  { id: 'p4', kind: 'project', name: 'פרויקט חוף', address: 'הנמל 2, חיפה', assetCount: 9, occupancy: 'construction', role: { kind: 'custom', label: 'מנהל אתר' } },
-  { id: 'p5', kind: 'project', name: 'מתחם הפארק', address: 'רוטשילד 22, ת״א', assetCount: 3, occupancy: 'vacant', role: { kind: 'owner' } },
-  { id: 'p6', kind: 'project', name: 'שיכון דרום', address: 'שד׳ ירושלים 5, באר שבע', assetCount: 18, occupancy: 'rented', role: { kind: 'tenant' } },
+  { id: 'p1', kind: 'project', name: 'מגדלי הים', address: 'הרצל 10, תל אביב', assetCount: 12, rentedCount: 8, occupancy: 'rented', role: { kind: 'owner' } },
+  { id: 'p2', kind: 'project', name: 'גני הדר', address: 'ביאליק 3, ר״ג', assetCount: 7, rentedCount: 5, occupancy: 'rented', role: { kind: 'custom', label: 'מנהל פרויקט' } },
+  { id: 'p3', kind: 'project', name: 'בית ספיר', address: 'המלך ג׳ורג׳ 5, ירושלים', assetCount: 4, rentedCount: 0, occupancy: 'vacant', role: { kind: 'owner' } },
+  { id: 'p4', kind: 'project', name: 'פרויקט חוף', address: 'הנמל 2, חיפה', assetCount: 9, rentedCount: 0, occupancy: 'construction', role: { kind: 'custom', label: 'מנהל אתר' } },
+  { id: 'p5', kind: 'project', name: 'מתחם הפארק', address: 'רוטשילד 22, ת״א', assetCount: 3, rentedCount: 1, occupancy: 'vacant', role: { kind: 'owner' } },
+  { id: 'p6', kind: 'project', name: 'שיכון דרום', address: 'שד׳ ירושלים 5, באר שבע', assetCount: 18, rentedCount: 14, occupancy: 'rented', role: { kind: 'tenant' } },
 ];
 
 export const MOCK_ASSETS: AssetEntity[] = [

@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, Linking, Alert, Share } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, ScrollView, StyleSheet, Pressable, Linking, Alert, Share, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
@@ -10,18 +10,20 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import {
-  getContactDetailMock,
   CONTACT_KIND_LABELS,
   MODULE_LABELS,
   ALL_MODULE_KEYS,
   PERMISSION_ACTION_LABELS,
   type PermissionActionKey,
+  type ContactListRow,
   inviteUrlForToken,
-  removeContactFromSnapshot,
   telUrl,
   whatsappUrlFromPhone,
-  assetsUnderProject,
 } from '@/lib/mocks/contacts';
+import { getContact, archiveContact } from '@/lib/api/contacts';
+import { listProperties, type BackendProperty } from '@/lib/api/properties';
+import { contactDetailToRow } from '@/lib/adapters/contact-permissions';
+import { BackendApiError } from '@/lib/backend';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
@@ -38,7 +40,7 @@ async function openUrl(url: string) {
   }
 }
 
-function summarizePermissions(contact: ReturnType<typeof getContactDetailMock>) {
+function summarizePermissions(contact: ContactListRow | null) {
   if (!contact) return [];
   const lines: string[] = [];
   for (const m of ALL_MODULE_KEYS) {
@@ -54,12 +56,53 @@ function summarizePermissions(contact: ReturnType<typeof getContactDetailMock>) 
 export default function ContactDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const contact = useMemo(() => getContactDetailMock(String(id ?? '')), [id]);
+  const [contact, setContact] = useState<ContactListRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [projectAssets, setProjectAssets] = useState<BackendProperty[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      getContact(String(id ?? ''))
+        .then((detail) => {
+          if (!active) return;
+          const row = contactDetailToRow(detail);
+          setContact(row);
+          if (row.linkKind === 'project' && row.linkId) {
+            return listProperties({ projectId: row.linkId }).then((properties) => {
+              if (active) setProjectAssets(properties);
+            });
+          }
+          setProjectAssets([]);
+        })
+        .catch((error) => {
+          if (!active) return;
+          console.warn(error instanceof Error ? error.message : 'Failed to load contact');
+          setContact(null);
+          setProjectAssets([]);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }, [id]),
+  );
 
   const permLines = useMemo(() => summarizePermissions(contact), [contact]);
 
-  const projectAssets =
-    contact?.linkKind === 'project' && contact.linkId ? assetsUnderProject(contact.linkId) : [];
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="איש קשר" showBack />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   if (!contact) {
     return (
@@ -85,14 +128,18 @@ export default function ContactDetailScreen() {
   };
 
   const onDelete = () => {
-    Alert.alert('מחיקה', 'להסיר את איש הקשר מהרשימה המקומית?', [
+    Alert.alert('מחיקה', 'למחוק את איש הקשר?', [
       { text: 'ביטול', style: 'cancel' },
       {
         text: 'מחק',
         style: 'destructive',
         onPress: () => {
-          removeContactFromSnapshot(contact.id);
-          router.back();
+          archiveContact(contact.id)
+            .then(() => router.back())
+            .catch((error) => {
+              const message = error instanceof BackendApiError ? error.message : 'מחיקת איש הקשר נכשלה.';
+              Alert.alert('שגיאה', message);
+            });
         },
       },
     ]);
@@ -219,18 +266,19 @@ const styles = StyleSheet.create({
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   profileCard: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant,
+    borderColor: Colors.outlineLight,
     padding: Spacing.xl,
     alignItems: 'center',
     gap: Spacing.sm,
+    ...Shadow.sm,
   },
   avatar: {
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.accentMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -62,25 +62,25 @@ type ContactItem = {
 };
 
 const colors = {
-  primary: "#004a99",
+  primary: "#18181B",
   onPrimary: "#ffffff",
-  background: "#f9f9ff",
-  onBackground: "#111c2d",
-  onSurfaceVariant: "#64748b", // closest practical match to M3 "on-surface-variant" for RN Text
+  background: "#F8FAFC",
+  onBackground: "#0F172A",
+  onSurfaceVariant: "#64748B",
   surface: "#ffffff",
-  outlineVariant: "#c2c6d3",
-  error: "#ba1a1a",
+  outlineVariant: "#E2E8F0",
+  error: "#DC2626",
 
   feed: {
-    maintenance: "#f59e0b",
-    payments: "#004a99",
-    messages: "#10b981",
-    contracts: "#6b7280",
+    maintenance: "#F59E0B",
+    payments: "#6366F1",
+    messages: "#10B981",
+    contracts: "#64748B",
   },
 
   maintenance: {
     open: "#f59e0b",
-    inProgress: "#004a99",
+    inProgress: "#6366F1",
     closed: "#10b981",
   },
 

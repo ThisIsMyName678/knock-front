@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     position: 'relative',
   },
-  unread: { backgroundColor: '#f0f5ff' },
+  unread: { backgroundColor: Colors.accentMuted },
   unreadDot: {
     position: 'absolute',
     top: Spacing.base + 6,

@@ -10,7 +10,7 @@ type Props = {
   noPadding?: boolean;
 };
 
-export function Card({ children, onPress, style, elevated = false, noPadding = false }: Props) {
+export function Card({ children, onPress, style, elevated = true, noPadding = false }: Props) {
   const inner = (
     <View style={[styles.base, elevated && styles.elevated, noPadding && styles.noPadding, style]}>
       {children}
@@ -35,16 +35,13 @@ export function Card({ children, onPress, style, elevated = false, noPadding = f
 const styles = StyleSheet.create({
   base: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    padding: Spacing.base,
+    borderColor: Colors.outlineLight,
+    padding: Spacing.lg,
     overflow: 'hidden',
   },
-  elevated: {
-    ...Shadow.md,
-    borderWidth: 0,
-  },
+  elevated: { ...Shadow.sm },
   noPadding: { padding: 0 },
-  pressed: { opacity: 0.9 },
+  pressed: { opacity: 0.92 },
 });

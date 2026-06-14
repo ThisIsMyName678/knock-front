@@ -5,10 +5,9 @@ import {
   Pressable,
   Share,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -18,16 +17,18 @@ import { RTL_ROW } from '@/constants/rtl';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
+import { CardSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import {
-  MOCK_ENTITY_LINKS,
   CONTRACT_TYPE_LABELS,
   CONTRACT_STATUS_LABELS,
   type ContractSortKey,
   type SortDir,
   type LinkScopeFilter,
   type ContractTypeFilter,
-} from '@/lib/mocks/contracts';
+} from '@/lib/constants/contracts';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
+import { listProjects } from '@/lib/api/projects';
+import { listProperties } from '@/lib/api/properties';
 import {
   Colors,
   Spacing,
@@ -160,8 +161,14 @@ export function ContractsListScreen() {
   const [agreementDateTo, setAgreementDateTo] = useState('');
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const showSkeleton = useSkeletonGate(loading);
+  const [entityLinks, setEntityLinks] = useState<Array<{ id: string; kind: 'asset' | 'project'; name: string }>>([]);
+  const [focusCount, setFocusCount] = useState(0);
+
+  useFocusEffect(useCallback(() => { setFocusCount((n) => n + 1); }, []));
 
   useEffect(() => {
+    if (focusCount === 0) return;
     let cancelled = false;
     setLoading(true);
     const filters: Parameters<typeof fetchContracts>[0] = {};
@@ -176,7 +183,18 @@ export function ContractsListScreen() {
       .catch(() => { if (!cancelled) setContracts([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo]);
+  }, [focusCount, linkScope, typeFilter, entityId, agreementDateFrom, agreementDateTo]);
+
+  useEffect(() => {
+    Promise.all([listProjects(), listProperties()])
+      .then(([projects, properties]) => {
+        setEntityLinks([
+          ...projects.map((p) => ({ id: p.id, kind: 'project' as const, name: p.name })),
+          ...properties.map((p) => ({ id: p.id, kind: 'asset' as const, name: p.name })),
+        ]);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Fixed sort handler: no nested setState ──
   const handleSortKeyChange = useCallback((key: string) => {
@@ -225,14 +243,13 @@ export function ContractsListScreen() {
 
   const entityOptionsForScope = useMemo(
     () =>
-      MOCK_ENTITY_LINKS.filter((e) => {
-        if (linkScope === 'all') return true;
-        return e.kind === (linkScope === 'PROPERTY' ? 'asset' : 'project');
-      }).map((e) => ({
-        key: e.id,
-        label: e.name,
-      })),
-    [linkScope],
+      entityLinks
+        .filter((e) => {
+          if (linkScope === 'all') return true;
+          return e.kind === (linkScope === 'PROPERTY' ? 'asset' : 'project');
+        })
+        .map((e) => ({ key: e.id, label: e.name })),
+    [linkScope, entityLinks],
   );
 
   // ── Count: scope + entity (typeFilter is visible in tabs, not counted here) ──
@@ -366,10 +383,8 @@ export function ContractsListScreen() {
         </View>
       )}
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
+      {showSkeleton ? (
+        <CardSkeletonList count={6} variant="contract" style={{ flex: 1 }} />
       ) : sorted.length === 0 ? (
         <EmptyState
           title="אין חוזים"
@@ -380,19 +395,21 @@ export function ContractsListScreen() {
           style={{ flex: 1 }}
         />
       ) : (
-        <FlatList
-          data={sorted}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
-          showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
-          renderItem={({ item }) => (
-            <ContractCard
-              item={item}
-              onPress={() => router.push(`/(app)/contracts/${item.id}`)}
-            />
-          )}
-        />
+        <FadeInContent visible style={{ flex: 1 }}>
+          <FlatList
+            data={sorted}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={{ height: Spacing.sm }} />}
+            renderItem={({ item }) => (
+              <ContractCard
+                item={item}
+                onPress={() => router.push(`/(app)/contracts/${item.id}`)}
+              />
+            )}
+          />
+        </FadeInContent>
       )}
 
       {/* FAB */}
@@ -410,7 +427,6 @@ export function ContractsListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   // ── Disclaimer ──
   disclaimer: {
@@ -462,7 +478,7 @@ const styles = StyleSheet.create({
   // ── Card ──
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     borderColor: Colors.outlineLight,
     paddingVertical: Spacing.md,

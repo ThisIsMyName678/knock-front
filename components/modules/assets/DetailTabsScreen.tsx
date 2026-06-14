@@ -10,11 +10,12 @@ import {
   Alert,
   Linking,
   Share,
+  ActivityIndicator,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -35,12 +36,11 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import { EntityListScreen } from './EntityListScreen';
 import { AddAssetToProjectActions } from './AddAssetToProjectActions';
-import { MOCK_PROJECTS } from '@/lib/mocks/assets';
+import { MOCK_PROJECTS, type AssetEntity } from '@/lib/mocks/assets';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import {
-  MOCK_TASKS_LIST,
   TASK_KIND_LABELS,
   TASK_KIND_ICONS,
   WORKFLOW_STATUS_LABELS,
@@ -50,11 +50,23 @@ import {
   type TaskPriority,
   TASK_PRIORITY_LABELS,
 } from '@/lib/mocks/tasks';
-import { assetsForProject } from '@/lib/mocks/assets';
-import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
+import { listTasks, backendTaskToListRow } from '@/lib/api/tasks';
+import { PAYMENT_TYPE_LABELS, type PaymentListRow } from '@/lib/mocks/payments';
+import { listPayments, paymentToListRow } from '@/lib/api/payments';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
+import {
+  DOCUMENT_TYPE_LABELS,
+  DOCUMENT_CATEGORY_LABELS,
+  categoryOfDocumentType,
+  type DocumentListRow,
+  type DocumentCategoryFilter,
+  type DocumentFileKind,
+} from '@/lib/mocks/documents';
+import { listDocuments, documentToListRow } from '@/lib/api/documents';
 import { getProperty, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
 import { getProject, type BackendProject } from '@/lib/api/projects';
+import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
+import { listPropertyContacts, listProjectContacts, type ContactListItem } from '@/lib/api/contacts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,25 +84,7 @@ type FeedItem = {
   targetId?: string;
 };
 
-type ContractInfo = {
-  id: string;
-  contractId: string;
-  tenantName: string;
-  startDate: string;
-  endDate: string;
-  monthlyRent: number;
-  active: boolean;
-};
-
 // TaskItem is no longer used — TasksTab uses TaskListRow from lib/mocks/tasks
-
-type DocItem = {
-  id: string;
-  name: string;
-  category: string;
-  uploadDate: string;
-  kind: 'pdf' | 'image';
-};
 
 type ContactItem = {
   id: string;
@@ -129,9 +123,9 @@ function makeFeed(): FeedItem[] {
       kind,
       title:
         kind === 'task' ? 'בדיקת מד מים בוצעה'
-        : kind === 'payment' ? 'תשלום שכירות התקבל'
-        : kind === 'message' ? 'הודעה מהדייר'
-        : 'חוזה עודכן',
+          : kind === 'payment' ? 'תשלום שכירות התקבל'
+            : kind === 'message' ? 'הודעה מהדייר'
+              : 'חוזה עודכן',
       dateIso: new Date(now - i * 1000 * 60 * 60 * 5).toISOString(),
       targetId,
     };
@@ -139,40 +133,17 @@ function makeFeed(): FeedItem[] {
   return rows.sort((a, b) => new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime());
 }
 
-const MOCK_CONTRACTS: ContractInfo[] = [
-  {
-    id: 'ctr1',
-    contractId: 'c1',
-    tenantName: 'יוסי כהן',
-    startDate: '01/01/2024',
-    endDate: '31/12/2025',
-    monthlyRent: 7200,
-    active: true,
-  },
-  {
-    id: 'ctr2',
-    contractId: 'c2',
-    tenantName: 'דנה לוי',
-    startDate: '01/01/2022',
-    endDate: '31/12/2023',
-    monthlyRent: 6500,
-    active: false,
-  },
-];
-
 // MOCK_TASKS replaced by MOCK_TASKS_LIST imported from lib/mocks/tasks
 
-const MOCK_DOCS: DocItem[] = [
-  { id: 'doc1', name: 'חוזה שכירות 2024.pdf', category: 'חוזה', uploadDate: '01/01/2024', kind: 'pdf' },
-  { id: 'doc2', name: 'תמונת נזק.jpg', category: 'נזקים', uploadDate: '10/03/2026', kind: 'image' },
-  { id: 'doc3', name: 'אישור עירייה.pdf', category: 'רשויות', uploadDate: '15/12/2023', kind: 'pdf' },
-];
-
-const MOCK_CONTACTS: ContactItem[] = [
-  { id: 'ct1', name: 'יוסי כהן', role: 'דייר', phone: '050-1234567', email: 'yossi.cohen@example.com' },
-  { id: 'ct2', name: 'מיכל לוי', role: 'מנהל נכס', phone: '052-9876543', email: 'michal.property@example.com' },
-  { id: 'ct3', name: 'שירות חרום', role: 'בעל תפקיד', phone: '054-1111222', email: 'emergency.service@example.com' },
-];
+function contactToItem(c: ContactListItem): ContactItem {
+  return {
+    id: c.id,
+    name: c.displayName,
+    role: c.nickname?.trim() || (c.contactKind === 'TENANT_BUYER' ? 'שוכר / רוכש' : 'בעל תפקיד'),
+    phone: c.phone,
+    email: c.email ?? undefined,
+  };
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -236,6 +207,18 @@ function feedIcon(kind: FeedKind): React.ComponentProps<typeof MaterialCommunity
   if (kind === 'payment') return 'cash-check';
   if (kind === 'message') return 'message-outline';
   return 'file-sign';
+}
+
+function docFileIconName(kind: DocumentFileKind): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (kind === 'pdf') return 'file-pdf-box';
+  if (kind === 'image') return 'file-image-outline';
+  return 'file-outline';
+}
+
+function docFileIconColor(kind: DocumentFileKind): string {
+  if (kind === 'pdf') return Colors.error;
+  if (kind === 'image') return Colors.info;
+  return Colors.onSurfaceVariant;
 }
 
 function taskStatusPreset(s: WorkflowStatus): React.ComponentProps<typeof Badge>['preset'] {
@@ -635,6 +618,20 @@ function FeedTab() {
 
 function ProjectMainAssetsTab({ entityId, projectName }: { entityId: string; projectName: string }) {
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [linkedAssetPatch, setLinkedAssetPatch] = useState<AssetEntity | null>(null);
+
+  const handleAssetsChanged = useCallback((linkedAsset: AssetEntity) => {
+    if (__DEV__) {
+      console.log('[ProjectMainAssetsTab] asset linked', {
+        entityId,
+        linkedAssetId: linkedAsset.id,
+        linkedAssetProjectId: linkedAsset.projectId,
+      });
+    }
+    setLinkedAssetPatch(linkedAsset);
+    setRefreshNonce((n) => n + 1);
+  }, [entityId]);
+
   return (
     <View style={{ flex: 1 }}>
       <EntityListScreen
@@ -643,18 +640,25 @@ function ProjectMainAssetsTab({ entityId, projectName }: { entityId: string; pro
         scopedProjectId={entityId}
         scopedProjectName={projectName}
         refreshNonce={refreshNonce}
+        linkedAssetPatch={linkedAssetPatch}
       />
       <AddAssetToProjectActions
         projectId={entityId}
         projectName={projectName}
-        onAssetsChanged={() => setRefreshNonce((n) => n + 1)}
+        onAssetsChanged={handleAssetsChanged}
         variant="fab"
       />
     </View>
   );
 }
 
-function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: string; projectName?: string }) {
+function MainTab({ mode, entityId, projectName, propertyName, propertyAddress }: {
+  mode: DetailMode;
+  entityId: string;
+  projectName?: string;
+  propertyName?: string;
+  propertyAddress?: string;
+}) {
   if (mode === 'project') {
     return <ProjectMainAssetsTab entityId={entityId} projectName={projectName ?? ''} />;
   }
@@ -666,51 +670,95 @@ function MainTab({ mode, entityId, projectName }: { mode: DetailMode; entityId: 
     { key: 'inactive' as const, label: 'לא פעיל' },
   ];
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const filtered = MOCK_CONTRACTS.filter(
-    (c) => filter === 'all' || (filter === 'active' ? c.active : !c.active),
+  const [contracts, setContracts] = useState<ContractListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!entityId) return;
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      fetchContracts({ propertyId: entityId })
+        .then((rows) => { if (!cancelled) setContracts(rows); })
+        .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת חוזים'); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+      return () => { cancelled = true; };
+    }, [entityId]),
   );
+
+  const filtered = contracts.filter((c) => {
+    const active = c.status === 'ACTIVE';
+    return filter === 'all' || (filter === 'active' ? active : !active);
+  });
 
   return (
     <View style={{ flex: 1 }}>
       <FilterRow options={filterOptions} active={filter} onSelect={setFilter} />
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        contentContainerStyle={listStyles.content}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
-        ListEmptyComponent={
-          <EmptyState title="אין חוזים" icon={<MaterialCommunityIcons name="file-sign" size={28} color={Colors.primary} />} />
-        }
-        renderItem={({ item }) => (
-          <Card>
-            <View style={listStyles.contractHeader}>
-              <View style={listStyles.contractIcon}>
-                <MaterialCommunityIcons name="file-sign" size={22} color={Colors.primary} />
-              </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <View style={listStyles.row}>
-                  <AppText variant="bodyMd" weight="bold" style={{ flex: 1 }}>{item.tenantName}</AppText>
-                  <Badge label={item.active ? 'פעיל' : 'לא פעיל / לא בתוקף'} preset={item.active ? 'success' : 'neutral'} />
+      {loading ? (
+        <InlineEmpty text="טוען חוזים..." />
+      ) : error ? (
+        <InlineEmpty text={error} />
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]}
+          ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
+          ListEmptyComponent={
+            <EmptyState title="אין חוזים" icon={<MaterialCommunityIcons name="file-sign" size={28} color={Colors.primary} />} />
+          }
+          renderItem={({ item }) => {
+            const active = item.status === 'ACTIVE';
+            return (
+              <Card>
+                <View style={listStyles.contractHeader}>
+                  <View style={listStyles.contractIcon}>
+                    <MaterialCommunityIcons name="file-sign" size={22} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <View style={listStyles.row}>
+                      <AppText variant="bodyMd" weight="bold" style={{ flex: 1 }}>{item.counterpartyName}</AppText>
+                      <Badge label={active ? 'פעיל' : 'לא פעיל / לא בתוקף'} preset={active ? 'success' : 'neutral'} />
+                    </View>
+                    <AppText variant="bodySm" color="variant">
+                      {item.agreementDate ? fmtDate(item.agreementDate) : '—'} – {item.endDate ? fmtDate(item.endDate) : '—'}
+                    </AppText>
+                  </View>
                 </View>
-                <AppText variant="bodySm" color="variant">{item.startDate} – {item.endDate}</AppText>
-              </View>
-            </View>
-            <View style={listStyles.divider} />
-            <View style={listStyles.contractRow}>
-              <AppText variant="bodySm" color="variant">שכירות חודשית</AppText>
-              <AppText variant="bodyMd" weight="bold" color="primary">{fmtIls(item.monthlyRent)}</AppText>
-            </View>
-            <Pressable
-              onPress={() => router.push(`/(app)/contracts/${item.contractId}`)}
-              style={({ pressed }) => [listStyles.contractLink, pressed && { opacity: 0.75 }]}
-              accessibilityRole="button"
-            >
-              <AppText variant="bodySm" color="primary" weight="semiBold">צפה בחוזה במודול חוזים</AppText>
-              <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.primary} />
-            </Pressable>
-          </Card>
-        )}
+                <View style={listStyles.divider} />
+                <View style={listStyles.contractRow}>
+                  <AppText variant="bodySm" color="variant">שכירות חודשית</AppText>
+                  <AppText variant="bodyMd" weight="bold" color="primary">{item.monthlyAmount ? fmtIls(Number(item.monthlyAmount)) : '—'}</AppText>
+                </View>
+                <Pressable
+                  onPress={() => router.push(`/(app)/contracts/${item.id}`)}
+                  style={({ pressed }) => [listStyles.contractLink, pressed && { opacity: 0.75 }]}
+                  accessibilityRole="button"
+                >
+                  <AppText variant="bodySm" color="primary" weight="semiBold">צפה בחוזה במודול חוזים</AppText>
+                  <MaterialCommunityIcons name="chevron-left" size={16} color={Colors.primary} />
+                </Pressable>
+              </Card>
+            );
+          }}
+        />
+      )}
+      <TabFab
+        onPress={() =>
+          router.push({
+            pathname: '/(app)/contracts/new',
+            params: {
+              preloadId: entityId,
+              preloadName: propertyName ?? '',
+              preloadAddress: propertyAddress ?? '',
+              preloadKind: 'asset',
+            },
+          })
+        }
+        accessibilityLabel="חוזה חדש"
       />
     </View>
   );
@@ -734,6 +782,27 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [tasks, setTasks] = useState<TaskListRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const params = mode === 'project'
+      ? { projectId: entityId }
+      : { propertyId: entityId };
+    listTasks(params)
+      .then((res) => {
+        if (!cancelled) setTasks(res.data.map(backendTaskToListRow));
+      })
+      .catch(() => {
+        if (!cancelled) setTasks([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [entityId, mode]);
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
@@ -753,11 +822,6 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
     { key: 'all', label: 'הכל' },
     ...Object.entries(TASK_PRIORITY_LABELS).map(([k, v]) => ({ key: k, label: v })),
   ], []);
-
-  const projectAssetIds = useMemo(
-    () => new Set(assetsForProject(entityId).map((a) => a.id)),
-    [entityId],
-  );
 
   const filterSections: FilterSection[] = useMemo(() => [
     {
@@ -785,12 +849,7 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
   ], [kindFilter, priorityFilter, dateFrom, dateTo, taskKindOptions, priorityOptions]);
 
   const filtered = useMemo(() => {
-    return MOCK_TASKS_LIST.filter((t) => {
-      const matchesScope =
-        mode === 'asset'
-          ? t.linkId === entityId
-          : t.linkId === entityId || (t.linkKind === 'asset' && projectAssetIds.has(t.linkId));
-      if (!matchesScope) return false;
+    return tasks.filter((t) => {
       if (statusFilter !== 'all') {
         if (statusFilter === 'open' && !(t.workflowStatus === 'open' || t.workflowStatus === 'not_started')) return false;
         if (statusFilter === 'in_progress' && t.workflowStatus !== 'in_progress') return false;
@@ -803,7 +862,7 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
       if (q && !(t.title.toLowerCase().includes(q) || TASK_KIND_LABELS[t.taskKind].toLowerCase().includes(q) || t.dueDate.includes(q))) return false;
       return true;
     });
-  }, [mode, entityId, projectAssetIds, statusFilter, kindFilter, priorityFilter, dateFrom, dateTo, search]);
+  }, [tasks, statusFilter, kindFilter, priorityFilter, dateFrom, dateTo, search]);
 
   const resetFilters = useCallback(() => {
     setKindFilter('all');
@@ -830,7 +889,9 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
         contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
         ListEmptyComponent={
-          <EmptyState title="אין משימות" icon={<MaterialCommunityIcons name="hammer-wrench" size={28} color={Colors.primary} />} />
+          loading
+            ? <ActivityIndicator style={{ marginTop: Spacing.xl }} color={Colors.primary} />
+            : <EmptyState title="אין משימות" icon={<MaterialCommunityIcons name="hammer-wrench" size={28} color={Colors.primary} />} />
         }
         renderItem={({ item }) => (
           <Pressable
@@ -850,6 +911,9 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
                 </View>
                 <View style={{ flex: 1, gap: Spacing.xs }}>
                   <AppText variant="bodyMd" weight="bold" numberOfLines={2}>{item.title}</AppText>
+                  {!!item.description && (
+                    <AppText variant="bodySm" color="muted" numberOfLines={1}>{item.description}</AppText>
+                  )}
                   <View style={listStyles.rowGap}>
                     <MaterialCommunityIcons name="tag-outline" size={13} color={Colors.onSurfaceVariant} />
                     <AppText variant="bodySm" color="variant">{TASK_KIND_LABELS[item.taskKind]}</AppText>
@@ -885,26 +949,43 @@ function TasksTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
 
 // ─── Tab: Documents ───────────────────────────────────────────────────────────
 
-function DocumentsTab({ entityId }: { entityId: string }) {
-  const catOptions = [
-    { key: 'all', label: 'הכל' },
-    { key: 'חוזה', label: 'חוזים' },
-    { key: 'נזקים', label: 'נזקים' },
-    { key: 'רשויות', label: 'רשויות' },
-  ];
-  const typeOptions = [
+function DocumentsTab({ entityId, mode, entityName, entityAddress }: { entityId: string; mode: DetailMode; entityName: string; entityAddress: string }) {
+  const catOptions = (Object.keys(DOCUMENT_CATEGORY_LABELS) as DocumentCategoryFilter[]).map((key) => ({
+    key,
+    label: DOCUMENT_CATEGORY_LABELS[key],
+  }));
+  const typeOptions: { key: 'all' | DocumentFileKind; label: string }[] = [
     { key: 'all', label: 'הכל' },
     { key: 'pdf', label: 'PDF' },
     { key: 'image', label: 'תמונה' },
+    { key: 'other', label: 'אחר' },
   ];
 
-  const [catFilter, setCatFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [documents, setDocuments] = useState<DocumentListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [catFilter, setCatFilter] = useState<DocumentCategoryFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | DocumentFileKind>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [menuDoc, setMenuDoc] = useState<(typeof MOCK_DOCS)[0] | null>(null);
+  const [menuDoc, setMenuDoc] = useState<DocumentListRow | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!entityId) return;
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      const params = mode === 'asset' ? { propertyId: entityId } : { projectId: entityId };
+      listDocuments(params)
+        .then((docs) => { if (!cancelled) setDocuments(docs.map(documentToListRow)); })
+        .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת מסמכים'); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+      return () => { cancelled = true; };
+    }, [mode, entityId]),
+  );
 
   const activeFilterCount = useMemo(() => {
     let n = 0;
@@ -920,7 +1001,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
       label: 'סוג קובץ',
       options: typeOptions,
       value: typeFilter,
-      onChange: setTypeFilter,
+      onChange: (k: string) => setTypeFilter(k as 'all' | DocumentFileKind),
     },
     {
       kind: 'dateRange',
@@ -939,15 +1020,15 @@ function DocumentsTab({ entityId }: { entityId: string }) {
   }, []);
 
   const filtered = useMemo(() => {
-    return MOCK_DOCS.filter((d) => {
-      if (catFilter !== 'all' && d.category !== catFilter) return false;
-      if (typeFilter !== 'all' && d.kind !== typeFilter) return false;
-      if (!inDateRange(d.uploadDate, dateFrom, dateTo)) return false;
+    return documents.filter((d) => {
+      if (catFilter !== 'all' && categoryOfDocumentType(d.documentType) !== catFilter) return false;
+      if (typeFilter !== 'all' && d.fileKind !== typeFilter) return false;
+      if (!inDateRange(d.uploadedAt, dateFrom, dateTo)) return false;
       const q = search.trim().toLowerCase();
-      if (q && !(d.name.toLowerCase().includes(q) || d.category.toLowerCase().includes(q))) return false;
+      if (q && !(d.displayName.toLowerCase().includes(q) || DOCUMENT_TYPE_LABELS[d.documentType].toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [catFilter, typeFilter, dateFrom, dateTo, search]);
+  }, [documents, catFilter, typeFilter, dateFrom, dateTo, search]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -958,31 +1039,37 @@ function DocumentsTab({ entityId }: { entityId: string }) {
         onFilterPress={() => setSheetOpen(true)}
         activeFilterCount={activeFilterCount}
       />
-      <FilterRow options={catOptions} active={catFilter} onSelect={setCatFilter} />
+      <FilterRow options={catOptions} active={catFilter} onSelect={(k) => setCatFilter(k as DocumentCategoryFilter)} />
       <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <ScrollView contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]} showsVerticalScrollIndicator={false}>
         <RecommendedDocChecklistPanel />
 
         {/* Document list */}
-        {filtered.length === 0 && <InlineEmpty text="אין מסמכים להצגה" />}
-        {filtered.map((doc, i) => (
+        {loading ? (
+          <InlineEmpty text="טוען מסמכים..." />
+        ) : error ? (
+          <InlineEmpty text={error} />
+        ) : filtered.length === 0 ? (
+          <InlineEmpty text="אין מסמכים להצגה" />
+        ) : null}
+        {!loading && !error && filtered.map((doc, i) => (
           <Pressable
             key={doc.id}
             onPress={() => router.push(`/(app)/documents/${doc.id}`)}
             style={({ pressed }) => [listStyles.docRow, i > 0 && { marginTop: Spacing.md }, pressed && { opacity: 0.88 }]}
             accessibilityRole="button"
-            accessibilityLabel={`פתח מסמך: ${doc.name}`}
+            accessibilityLabel={`פתח מסמך: ${doc.displayName}`}
           >
-            <View style={[listStyles.docIcon, { backgroundColor: doc.kind === 'pdf' ? Colors.errorContainer : Colors.infoContainer }]}>
+            <View style={[listStyles.docIcon, { backgroundColor: `${docFileIconColor(doc.fileKind)}18` }]}>
               <MaterialCommunityIcons
-                name={doc.kind === 'pdf' ? 'file-pdf-box' : 'file-image-outline'}
+                name={docFileIconName(doc.fileKind)}
                 size={22}
-                color={doc.kind === 'pdf' ? Colors.error : Colors.info}
+                color={docFileIconColor(doc.fileKind)}
               />
             </View>
             <View style={{ flex: 1 }}>
-              <AppText variant="bodyMd" weight="semiBold" numberOfLines={2}>{doc.name}</AppText>
-              <AppText variant="bodySm" color="muted">{doc.category} · {doc.uploadDate}</AppText>
+              <AppText variant="bodyMd" weight="semiBold" numberOfLines={2}>{doc.displayName}</AppText>
+              <AppText variant="bodySm" color="muted">{DOCUMENT_TYPE_LABELS[doc.documentType]} · {doc.uploadedAt}</AppText>
             </View>
             <Pressable
               onPress={() => setMenuDoc(doc)}
@@ -999,7 +1086,12 @@ function DocumentsTab({ entityId }: { entityId: string }) {
         onPress={() =>
           router.push({
             pathname: '/(app)/documents/new',
-            params: { contextEntityId: entityId },
+            params: {
+              preloadLinkId: entityId,
+              preloadLinkLabel: entityName,
+              preloadLinkAddress: entityAddress,
+              preloadLinkKind: mode,
+            },
           })
         }
         accessibilityLabel="העלאת מסמך חדש"
@@ -1011,7 +1103,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
             <View style={listStyles.menuHandle} />
             {menuDoc && (
               <AppText variant="labelMd" weight="bold" numberOfLines={1} style={listStyles.menuTitle}>
-                {menuDoc.name}
+                {menuDoc.displayName}
               </AppText>
             )}
             {[
@@ -1030,7 +1122,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
                 label: 'שיתוף',
                 color: Colors.onBackground,
                 onPress: () => {
-                  if (menuDoc) Share.share({ title: menuDoc.name, message: `${menuDoc.name}\nקטגוריה: ${menuDoc.category}\nתאריך: ${menuDoc.uploadDate}` });
+                  if (menuDoc) Share.share({ title: menuDoc.displayName, message: `${menuDoc.displayName}\nסוג: ${DOCUMENT_TYPE_LABELS[menuDoc.documentType]}\nתאריך: ${menuDoc.uploadedAt}` });
                   setMenuDoc(null);
                 },
               },
@@ -1060,7 +1152,7 @@ function DocumentsTab({ entityId }: { entityId: string }) {
 
 // ─── Tab: Payments ────────────────────────────────────────────────────────────
 
-function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
+function PaymentsTab({ entityId, mode, entityName, entityAddress }: { entityId: string; mode: DetailMode; entityName: string; entityAddress: string }) {
   const dirOptions = [
     { key: 'all' as const, label: 'הכל' },
     { key: 'inbound' as const, label: 'הכנסות' },
@@ -1095,27 +1187,27 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
     setDateTo('');
   }, []);
 
-  const projectAssetIds = useMemo(
-    () => new Set(assetsForProject(entityId).map((a) => a.id)),
-    [entityId],
-  );
+  const [payments, setPayments] = useState<PaymentListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const inScope = useMemo(
-    () =>
-      MOCK_PAYMENTS_LIST.filter((p) => {
-        if (mode === 'asset') {
-          return p.linkKind === 'asset' && p.linkId === entityId;
-        }
-        return (
-          (p.linkKind === 'project' && p.linkId === entityId) ||
-          (p.linkKind === 'asset' && projectAssetIds.has(p.linkId))
-        );
-      }),
-    [mode, entityId, projectAssetIds],
+  useFocusEffect(
+    useCallback(() => {
+      if (!entityId) return;
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      const params = mode === 'asset' ? { propertyId: entityId } : { projectId: entityId };
+      listPayments(params)
+        .then((rows) => { if (!cancelled) setPayments(rows.map(paymentToListRow)); })
+        .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת תשלומים'); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+      return () => { cancelled = true; };
+    }, [mode, entityId]),
   );
 
   const filtered = useMemo(() => {
-    return inScope.filter((p) => {
+    return payments.filter((p) => {
       if (dirFilter !== 'all' && p.direction !== dirFilter) return false;
       if (!inDateRange(p.dueDate, dateFrom, dateTo)) return false;
       const q = search.trim().toLowerCase();
@@ -1133,7 +1225,7 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
       }
       return true;
     });
-  }, [inScope, dirFilter, dateFrom, dateTo, search]);
+  }, [payments, dirFilter, dateFrom, dateTo, search]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -1147,8 +1239,14 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
       <FilterRow options={dirOptions} active={dirFilter} onSelect={setDirFilter} />
       <FilterSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetFilters} sections={filterSections} />
       <View style={[listStyles.content, { paddingBottom: 80 }]}>
-        {filtered.length === 0 && <InlineEmpty text="אין תשלומים להצגה" />}
-        {filtered.map((p) => {
+        {loading ? (
+          <InlineEmpty text="טוען תשלומים..." />
+        ) : error ? (
+          <InlineEmpty text={error} />
+        ) : filtered.length === 0 ? (
+          <InlineEmpty text="אין תשלומים להצגה" />
+        ) : null}
+        {!loading && !error && filtered.map((p) => {
           const inbound = p.direction === 'inbound';
           const color = inbound ? Colors.inbound : Colors.outbound;
           return (
@@ -1185,7 +1283,12 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
         onPress={() =>
           router.push({
             pathname: '/(app)/payments/new',
-            params: { contextEntityId: entityId },
+            params: {
+              preloadLinkId: entityId,
+              preloadLinkLabel: entityName,
+              preloadLinkAddress: entityAddress,
+              preloadLinkKind: mode,
+            },
           })
         }
         accessibilityLabel="הוספת תשלום"
@@ -1196,21 +1299,40 @@ function PaymentsTab({ entityId, mode }: { entityId: string; mode: DetailMode })
 
 // ─── Tab: Contacts ────────────────────────────────────────────────────────────
 
-function ContactsTab({ entityId }: { entityId: string }) {
+function ContactsTab({ entityId, mode }: { entityId: string; mode: DetailMode }) {
+  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!entityId) return;
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      const fetcher = mode === 'asset' ? listPropertyContacts(entityId) : listProjectContacts(entityId);
+      fetcher
+        .then((rows) => { if (!cancelled) setContacts(rows.map(contactToItem)); })
+        .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'שגיאה בטעינת אנשי קשר'); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+      return () => { cancelled = true; };
+    }, [mode, entityId]),
+  );
+
   const roleOptions = useMemo((): { key: string; label: string }[] => {
-    const roles = Array.from(new Set(MOCK_CONTACTS.map((c) => c.role))).sort((a, b) => a.localeCompare(b, 'he'));
+    const roles = Array.from(new Set(contacts.map((c) => c.role))).sort((a, b) => a.localeCompare(b, 'he'));
     return [{ key: 'all', label: 'הכל' }, ...roles.map((r) => ({ key: r, label: r }))];
-  }, []);
+  }, [contacts]);
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const filteredContacts = useMemo(() => {
-    const byRole = roleFilter === 'all' ? MOCK_CONTACTS : MOCK_CONTACTS.filter((c) => c.role === roleFilter);
+    const byRole = roleFilter === 'all' ? contacts : contacts.filter((c) => c.role === roleFilter);
     const q = search.trim().toLowerCase();
     if (!q) return byRole;
     return byRole.filter(
       (c) => c.name.toLowerCase().includes(q) || c.phone.replace(/\s/g, '').includes(q) || c.role.toLowerCase().includes(q),
     );
-  }, [roleFilter, search]);
+  }, [contacts, roleFilter, search]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -1223,7 +1345,13 @@ function ContactsTab({ entityId }: { entityId: string }) {
         contentContainerStyle={[listStyles.content, { paddingBottom: 80 }]}
         ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
         ListEmptyComponent={
-          <EmptyState title="אין אנשי קשר" icon={<MaterialCommunityIcons name="account-group-outline" size={28} color={Colors.primary} />} />
+          loading ? (
+            <InlineEmpty text="טוען אנשי קשר..." />
+          ) : error ? (
+            <InlineEmpty text={error} />
+          ) : (
+            <EmptyState title="אין אנשי קשר" icon={<MaterialCommunityIcons name="account-group-outline" size={28} color={Colors.primary} />} />
+          )
         }
         renderItem={({ item }) => (
           <Card>
@@ -1281,8 +1409,8 @@ function ContactsTab({ entityId }: { entityId: string }) {
       <TabFab
         onPress={() =>
           router.push({
-            pathname: '/(app)/contacts/new-role',
-            params: { contextEntityId: entityId },
+            pathname: '/(app)/contacts/new',
+            params: { preloadLinkId: entityId, preloadLinkKind: mode },
           })
         }
         accessibilityLabel="הוספת בעל תפקיד"
@@ -1439,15 +1567,15 @@ export function DetailTabsScreen({
       case 'feed':
         return <FeedTab />;
       case 'main':
-        return <MainTab mode={mode} entityId={id} projectName={project?.name} />;
+        return <MainTab mode={mode} entityId={id} projectName={project?.name} propertyName={headerTitle} propertyAddress={headerAddress} />;
       case 'tasks':
         return <TasksTab entityId={id} mode={mode} />;
       case 'documents':
-        return <DocumentsTab entityId={id} />;
+        return <DocumentsTab entityId={id} mode={mode} entityName={headerTitle} entityAddress={headerAddress} />;
       case 'payments':
-        return <PaymentsTab entityId={id} mode={mode} />;
+        return <PaymentsTab entityId={id} mode={mode} entityName={headerTitle} entityAddress={headerAddress} />;
       case 'contacts':
-        return <ContactsTab entityId={id} />;
+        return <ContactsTab entityId={id} mode={mode} />;
       default:
         return null;
     }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -7,6 +7,7 @@ import {
   FlatList,
   Linking,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -19,15 +20,12 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
+import { ListRowSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
 import {
-  MOCK_CONTACTS_LIST,
   filterContactRows,
   sortContactRows,
   roleDisplayLabel,
-  setActiveContactRowsSnapshot,
-  getActiveContactRowsSnapshot,
-  consumePendingContacts,
   telUrl,
   whatsappUrlFromPhone,
   type ContactListRow,
@@ -35,6 +33,8 @@ import {
   type SortDir,
 } from '@/lib/mocks/contacts';
 import type { LinkKind } from '@/lib/mocks/contracts';
+import { listContacts } from '@/lib/api/contacts';
+import { contactItemToRow } from '@/lib/adapters/contact-permissions';
 import {
   Colors,
   Spacing,
@@ -82,7 +82,8 @@ async function openUrl(url: string) {
 
 export function ContactsListScreen() {
   const insets = useSafeAreaInsets();
-  const [rows, setRows] = useState<ContactListRow[]>(() => [...MOCK_CONTACTS_LIST]);
+  const [rows, setRows] = useState<ContactListRow[]>([]);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<ScopeFilter>('all');
   const [entityId, setEntityId] = useState<string | null>(null);
@@ -92,24 +93,45 @@ export function ContactsListScreen() {
 
   const linkScope = linkScopeFromScope(scope);
 
+  const loadContacts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const items = await listContacts();
+      setRows(items.map(contactItemToRow));
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to load contacts');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      setRows((prev) => {
-        const pending = consumePendingContacts();
-        const snap = getActiveContactRowsSnapshot();
-        if (pending.length) {
-          const base = snap ?? prev;
-          return [...pending, ...base];
-        }
-        if (snap) return [...snap];
-        return prev;
-      });
-    }, []),
+      void loadContacts();
+    }, [loadContacts]),
   );
 
-  useEffect(() => {
-    setActiveContactRowsSnapshot(rows);
-  }, [rows]);
+   //     setLoading(true);
+  //     setRows((prev) => {
+  //       const pending = consumePendingContacts();
+  //       const snap = getActiveContactRowsSnapshot();
+  //       if (pending.length) {
+  //         const base = snap ?? prev;
+  //         return [...pending, ...base];
+  //       }
+  //       if (snap) return [...snap];
+  //       return prev;
+  //     });
+  //     const id = requestAnimationFrame(() => setLoading(false));
+  //     return () => cancelAnimationFrame(id);
+  //   }, []),
+  // );
+
+  const showSkeleton = useSkeletonGate(loading);
+
+   // useEffect(() => {
+  //   setActiveContactRowsSnapshot(rows);
+  // }, [rows]);
 
   const filtered = useMemo(
     () => filterContactRows(rows, { search, linkScope, entityId }),
@@ -221,52 +243,58 @@ export function ContactsListScreen() {
         sections={filterSections}
       />
 
-      <FlatList
-        data={sorted}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={listHeader}
-        contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['2xl'] }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <EmptyState
-            title="אין אנשי קשר"
-            description="שנה סינון או חיפוש"
-            icon={<MaterialCommunityIcons name="account-group-outline" size={32} color={Colors.primary} />}
-            actionLabel="הוסף איש קשר"
-            onAction={() => router.push('/(app)/contacts/new')}
-            style={{ paddingTop: Spacing.xl }}
+      {showSkeleton ? (
+        <ListRowSkeletonList count={8} variant="table" style={{ flex: 1 }} />
+      ) : (
+        <FadeInContent visible style={{ flex: 1 }}>
+          <FlatList
+            data={sorted}
+            keyExtractor={(item) => item.id}
+            ListHeaderComponent={listHeader}
+            contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['2xl'] }}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <EmptyState
+                title="אין אנשי קשר"
+                description="שנה סינון או חיפוש"
+                icon={<MaterialCommunityIcons name="account-group-outline" size={32} color={Colors.primary} />}
+                actionLabel="הוסף איש קשר"
+                onAction={() => router.push('/(app)/contacts/new')}
+                style={{ paddingTop: Spacing.xl }}
+              />
+            }
+            renderItem={({ item }) => (
+              <View style={styles.tableRow}>
+                <Pressable onPress={() => router.push(`/(app)/contacts/${item.id}`)} style={styles.rowTap} accessibilityRole="button">
+                  <View style={[styles.td, { flex: 0.95 }]}>
+                    <AppText variant="bodySm" weight="semiBold" numberOfLines={2}>
+                      {roleDisplayLabel(item)}
+                    </AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.85 }]}>
+                    <AppText variant="caption" numberOfLines={2}>
+                      {item.linkLabel}
+                    </AppText>
+                  </View>
+                  <View style={[styles.td, { flex: 0.95 }]}>
+                    <AppText variant="bodySm" numberOfLines={2}>
+                      {item.displayName}
+                    </AppText>
+                  </View>
+                  <Pressable onPress={() => openUrl(telUrl(item.phone))} style={[styles.td, { flex: 0.85 }]} accessibilityRole="link" accessibilityLabel="חייג">
+                    <AppText variant="bodySm" color="primary" weight="semiBold" numberOfLines={1}>
+                      {item.phone}
+                    </AppText>
+                  </Pressable>
+                </Pressable>
+                <Pressable onPress={() => openUrl(whatsappUrlFromPhone(item.phone))} style={styles.waBtn} accessibilityRole="button" accessibilityLabel="WhatsApp">
+                  <MaterialCommunityIcons name="whatsapp" size={24} color="#25D366" />
+                </Pressable>
+              </View>
+            )}
           />
-        }
-        renderItem={({ item }) => (
-          <View style={styles.tableRow}>
-            <Pressable onPress={() => router.push(`/(app)/contacts/${item.id}`)} style={styles.rowTap} accessibilityRole="button">
-              <View style={[styles.td, { flex: 0.95 }]}>
-                <AppText variant="bodySm" weight="semiBold" numberOfLines={2}>
-                  {roleDisplayLabel(item)}
-                </AppText>
-              </View>
-              <View style={[styles.td, { flex: 0.85 }]}>
-                <AppText variant="caption" numberOfLines={2}>
-                  {item.linkLabel}
-                </AppText>
-              </View>
-              <View style={[styles.td, { flex: 0.95 }]}>
-                <AppText variant="bodySm" numberOfLines={2}>
-                  {item.displayName}
-                </AppText>
-              </View>
-              <Pressable onPress={() => openUrl(telUrl(item.phone))} style={[styles.td, { flex: 0.85 }]} accessibilityRole="link" accessibilityLabel="חייג">
-                <AppText variant="bodySm" color="primary" weight="semiBold" numberOfLines={1}>
-                  {item.phone}
-                </AppText>
-              </Pressable>
-            </Pressable>
-            <Pressable onPress={() => openUrl(whatsappUrlFromPhone(item.phone))} style={styles.waBtn} accessibilityRole="button" accessibilityLabel="WhatsApp">
-              <MaterialCommunityIcons name="whatsapp" size={24} color="#25D366" />
-            </Pressable>
-          </View>
-        )}
-      />
+        </FadeInContent>
+      )}
 
       {/* FAB */}
       <Pressable
@@ -283,6 +311,7 @@ export function ContactsListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tableHeader: {
     flexDirection: RTL_ROW,
     alignItems: 'center',

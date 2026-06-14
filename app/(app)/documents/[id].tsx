@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -8,9 +8,11 @@ import {
   Alert,
   Modal,
   TouchableWithoutFeedback,
+  type DimensionValue,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
@@ -19,11 +21,11 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import {
-  getDocumentDetailMock,
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_ACCESS_LABELS,
-  removeDocumentFromSnapshot,
+  type DocumentListRow,
 } from '@/lib/mocks/documents';
+import { getDocument, deleteDocument, documentToListRow } from '@/lib/api/documents';
 import { MOCK_TASKS_LIST } from '@/lib/mocks/tasks';
 import {
   Colors,
@@ -83,7 +85,7 @@ function PdfPreview({ name }: { name: string }) {
         ) : (
           <View
             key={i}
-            style={[preview.pdfLine, { width: line.width as `${string}%`, height: line.height, marginBottom: 5, borderRadius: 2 }]}
+            style={[preview.pdfLine, { width: line.width as DimensionValue, height: line.height, marginBottom: 5, borderRadius: 2 }]}
           />
         ),
       )}
@@ -298,8 +300,29 @@ function fileKindLabel(k: string) {
 export default function DocumentDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const doc = useMemo(() => getDocumentDetailMock(String(id ?? '')), [id]);
+  const [doc, setDoc] = useState<DocumentListRow | null>(null);
+  const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      getDocument(String(id ?? ''))
+        .then((document) => {
+          if (active) setDoc(documentToListRow(document));
+        })
+        .catch(() => {
+          if (active) setDoc(null);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }, [id]),
+  );
 
   const taskTitle = doc?.linkedTaskId ? MOCK_TASKS_LIST.find((t) => t.id === doc.linkedTaskId)?.title : null;
 
@@ -316,14 +339,15 @@ export default function DocumentDetailScreen() {
 
   const onDelete = useCallback(() => {
     if (!doc) return;
-    Alert.alert('מחיקה', 'להסיר את המסמך מהרשימה המקומית?', [
+    Alert.alert('מחיקה', 'למחוק את המסמך?', [
       { text: 'ביטול', style: 'cancel' },
       {
         text: 'מחק',
         style: 'destructive',
         onPress: () => {
-          removeDocumentFromSnapshot(doc.id);
-          router.back();
+          deleteDocument(doc.id)
+            .then(() => router.back())
+            .catch((error) => console.warn(error instanceof Error ? error.message : 'Failed to delete document'));
         },
       },
     ]);
@@ -332,6 +356,17 @@ export default function DocumentDetailScreen() {
   const onDuplicate = useCallback(() => {
     Alert.alert('שכפול', 'ייווצר עותק של המסמך בהמשך.', [{ text: 'אישור' }]);
   }, []);
+
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="מסמך" showBack />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   if (!doc) {
     return (

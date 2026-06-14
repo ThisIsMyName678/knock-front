@@ -1,17 +1,18 @@
-import React, { useCallback } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, Share, Alert } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import {
-  getPaymentDetailMock,
   PAYMENT_TYPE_LABELS,
   PAYMENT_MODE_LABELS,
+  type PaymentDetailMock,
 } from '@/lib/mocks/payments';
+import { getPayment, paymentToDetail } from '@/lib/api/payments';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
@@ -20,7 +21,28 @@ import { AppHeader } from '@/components/ui/AppHeader';
 export default function PaymentDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const detail = getPaymentDetailMock(id ?? '');
+  const [detail, setDetail] = useState<PaymentDetailMock | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      getPayment(id ?? '')
+        .then((payment) => {
+          if (active) setDetail(paymentToDetail(payment));
+        })
+        .catch(() => {
+          if (active) setDetail(null);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => {
+        active = false;
+      };
+    }, [id]),
+  );
 
   const onDownload = useCallback(() => {
     Alert.alert('הורדה', 'במימוש אמיתי יורד קובץ / מסמך. כעת תצוגה בלבד.', [{ text: 'אישור' }]);
@@ -52,6 +74,17 @@ export default function PaymentDetailScreen() {
       { text: 'מחק', style: 'destructive', onPress: () => router.back() },
     ]);
   }, []);
+
+  if (loading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <AppHeader title="תשלום" showBack />
+        <View style={styles.empty}>
+          <ActivityIndicator color={Colors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   if (!detail) {
     return (

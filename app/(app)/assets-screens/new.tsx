@@ -15,7 +15,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MOCK_PROJECTS } from '@/lib/mocks/assets';
-import { MOCK_CONTRACTS_LIST, CONTRACT_TYPE_LABELS } from '@/lib/mocks/contracts';
+import { CONTRACT_TYPE_LABELS } from '@/lib/constants/contracts';
+import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import { DocumentType, DOCUMENT_TYPE_LABELS } from '@/lib/mocks/documents';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
@@ -34,7 +35,7 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
-import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
+import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendOccupancyStatus, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
 import { consumePreloadedProject } from '@/lib/navigation-state';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,6 +55,8 @@ type AirDirection = 'north' | 'south' | 'east' | 'west';
 
 type PropertyCondition = 'new' | 'renovated' | 'good' | 'requires_renovation';
 
+type FormOccupancyStatus = 'VACANT' | 'OCCUPIED' | 'UNDER_CONSTRUCTION';
+
 type MeterType = 'electricity' | 'water' | 'gas' | 'other';
 
 type MeterEntry = {
@@ -66,6 +69,7 @@ type MeterEntry = {
 
 type Step1Data = {
   kind: AssetKind | null;
+  occupancyStatus: BackendOccupancyStatus;
   address: string;
   addressSuggestion: AddressSuggestion | null;
   apartmentNumber: string;
@@ -146,6 +150,15 @@ const AMENITIES: { key: AmenityKey; label: string; icon: React.ComponentProps<ty
   { key: 'parking', label: 'חניה', icon: 'parking' },
 ];
 
+const OCCUPANCY_STATUSES: { key: BackendOccupancyStatus; label: string }[] = [
+  { key: 'VACANT', label: 'פנוי' },
+  { key: 'OCCUPIED', label: 'מושכר' },
+  { key: 'PARTIALLY_OCCUPIED', label: 'מאוכלס חלקית' },
+  { key: 'UNDER_CONSTRUCTION', label: 'בבנייה' },
+  { key: 'SOLD', label: 'נמכר' },
+  { key: 'OTHER', label: 'אחר' },
+];
+
 const PROPERTY_CONDITIONS: { key: PropertyCondition; label: string }[] = [
   { key: 'new', label: 'חדש מקבלן' },
   { key: 'renovated', label: 'משופץ' },
@@ -176,6 +189,12 @@ function backendTypeToAssetKind(type: BackendPropertyType): AssetKind {
   if (type === 'APARTMENT') return 'apartment';
   if (type === 'HOUSE' || type === 'PRIVATE_HOME') return 'house';
   return 'commercial';
+}
+
+function occupancyStatusForForm(status: BackendOccupancyStatus | null): FormOccupancyStatus {
+  if (status === 'OCCUPIED' || status === 'PARTIALLY_OCCUPIED') return 'OCCUPIED';
+  if (status === 'UNDER_CONSTRUCTION') return 'UNDER_CONSTRUCTION';
+  return 'VACANT';
 }
 
 function buildPropertyName(step1: Step1Data): string {
@@ -236,6 +255,7 @@ function step1FromProperty(property: BackendProperty): Step1Data {
 
   return {
     kind: backendTypeToAssetKind(property.propertyType),
+    occupancyStatus: property.occupancyStatus ?? 'VACANT',
     address: propertyAddressLabel(property),
     addressSuggestion: addressSuggestionFromProperty(property),
     apartmentNumber: typeof addressJson?.apartmentNumber === 'string' ? addressJson.apartmentNumber : '',
@@ -349,7 +369,6 @@ function FieldInput({
           placeholder={placeholder}
           placeholderTextColor={Colors.onSurfaceMuted}
           keyboardType={keyboardType}
-          textAlign="right"
         />
         {suffix && <AppText variant="bodyMd" color="variant" style={fieldStyles.suffix}>{suffix}</AppText>}
       </View>
@@ -376,6 +395,8 @@ const fieldStyles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     fontSize: FontSize.base,
     color: Colors.onBackground,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   suffix: { paddingHorizontal: Spacing.md, color: Colors.onSurfaceVariant },
 });
@@ -514,22 +535,21 @@ function AddressAutocomplete({
   return (
     <View>
       <View style={autoStyles.inputWrap}>
-        <MaterialCommunityIcons name="map-search-outline" size={18} color={Colors.onSurfaceVariant} />
         <TextInput
           style={autoStyles.input}
           value={value}
           onChangeText={(t) => { onChange(t); }}
           placeholder="חפש כתובת..."
           placeholderTextColor={Colors.onSurfaceMuted}
-          textAlign="right"
           returnKeyType="search"
         />
-        {loading && <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 6 }} />}
+        {loading && <ActivityIndicator size="small" color={Colors.primary} />}
         {!loading && value.length > 0 && (
           <Pressable onPress={() => { onChange(''); setSuggestions([]); setShowSuggestions(false); }} accessibilityRole="button" accessibilityLabel="נקה" hitSlop={8}>
             <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
           </Pressable>
         )}
+        <MaterialCommunityIcons name="map-search-outline" size={18} color={Colors.onSurfaceVariant} />
       </View>
       {showSuggestions && suggestions.length > 0 && (
         <View style={autoStyles.dropdown}>
@@ -576,6 +596,8 @@ const autoStyles = StyleSheet.create({
     fontSize: FontSize.base,
     color: Colors.onBackground,
     paddingVertical: 4,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   dropdown: {
     borderWidth: 1,
@@ -739,10 +761,10 @@ function ProjectSearchField({
 }) {
   const filtered = query.trim().length > 0
     ? MOCK_PROJECTS.filter(
-        (p) =>
-          p.name.includes(query) ||
-          p.address.includes(query),
-      ).slice(0, 6)
+      (p) =>
+        p.name.includes(query) ||
+        p.address.includes(query),
+    ).slice(0, 6)
     : [];
 
   if (selectedId && selectedName) {
@@ -765,14 +787,12 @@ function ProjectSearchField({
   return (
     <View>
       <View style={projSearchStyles.inputRow}>
-        <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
         <TextInput
           style={projSearchStyles.input}
           value={query}
           onChangeText={onQueryChange}
           placeholder="חפש שם פרויקט..."
           placeholderTextColor={Colors.onSurfaceMuted}
-          textAlign="right"
           returnKeyType="search"
         />
         {query.length > 0 && (
@@ -780,6 +800,7 @@ function ProjectSearchField({
             <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
           </Pressable>
         )}
+        <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
       </View>
       {filtered.length > 0 && (
         <View style={projSearchStyles.dropdown}>
@@ -830,6 +851,8 @@ const projSearchStyles = StyleSheet.create({
     fontSize: FontSize.base,
     color: Colors.onBackground,
     paddingVertical: 4,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   dropdown: {
     borderWidth: 1,
@@ -932,6 +955,26 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
         ) : null}
       </View>
 
+      {/* Occupancy status */}
+      <View style={{ gap: Spacing.sm }}>
+        <AppText variant="labelMd" weight="semiBold" style={s1.label}>סטטוס תפוסה</AppText>
+        <View style={s1.chipRow}>
+          {OCCUPANCY_STATUSES.map((o) => (
+            <Pressable
+              key={o.key}
+              onPress={() => update('occupancyStatus', o.key)}
+              style={[s1.chip, data.occupancyStatus === o.key && s1.chipActive]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: data.occupancyStatus === o.key }}
+            >
+              <AppText variant="labelMd" style={{ color: data.occupancyStatus === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                {o.label}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
       {/* Address */}
       <View style={{ gap: Spacing.xs }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
@@ -972,6 +1015,26 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
         keyboardType="decimal-pad"
         suffix="מ״ר"
       />
+
+      {/* Occupancy status */}
+      <View style={{ gap: Spacing.sm }}>
+        <AppText variant="labelMd" weight="semiBold" style={s1.label}>סטטוס איכלוס</AppText>
+        <View style={s1.chipRow}>
+          {OCCUPANCY_STATUSES.map((o) => (
+            <Pressable
+              key={o.key}
+              onPress={() => update('occupancyStatus', o.key)}
+              style={[s1.chip, data.occupancyStatus === o.key && s1.chipActive]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: data.occupancyStatus === o.key }}
+            >
+              <AppText variant="labelMd" style={{ color: data.occupancyStatus === o.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                {o.label}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
 
       {/* Project link */}
       <View style={{ gap: Spacing.xs }}>
@@ -1408,11 +1471,19 @@ function Step3({
   const update = <K extends keyof Step3Data>(key: K, val: Step3Data[K]) =>
     setData((prev) => ({ ...prev, [key]: val }));
 
-  const filteredContracts = MOCK_CONTRACTS_LIST.filter((c) => {
-    const q = data.contractSearch.trim().toLowerCase();
-    if (!q) return true;
-    return `${c.contractName} ${c.linkLabel} ${c.counterpartyName}`.toLowerCase().includes(q);
-  });
+  const [searchResults, setSearchResults] = useState<ContractListItem[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (data.choice !== 'link') return;
+    let cancelled = false;
+    setSearching(true);
+    fetchContracts(data.contractSearch.trim() ? { search: data.contractSearch.trim() } : {})
+      .then((results) => { if (!cancelled) setSearchResults(results); })
+      .catch(() => { if (!cancelled) setSearchResults([]); })
+      .finally(() => { if (!cancelled) setSearching(false); });
+    return () => { cancelled = true; };
+  }, [data.contractSearch, data.choice]);
 
   const handleCreateNew = () => {
     router.push({
@@ -1499,27 +1570,28 @@ function Step3({
             <>
               {/* Search input */}
               <View style={s3.searchWrap}>
-                <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
                 <TextInput
                   style={s3.searchInput}
                   value={data.contractSearch}
                   onChangeText={(t) => update('contractSearch', t)}
                   placeholder="חפש שם חוזה, נכס, שוכר..."
                   placeholderTextColor={Colors.onSurfaceMuted}
-                  textAlign="right"
                 />
                 {data.contractSearch.length > 0 && (
                   <Pressable onPress={() => update('contractSearch', '')} hitSlop={8} accessibilityRole="button">
                     <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
                   </Pressable>
                 )}
+                <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
               </View>
 
               {/* Results */}
-              {filteredContracts.length === 0 ? (
+              {searching ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ alignSelf: 'center' }} />
+              ) : searchResults.length === 0 ? (
                 <AppText variant="bodySm" color="variant" style={{ textAlign: 'right' }}>לא נמצאו חוזים תואמים.</AppText>
               ) : (
-                filteredContracts.map((c) => (
+                searchResults.map((c) => (
                   <Pressable
                     key={c.id}
                     onPress={() => setData((prev) => ({ ...prev, linkedContractId: c.id, linkedContractName: c.contractName, contractSearch: '' }))}
@@ -1532,7 +1604,7 @@ function Step3({
                         {c.counterpartyName} · {c.linkLabel}
                       </AppText>
                     </View>
-                    <Badge label={CONTRACT_TYPE_LABELS[c.contractType]} preset="neutral" />
+                    <Badge label={CONTRACT_TYPE_LABELS[c.contractType as keyof typeof CONTRACT_TYPE_LABELS] ?? c.contractType} preset="neutral" />
                   </Pressable>
                 ))
               )}
@@ -1579,6 +1651,8 @@ const s3 = StyleSheet.create({
   searchInput: {
     flex: 1, fontFamily: FontFamily.regular, fontSize: FontSize.base,
     color: Colors.onBackground, paddingVertical: 4,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   contractRow: {
     flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.md,
@@ -1606,6 +1680,7 @@ export default function NewAssetScreen() {
 
   const [step1, setStep1] = useState<Step1Data>({
     kind: null,
+    occupancyStatus: 'VACANT',
     address: '',
     addressSuggestion: null,
     apartmentNumber: '',
@@ -1709,7 +1784,7 @@ export default function NewAssetScreen() {
           apartmentNumber: step1.apartmentNumber || undefined,
         },
         propertyType: assetKindToBackendType(step1.kind),
-        occupancyStatus: editProperty?.occupancyStatus ?? 'VACANT',
+        occupancyStatus: step1.occupancyStatus,
         projectId: uuidOrNull(step1.linkedProjectId),
         metadata: {
           floorNumber: step1.floorNumber,

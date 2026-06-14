@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Badge } from '@/components/ui/Badge';
@@ -19,20 +19,20 @@ import type { FilterSection, DateRangeQuickPreset } from '@/components/ui/Filter
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Button } from '@/components/ui/Button';
 import { RTL_ROW } from '@/constants/rtl';
+import { PaymentsListSkeleton, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import {
   PAYMENT_ENTITY_OPTIONS,
   PAYMENT_TYPE_LABELS,
   PAYMENT_MODE_LABELS,
   filterPaymentRows,
   sortPaymentRows,
-  deletePaymentFromSession,
-  getActivePaymentsList,
   type PaymentListGroupFilter,
   type PaymentListRow,
   type PaymentSortKey,
   type SortDir,
   type StatusBucket,
 } from '@/lib/mocks/payments';
+import { listPayments, deletePayment, paymentToListRow } from '@/lib/api/payments';
 import type { LinkKind } from '@/lib/mocks/contracts';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
 import {
@@ -104,7 +104,7 @@ function linkScopeFromScope(scope: ScopeFilter): 'all' | LinkKind {
 }
 
 export function PaymentsListScreen() {
-  const [payments, setPayments] = useState(() => getActivePaymentsList());
+  const [payments, setPayments] = useState<PaymentListRow[]>([]);
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     dateFrom?: string;
@@ -124,6 +124,29 @@ export function PaymentsListScreen() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PaymentListRow | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setLoading(false));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const showSkeleton = useSkeletonGate(loading);
+
+  const loadPayments = useCallback(async () => {
+    try {
+      const rows = await listPayments();
+      setPayments(rows.map(paymentToListRow));
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to load payments');
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadPayments();
+    }, [loadPayments]),
+  );
 
   useEffect(() => {
     const df = paramStr(params.dateFrom);
@@ -202,12 +225,16 @@ export function PaymentsListScreen() {
     setTimeout(() => setDeleteTarget(r), 50);
   }, []);
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    deletePaymentFromSession(deleteTarget.id);
-    setPayments(getActivePaymentsList());
+    try {
+      await deletePayment(deleteTarget.id);
+      await loadPayments();
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Failed to delete payment');
+    }
     setDeleteTarget(null);
-  }, [deleteTarget]);
+  }, [deleteTarget, loadPayments]);
 
   const activeSecondaryCount = useMemo(() => {
     let count = 0;
@@ -280,16 +307,17 @@ export function PaymentsListScreen() {
       <AppHeader title="תשלומים" showMenu />
 
       {/* Economic snapshot */}
+      {!showSkeleton ? (
       <View style={styles.summaryCard}>
-        <AppText variant="labelSm" weight="bold" color="onPrimary" style={styles.summaryTitle}>
+        <AppText variant="labelSm" weight="bold" style={styles.summaryTitle}>
           תמונת מצב כלכלית (לפי סינון)
         </AppText>
-        <AppText variant="caption" color="onPrimary" style={{ textAlign: 'right', opacity: 0.88, marginBottom: Spacing.xs }}>
+        <AppText variant="caption" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.xs }}>
           פילוח: {summaryScopeLabel}
         </AppText>
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
-            <AppText variant="caption" color="onPrimary" style={{ opacity: 0.85 }}>
+            <AppText variant="caption" color="muted">
               הכנסות
             </AppText>
             <AppText variant="headingSm" weight="bold" style={{ color: Colors.success }}>
@@ -298,7 +326,7 @@ export function PaymentsListScreen() {
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
-            <AppText variant="caption" color="onPrimary" style={{ opacity: 0.85 }}>
+            <AppText variant="caption" color="muted">
               הוצאות
             </AppText>
             <AppText variant="headingSm" weight="bold" style={{ color: Colors.outbound }}>
@@ -307,15 +335,16 @@ export function PaymentsListScreen() {
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
-            <AppText variant="caption" color="onPrimary" style={{ opacity: 0.85 }}>
+            <AppText variant="caption" color="muted">
               יתרה
             </AppText>
-            <AppText variant="headingSm" weight="extraBold" color="onPrimary">
+            <AppText variant="headingSm" weight="extraBold">
               {totals.net >= 0 ? '+' : ''}₪{formatIlsInteger(Math.abs(totals.net))}
             </AppText>
           </View>
         </View>
       </View>
+      ) : null}
 
       <FilterBar
         search={search}
@@ -334,22 +363,26 @@ export function PaymentsListScreen() {
         sections={filterSections}
       />
 
-      {sorted.length === 0 ? (
-        <EmptyState
-          title="אין תשלומים"
-          description="שנה סינון או טווח תאריכים"
-          icon={<MaterialCommunityIcons name="cash-multiple" size={32} color={Colors.primary} />}
-          actionLabel="תשלום חדש"
-          onAction={() => router.push('/(app)/payments/new')}
-          style={{ flex: 1 }}
-        />
+      {showSkeleton ? (
+        <PaymentsListSkeleton />
       ) : (
-        <FlatList
-          data={sorted}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.sm, paddingBottom: insets.bottom + 88, gap: Spacing.sm }}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
+        <FadeInContent visible style={{ flex: 1 }}>
+          {sorted.length === 0 ? (
+            <EmptyState
+              title="אין תשלומים"
+              description="שנה סינון או טווח תאריכים"
+              icon={<MaterialCommunityIcons name="cash-multiple" size={32} color={Colors.primary} />}
+              actionLabel="תשלום חדש"
+              onAction={() => router.push('/(app)/payments/new')}
+              style={{ flex: 1 }}
+            />
+          ) : (
+            <FlatList
+              data={sorted}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingHorizontal: CONTENT_HORIZONTAL_PADDING, paddingTop: Spacing.sm, paddingBottom: insets.bottom + 88, gap: Spacing.sm }}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
             const inbound = item.direction === 'inbound';
             const amtColor = inbound ? Colors.inbound : Colors.outbound;
             return (
@@ -440,7 +473,9 @@ export function PaymentsListScreen() {
               </View>
             );
           }}
-        />
+            />
+          )}
+        </FadeInContent>
       )}
 
       {/* FAB */}
@@ -497,20 +532,26 @@ export function PaymentsListScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   summaryCard: {
-    backgroundColor: Colors.primaryDark,
-    paddingHorizontal: CONTENT_HORIZONTAL_PADDING,
-    paddingVertical: Spacing.md,
+    marginHorizontal: CONTENT_HORIZONTAL_PADDING,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    padding: Spacing.lg,
     gap: Spacing.sm,
+    ...Shadow.sm,
   },
-  summaryTitle: { textAlign: 'right', opacity: 0.95 },
+  summaryTitle: { textAlign: 'right' },
   summaryRow: { flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'space-between' },
   summaryItem: { flex: 1, alignItems: 'flex-end', gap: 4 },
-  summaryDivider: { width: 1, height: 36, backgroundColor: 'rgba(255,255,255,0.25)', marginHorizontal: Spacing.sm },
+  summaryDivider: { width: 1, height: 36, backgroundColor: Colors.outlineLight, marginHorizontal: Spacing.sm },
 
   // Card-based row layout
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     borderColor: Colors.outlineLight,
     borderRightWidth: 4,

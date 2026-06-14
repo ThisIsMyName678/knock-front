@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -32,6 +32,7 @@ import { setPreloadedProject } from '@/lib/navigation-state';
 import { useSubscriptionPlan } from '@/hooks/useSubscriptionPlan';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { FilterBar } from '@/components/ui/FilterBar';
+import { GridCardSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { RTL_ROW, RTL_ALIGN_START } from '@/constants/rtl';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -141,7 +142,7 @@ function EntityCard({ entity, onPress }: { entity: Entity; onPress: () => void }
         {/* Project-only: asset count + occupancy X/Y */}
         {isProject && (() => {
           const total = entity.assetCount;
-          const rented = entity.occupancy === 'rented' ? total : 0;
+          const rented = entity.rentedCount;
           return (
             <>
               <View style={styles.cardMeta}>
@@ -306,6 +307,8 @@ type Props = {
   scopedProjectName?: string;
   /** העלאה מזהה מחדש של רשימה אחרי שינוי mock (למשל שיוך נכס) */
   refreshNonce?: number;
+  /** נכס שזה עתה שויך — מוצג מיד לפני שהרשימה מתרעננת מהשרת */
+  linkedAssetPatch?: AssetEntity | null;
 };
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -315,7 +318,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'construction', label: 'בבנייה' },
 ];
 
-export function EntityListScreen({ mode, embedded = false, scopedProjectId, scopedProjectName, refreshNonce = 0 }: Props) {
+export function EntityListScreen({ mode, embedded = false, scopedProjectId, scopedProjectName, refreshNonce = 0, linkedAssetPatch = null }: Props) {
   const insets = useSafeAreaInsets();
   const plan = useSubscriptionPlan();
   const [search, setSearch] = useState('');
@@ -323,17 +326,42 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
   const [sheetVisible, setSheetVisible] = useState(false);
   const [backendAssets, setBackendAssets] = useState<AssetEntity[]>([]);
   const [backendProjects, setBackendProjects] = useState<ProjectEntity[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const loadProperties = useCallback(async () => {
+    if (__DEV__) {
+      console.log('[EntityListScreen] listProperties start', { scopedProjectId });
+    }
     try {
       const rows = await listProperties({
         projectId: scopedProjectId,
       });
+      if (__DEV__) {
+        console.log('[EntityListScreen] listProperties result', {
+          scopedProjectId,
+          count: rows.length,
+          ids: rows.map((row) => row.id),
+        });
+      }
       setBackendAssets(rows.map(propertyToAssetEntity));
     } catch (error) {
       console.warn(error instanceof Error ? error.message : 'Failed to load properties');
     }
   }, [scopedProjectId]);
+
+  useEffect(() => {
+    if (!linkedAssetPatch || !scopedProjectId) return;
+    if (linkedAssetPatch.projectId !== scopedProjectId) return;
+    setBackendAssets((prev) => {
+      if (prev.some((row) => row.id === linkedAssetPatch.id)) return prev;
+      return [linkedAssetPatch, ...prev];
+    });
+  }, [linkedAssetPatch, scopedProjectId]);
+
+  useEffect(() => {
+    if (refreshNonce === 0) return;
+    void loadProperties();
+  }, [refreshNonce, loadProperties]);
 
   const loadProjects = useCallback(async () => {
     if (mode !== 'projects' || scopedProjectId) return;
@@ -347,10 +375,18 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
 
   useFocusEffect(
     useCallback(() => {
-      void loadProperties();
-      void loadProjects();
-    }, [loadProperties, loadProjects, refreshNonce]),
+      let cancelled = false;
+      setLoading(true);
+      Promise.all([loadProperties(), loadProjects()]).finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [loadProperties, loadProjects]),
   );
+
+  const showSkeleton = useSkeletonGate(loading);
 
   const rawData: Entity[] = useMemo(() => {
     if (scopedProjectId) {
@@ -358,7 +394,11 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
     }
     if (mode === 'projects') {
       const orphans = plan === 'enterprise' ? backendAssets.filter((asset) => asset.projectId == null) : [];
-      return [...backendProjects, ...orphans];
+      const projectsWithRented = backendProjects.map((p) => ({
+        ...p,
+        rentedCount: backendAssets.filter((a) => a.projectId === p.id && a.occupancy === 'rented').length,
+      }));
+      return [...projectsWithRented, ...orphans];
     }
     return backendAssets;
   }, [mode, scopedProjectId, plan, backendAssets, backendProjects]);
@@ -441,8 +481,9 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
         </View>
       ) : null}
 
-      {/* No data at all — onboarding empty state */}
-      {hasNoData ? (
+      {showSkeleton ? (
+        <GridCardSkeletonList rows={3} columns={embedded ? 2 : 3} style={{ flex: 1 }} />
+      ) : hasNoData ? (
         <EmptyState
           title={
             mode === 'projects'
@@ -490,24 +531,28 @@ export function EntityListScreen({ mode, embedded = false, scopedProjectId, scop
           style={{ flex: 1 }}
         />
       ) : embedded ? (
-        <EmbeddedEntityGrid
-          items={filtered}
-          bottomPadding={Spacing['2xl']}
-          onCardPress={handleCardPress}
-        />
+        <FadeInContent visible style={{ flex: 1 }}>
+          <EmbeddedEntityGrid
+            items={filtered}
+            bottomPadding={Spacing['2xl']}
+            onCardPress={handleCardPress}
+          />
+        </FadeInContent>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id}
-          numColumns={3}
-          contentContainerStyle={[
-            styles.grid,
-            { paddingBottom: insets.bottom + Spacing['2xl'] },
-          ]}
-          columnWrapperStyle={styles.gridRow}
-          showsVerticalScrollIndicator={false}
-          renderItem={renderItem}
-        />
+        <FadeInContent visible style={{ flex: 1 }}>
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.id}
+            numColumns={3}
+            contentContainerStyle={[
+              styles.grid,
+              { paddingBottom: insets.bottom + Spacing['2xl'] },
+            ]}
+            columnWrapperStyle={styles.gridRow}
+            showsVerticalScrollIndicator={false}
+            renderItem={renderItem}
+          />
+        </FadeInContent>
       )}
 
       {!embedded ? (
@@ -589,9 +634,9 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant,
+    borderColor: Colors.outlineLight,
     overflow: 'hidden',
     ...Shadow.sm,
   },

@@ -17,6 +17,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Shadow } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { useAuth } from '@/lib/auth';
+import {
+  hasFieldErrors,
+  validateRegisterFields,
+  type RegisterFieldErrors,
+} from '@/lib/auth-validation';
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
@@ -26,33 +31,28 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
 
   const handleRegister = async () => {
-    if (!email.trim() || !password || !displayName.trim()) {
-      Alert.alert('חסרים פרטים', 'יש למלא את כל השדות כדי להירשם.');
+    const errors = validateRegisterFields(displayName, email, password);
+    if (hasFieldErrors(errors)) {
+      setFieldErrors(errors);
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('סיסמה חלשה', 'הסיסמה חייבת להכיל לפחות 6 תווים.');
-      return;
-    }
-
+    setFieldErrors({});
     setLoading(true);
 
     try {
       const data = await signUp(email, password, displayName);
-      
+
       if (data?.session) {
-        // Logged in immediately
-        // The AppLayout will handle the redirect to /(app) automatically
-        // because the session state in AuthProvider will change.
+        // Logged in immediately — AppLayout redirects when session is ready.
       } else {
-        // Email confirmation required
         Alert.alert(
           'נרשמת בהצלחה!',
-          'שלחנו לך מייל אישור לכתובת ' + email + '. אנא אשר את המייל כדי להתחבר.',
-          [{ text: 'הבנתי', onPress: () => router.replace('/(auth)/login') }]
+          'שלחנו לך מייל אישור לכתובת ' + email.trim() + '. אנא אשר את המייל כדי להתחבר.',
+          [{ text: 'הבנתי', onPress: () => router.replace('/(auth)/login') }],
         );
       }
     } catch (error) {
@@ -67,20 +67,18 @@ export default function RegisterScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Top brand strip */}
       <View style={styles.brandStrip}>
         <View style={styles.logoCircle}>
-          <MaterialCommunityIcons name="home-city-outline" size={32} color={Colors.onPrimary} />
+          <MaterialCommunityIcons name="home-city-outline" size={32} color={Colors.accent} />
         </View>
-        <AppText variant="displayMd" weight="extraBold" color="onPrimary" align="center">
+        <AppText variant="displayMd" weight="extraBold" align="center">
           Knock
         </AppText>
-        <AppText variant="bodyMd" color="onPrimary" align="center" style={{ opacity: 0.8 }}>
+        <AppText variant="bodyMd" color="variant" align="center">
           ניהול נכסים ארגוני
         </AppText>
       </View>
 
-      {/* Card */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.cardWrapper}
@@ -108,8 +106,14 @@ export default function RegisterScreen() {
               label="שם מלא"
               placeholder="ישראל ישראלי"
               value={displayName}
-              onChangeText={setDisplayName}
+              onChangeText={(value) => {
+                setDisplayName(value);
+                if (fieldErrors.displayName) {
+                  setFieldErrors((prev) => ({ ...prev, displayName: undefined }));
+                }
+              }}
               autoCapitalize="words"
+              error={fieldErrors.displayName}
               containerStyle={{ marginBottom: Spacing.md }}
             />
 
@@ -117,10 +121,16 @@ export default function RegisterScreen() {
               label="כתובת אימייל"
               placeholder="you@example.com"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(value) => {
+                setEmail(value);
+                if (fieldErrors.email) {
+                  setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                }
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
               textContentType="emailAddress"
+              error={fieldErrors.email}
               containerStyle={{ marginBottom: Spacing.md }}
             />
 
@@ -128,9 +138,15 @@ export default function RegisterScreen() {
               label="סיסמה"
               placeholder="לפחות 6 תווים"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(value) => {
+                setPassword(value);
+                if (fieldErrors.password) {
+                  setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                }
+              }}
               secureTextEntry={!showPassword}
               textContentType="password"
+              error={fieldErrors.password}
               iconRight={
                 <MaterialCommunityIcons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -156,7 +172,7 @@ export default function RegisterScreen() {
                 כבר יש לך חשבון?{' '}
               </AppText>
               <Link href="/(auth)/login" asChild>
-                <Pressable>
+                <Pressable disabled={loading}>
                   <AppText variant="bodySm" color="primary" weight="bold">
                     התחבר כאן
                   </AppText>
@@ -184,7 +200,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.background,
   },
   brandStrip: {
     alignItems: 'center',
@@ -195,7 +211,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: Colors.accentMuted,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xs,

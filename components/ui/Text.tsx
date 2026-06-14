@@ -60,7 +60,7 @@ const weightStyles: Record<Weight, object> = {
 
 const colorStyles: Record<Color, object> = {
   default: { color: Colors.onBackground },
-  primary: { color: Colors.primary },
+  primary: { color: Colors.accent },
   variant: { color: Colors.onSurfaceVariant },
   muted: { color: Colors.onSurfaceMuted },
   onPrimary: { color: Colors.onPrimary },
