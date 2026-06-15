@@ -52,7 +52,6 @@ export function DashboardHero(props: Props) {
               {props.payments7d}
             </Text>
           </View>
-          <AppText variant="bodySm" color="variant">עתידיים / באיחור (לא התקבלו)</AppText>
         </Pressable>
         <View style={styles.secondaryStrip}>
           <View style={styles.tasksStrip}>
@@ -137,7 +136,6 @@ const styles = StyleSheet.create({
     minHeight: 72,
     justifyContent: 'center',
     overflow: 'visible',
-    marginBottom: Spacing.xs,
   },
   metricValue: {
     fontFamily: FontFamily.extraBold,
