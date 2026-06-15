@@ -75,8 +75,10 @@ export type BackendTaskListResponse = {
 };
 
 export type BackendDashboardSummary = {
-  newCount: number;
+  openCount: number;
   inProgressCount: number;
+  completedCount: number;
+  cancelledCount: number;
   total: number;
 };
 

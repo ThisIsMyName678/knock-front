@@ -28,7 +28,6 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import {
   contactsDashboardCount,
-  countOpenTasksByStage,
   getAgendaForDay,
   getCalendarEventsForRange,
   paymentsDashboardQueryParams,
@@ -44,6 +43,7 @@ import { AgendaTimeline } from './AgendaTimeline';
 import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { getPropertiesStats } from '@/lib/api/properties';
 import { getPaymentsDashboardSummary } from '@/lib/api/payments';
+import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
@@ -268,7 +268,13 @@ export function DashboardScreen() {
 
   const showSkeleton = useSkeletonGate(loading);
 
-  const taskCounts = useMemo(() => countOpenTasksByStage(), []);
+  const [taskCounts, setTaskCounts] = useState<BackendDashboardSummary>({
+    openCount: 0,
+    inProgressCount: 0,
+    completedCount: 0,
+    cancelledCount: 0,
+    total: 0,
+  });
   const contactsN = useMemo(() => contactsDashboardCount(), []);
   const [assetsXY, setAssetsXY] = useState({ rented: 0, total: 0 });
   const [assetsXYIsMock, setAssetsXYIsMock] = useState(true);
@@ -285,6 +291,23 @@ export function DashboardScreen() {
       })
       .catch((error) => {
         console.warn(error instanceof Error ? error.message : 'Failed to load properties stats');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getTasksDashboardSummary()
+      .then((summary) => {
+        if (cancelled) return;
+        setTaskCounts(summary);
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load tasks dashboard summary');
       });
 
     return () => {
@@ -418,6 +441,16 @@ export function DashboardScreen() {
     setCreateOpen(false);
   }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, reminderCustomDate, reminderCustomTime, selectedDate]);
 
+  // TODO(TASKS_DASHBOARD_TODO_CLIENT Phase 2/3): מבנה ביניים עד שהקומפוננטות יעודכנו לצרוך BackendDashboardSummary
+  const taskCountsLegacy = useMemo(
+    () => ({
+      newCount: taskCounts.openCount,
+      inProgressCount: taskCounts.inProgressCount,
+      totalOpen: taskCounts.total - taskCounts.completedCount - taskCounts.cancelledCount,
+    }),
+    [taskCounts],
+  );
+
   const statusModalEvent = statusModalEventId ? agenda.find((e) => e.id === statusModalEventId) : null;
 
   const dateLabel = useMemo(
@@ -433,7 +466,7 @@ export function DashboardScreen() {
         <FadeInContent visible style={{ flex: 1 }}>
           <DashboardHero
             payments7d={payments7d}
-            taskCounts={taskCounts}
+            taskCounts={taskCountsLegacy}
             assetsXY={assetsXY}
             contactsN={contactsN}
             dateLabel={dateLabel}
