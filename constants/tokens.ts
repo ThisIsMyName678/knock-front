@@ -51,6 +51,7 @@ export const Colors = {
   feedPayments: '#6366F1',
   feedMessages: '#10B981',
   feedContracts: '#64748B',
+  feedDocuments: '#8B5CF6',
 
   statusOpen: '#F59E0B',
   statusOpenBg: '#FFFBEB',
