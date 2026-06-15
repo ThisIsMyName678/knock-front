@@ -441,7 +441,7 @@ export function DashboardScreen() {
     setCreateOpen(false);
   }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, reminderCustomDate, reminderCustomTime, selectedDate]);
 
-  // TODO(TASKS_DASHBOARD_TODO_CLIENT Phase 2/3): מבנה ביניים עד שהקומפוננטות יעודכנו לצרוך BackendDashboardSummary
+  // TODO(TASKS_DASHBOARD_TODO_CLIENT Phase 3): מבנה ביניים עד ש-DashboardAttentionLane יעודכן לצרוך BackendDashboardSummary
   const taskCountsLegacy = useMemo(
     () => ({
       newCount: taskCounts.openCount,
@@ -466,7 +466,7 @@ export function DashboardScreen() {
         <FadeInContent visible style={{ flex: 1 }}>
           <DashboardHero
             payments7d={payments7d}
-            taskCounts={taskCountsLegacy}
+            taskCounts={taskCounts}
             assetsXY={assetsXY}
             contactsN={contactsN}
             dateLabel={dateLabel}
@@ -482,7 +482,7 @@ export function DashboardScreen() {
           >
         <DashboardAttentionLane
           payments7d={payments7d}
-          taskCounts={taskCounts}
+          taskCounts={taskCountsLegacy}
           onPaymentsPress={pushPaymentsPreset}
           onTasksPreset={pushTasksPreset}
         />

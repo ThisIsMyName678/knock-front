@@ -7,12 +7,13 @@ import { DrawerMenu } from '@/components/ui/DrawerMenu';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import type { TasksDashboardPreset } from '@/lib/mocks/dashboard';
+import type { BackendDashboardSummary } from '@/lib/api/tasks';
 import { useAuth } from '@/lib/auth';
 import { resolveFirstName } from '@/lib/user-display-name';
 
 type Props = {
   payments7d: number;
-  taskCounts: { newCount: number; inProgressCount: number; totalOpen: number };
+  taskCounts: BackendDashboardSummary;
   assetsXY: { rented: number; total: number };
   contactsN: number;
   dateLabel: string;
@@ -55,20 +56,30 @@ export function DashboardHero(props: Props) {
         </Pressable>
         <View style={styles.secondaryStrip}>
           <View style={styles.tasksStrip}>
-            <AppText style={styles.stripLabel}>משימות פתוחות</AppText>
+            <AppText style={styles.stripLabel}>משימות</AppText>
             <View style={styles.tasksRow}>
-              <Pressable onPress={() => props.onTasksPreset('new')} style={styles.taskCell} hitSlop={6}>
-                <AppText style={styles.taskNum}>{props.taskCounts.newCount}</AppText>
-                <AppText variant="caption" color="muted">חדשות</AppText>
+              <Pressable onPress={() => props.onTasksPreset('open')} style={styles.taskCell} hitSlop={6}>
+                <AppText style={styles.taskNum}>{props.taskCounts.openCount}</AppText>
+                <AppText variant="caption" color="muted">פתוחות</AppText>
               </Pressable>
               <View style={styles.taskDivider} />
               <Pressable onPress={() => props.onTasksPreset('in_progress')} style={styles.taskCell} hitSlop={6}>
                 <AppText style={styles.taskNum}>{props.taskCounts.inProgressCount}</AppText>
-                <AppText variant="caption" color="muted">בתהליך</AppText>
+                <AppText variant="caption" color="muted">בטיפול</AppText>
+              </Pressable>
+              <View style={styles.taskDivider} />
+              <Pressable onPress={() => props.onTasksPreset('completed')} style={styles.taskCell} hitSlop={6}>
+                <AppText style={styles.taskNum}>{props.taskCounts.completedCount}</AppText>
+                <AppText variant="caption" color="muted">הושלם</AppText>
+              </Pressable>
+              <View style={styles.taskDivider} />
+              <Pressable onPress={() => props.onTasksPreset('cancelled')} style={styles.taskCell} hitSlop={6}>
+                <AppText style={styles.taskNum}>{props.taskCounts.cancelledCount}</AppText>
+                <AppText variant="caption" color="muted">בוטל</AppText>
               </Pressable>
               <View style={styles.taskDivider} />
               <Pressable onPress={() => props.onTasksPreset('total_open')} style={styles.taskCell} hitSlop={6}>
-                <AppText style={styles.taskNum}>{props.taskCounts.totalOpen}</AppText>
+                <AppText style={styles.taskNum}>{props.taskCounts.total}</AppText>
                 <AppText variant="caption" color="muted">סה״כ</AppText>
               </Pressable>
             </View>
@@ -147,11 +158,11 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'android' ? { includeFontPadding: false, textAlignVertical: 'center' as const } : {}),
   },
   secondaryStrip: { flexDirection: RTL_ROW, gap: Spacing.sm, alignItems: 'stretch' },
-  tasksStrip: { flex: 1.4, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.md, gap: Spacing.sm },
+  tasksStrip: { flex: 2.4, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.md, gap: Spacing.sm },
   stripLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.sm, color: Colors.onSurfaceVariant, textAlign: 'right' },
   tasksRow: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'center' },
-  taskCell: { alignItems: 'center', flex: 1, gap: 2 },
-  taskNum: { fontFamily: FontFamily.bold, fontSize: FontSize.xl, color: Colors.onBackground },
+  taskCell: { alignItems: 'center', flex: 1, gap: 2, paddingHorizontal: 2 },
+  taskNum: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, color: Colors.onBackground },
   taskDivider: { width: 1, height: 32, backgroundColor: Colors.outlineLight },
   miniCard: { flex: 1, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.md, gap: 4, alignItems: 'flex-end' },
   miniCardValue: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, color: Colors.onBackground },

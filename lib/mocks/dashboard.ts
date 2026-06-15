@@ -90,18 +90,24 @@ export function paymentsDashboardQueryParams(anchor: Date = new Date()): Record<
 // ─── Tasks (open) ─────────────────────────────────────────────────────────────
 
 /** פרסט ניווט למסך משימות מהדשבורד */
-export type TasksDashboardPreset = 'new' | 'in_progress' | 'total_open';
+export type TasksDashboardPreset = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'total_open';
 
 export function tasksDashboardQueryParams(preset: TasksDashboardPreset): Record<string, string> {
   const base: Record<string, string> = {};
   if (DASHBOARD_USER_MODE === 'worker') {
     base.assignee = 'אני';
   }
-  if (preset === 'new') {
-    return { ...base, statusTab: 'all', workflowStatus: 'not_started' };
+  if (preset === 'open') {
+    return { ...base, statusTab: 'open' };
   }
   if (preset === 'in_progress') {
     return { ...base, statusTab: 'in_progress' };
+  }
+  if (preset === 'completed') {
+    return { ...base, statusTab: 'completed' };
+  }
+  if (preset === 'cancelled') {
+    return { ...base, statusTab: 'all', workflowStatus: 'cancelled' };
   }
   return { ...base, statusTab: 'all' };
 }
