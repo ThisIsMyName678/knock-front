@@ -76,15 +76,14 @@ export function countPaymentsDueNext7Days(
   return paymentCountsForDashboardWindow(rows, anchor);
 }
 
-/** פרמטרים ל־Expo Router — תשלומים בשבוע הקרוב (ללא התקבלו) */
+/** פרמטרים ל־Expo Router — תשלומים עתידיים בשבוע הקרוב */
 export function paymentsDashboardQueryParams(anchor: Date = new Date()): Record<string, string> {
   const from = startOfLocalDay(anchor);
   const to = addDays(from, 7);
   return {
     dateFrom: formatDdMmYyyy(from),
     dateTo: formatDdMmYyyy(to),
-    statusTab: 'all',
-    excludeReceived: '1',
+    statusTab: 'future',
   };
 }
 
