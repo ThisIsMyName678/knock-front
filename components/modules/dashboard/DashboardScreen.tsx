@@ -441,16 +441,6 @@ export function DashboardScreen() {
     setCreateOpen(false);
   }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, reminderCustomDate, reminderCustomTime, selectedDate]);
 
-  // TODO(TASKS_DASHBOARD_TODO_CLIENT Phase 3): מבנה ביניים עד ש-DashboardAttentionLane יעודכן לצרוך BackendDashboardSummary
-  const taskCountsLegacy = useMemo(
-    () => ({
-      newCount: taskCounts.openCount,
-      inProgressCount: taskCounts.inProgressCount,
-      totalOpen: taskCounts.total - taskCounts.completedCount - taskCounts.cancelledCount,
-    }),
-    [taskCounts],
-  );
-
   const statusModalEvent = statusModalEventId ? agenda.find((e) => e.id === statusModalEventId) : null;
 
   const dateLabel = useMemo(
@@ -482,7 +472,7 @@ export function DashboardScreen() {
           >
         <DashboardAttentionLane
           payments7d={payments7d}
-          taskCounts={taskCountsLegacy}
+          taskCounts={taskCounts}
           onPaymentsPress={pushPaymentsPreset}
           onTasksPreset={pushTasksPreset}
         />
