@@ -41,6 +41,7 @@ import {
   clientPriorityToBackendUrgency,
   ddMmYyyyToIso,
 } from '@/lib/api/tasks';
+import { getPayment } from '@/lib/api/payments';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, FontFamily, FontSize } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { Input } from '@/components/ui/Input';
@@ -94,6 +95,7 @@ export default function TaskDetailRoute() {
   const [localEndDate, setLocalEndDate] = useState('');
   const [localCostNotes, setLocalCostNotes] = useState('');
   const [localTimeNotes, setLocalTimeNotes] = useState('');
+  const [linkedPaymentName, setLinkedPaymentName] = useState<string | null>(null);
 
   // Edit modal draft state
   const [editOpen, setEditOpen] = useState(false);
@@ -175,6 +177,11 @@ export default function TaskDetailRoute() {
         setLocalEndDate(row.endDate ?? '');
         setLocalCostNotes(row.costNotes ?? '');
         setLocalTimeNotes(row.timeNotes ?? '');
+        if (row.linkedPaymentId) {
+          getPayment(row.linkedPaymentId)
+            .then((p) => { if (active) setLinkedPaymentName(p.name); })
+            .catch(() => {});
+        }
         setLoading(false);
       })
       .catch((err: Error) => {
@@ -315,6 +322,7 @@ export default function TaskDetailRoute() {
             </AppText>
             {[
               { label: 'שיוך', value: `${task.linkKind === 'asset' ? 'נכס' : 'פרויקט'}: ${task.linkLabel}` },
+              ...(linkedPaymentName ? [{ label: 'תשלום מקושר', value: linkedPaymentName }] : []),
               { label: 'אחראי', value: localAssignee || task.assigneeName },
               { label: 'נוצר על ידי', value: task.createdBy },
               { label: 'תאריך התחלה', value: localStartDate || task.startDate },
