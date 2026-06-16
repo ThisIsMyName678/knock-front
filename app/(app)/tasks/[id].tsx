@@ -36,6 +36,7 @@ import {
   getTask,
   backendTaskDetailToRow,
   updateTask,
+  deleteTask,
   clientStatusToBackend,
   clientTaskTypeToBackend,
   clientPriorityToBackendUrgency,
@@ -84,6 +85,9 @@ export default function TaskDetailRoute() {
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Local display state (reflects saves from edit modal)
   const [localTitle, setLocalTitle] = useState('');
@@ -262,16 +266,10 @@ export default function TaskDetailRoute() {
             </AppText>
           </Pressable>
           <Pressable
-            onPress={() =>
-              Alert.alert('מחיקת משימה', 'האם למחוק את המשימה? (במימוש מלא יימחק מהמערכת)', [
-                { text: 'ביטול', style: 'cancel' },
-                {
-                  text: 'מחק',
-                  style: 'destructive',
-                  onPress: () => router.back(),
-                },
-              ])
-            }
+            onPress={() => {
+              setDeleteError(null);
+              setDeleteConfirmOpen(true);
+            }}
             style={({ pressed }) => [styles.taskHeaderBtn, styles.taskHeaderBtnDanger, pressed && { opacity: 0.85 }]}
             accessibilityRole="button"
             accessibilityLabel="מחיקת משימה"
@@ -538,6 +536,51 @@ export default function TaskDetailRoute() {
             {imagePreviewUri ? <Image source={{ uri: imagePreviewUri }} style={styles.fullImage} resizeMode="contain" /> : null}
             <Pressable style={[styles.closeFab, { top: insets.top + Spacing.sm }]} onPress={() => setImagePreviewUri(null)}>
               <MaterialCommunityIcons name="close" size={28} color={Colors.onPrimary} />
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* ─── Delete confirm modal ─── */}
+        <Modal visible={deleteConfirmOpen} transparent animationType="fade" onRequestClose={() => setDeleteConfirmOpen(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setDeleteConfirmOpen(false)}>
+            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+              <AppText variant="headingSm" weight="bold" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                מחיקת משימה
+              </AppText>
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.lg }}>
+                האם אתה בטוח שברצונך למחוק את המשימה? פעולה זו אינה ניתנת לביטול.
+              </AppText>
+              {deleteError ? (
+                <AppText variant="bodySm" style={{ color: Colors.error, textAlign: 'right', marginBottom: Spacing.sm }}>
+                  {deleteError}
+                </AppText>
+              ) : null}
+              <View style={{ flexDirection: RTL_ROW, gap: Spacing.sm }}>
+                <Button
+                  label="ביטול"
+                  variant="secondary"
+                  onPress={() => setDeleteConfirmOpen(false)}
+                  style={{ flex: 1 }}
+                  disabled={deleteLoading}
+                />
+                <Button
+                  label={deleteLoading ? 'מוחק...' : 'מחק'}
+                  onPress={async () => {
+                    setDeleteLoading(true);
+                    setDeleteError(null);
+                    try {
+                      await deleteTask(String(id ?? ''));
+                      setDeleteConfirmOpen(false);
+                      router.back();
+                    } catch (e) {
+                      setDeleteError(e instanceof Error ? e.message : 'שגיאה במחיקת המשימה');
+                      setDeleteLoading(false);
+                    }
+                  }}
+                  style={{ flex: 1, backgroundColor: Colors.error }}
+                  disabled={deleteLoading}
+                />
+              </View>
             </Pressable>
           </Pressable>
         </Modal>
