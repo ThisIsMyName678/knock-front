@@ -571,7 +571,7 @@ export default function TaskDetailRoute() {
                     try {
                       await deleteTask(String(id ?? ''));
                       setDeleteConfirmOpen(false);
-                      router.back();
+                      router.replace('/(app)/tasks');
                     } catch (e) {
                       setDeleteError(e instanceof Error ? e.message : 'שגיאה במחיקת המשימה');
                       setDeleteLoading(false);
