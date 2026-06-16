@@ -173,6 +173,7 @@ export function TaskCreateForm() {
         dueDate: endDate.trim() ? ddMmYyyyToIso(endDate) : null,
         cost: cost.trim() || null,
         handlingTime: handlingTime.trim() ? parseInt(handlingTime.trim(), 10) : null,
+        paymentId: linkedPaymentId ?? null,
       });
       router.back();
     } catch (err) {
