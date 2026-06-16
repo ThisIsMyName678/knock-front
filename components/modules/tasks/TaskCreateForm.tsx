@@ -27,7 +27,6 @@ import {
   MAINTENANCE_CATEGORY_LABELS,
   MAINTENANCE_CATEGORY_ICONS,
   MAINTENANCE_CATEGORY_ORDER,
-  paymentsForTaskLink,
   type TaskKind,
   type TaskPriority,
   type MaintenanceCategory,
@@ -38,6 +37,7 @@ import {
   clientPriorityToBackendUrgency,
   ddMmYyyyToIso,
 } from '@/lib/api/tasks';
+import { listPayments, type BackendPayment } from '@/lib/api/payments';
 import {
   Colors,
   Spacing,
@@ -88,6 +88,8 @@ export function TaskCreateForm() {
   const [assigneeName, setAssigneeName] = useState('');
   const [paymentModal, setPaymentModal] = useState(false);
   const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
+  const [paymentOptions, setPaymentOptions] = useState<BackendPayment[]>([]);
+  const [paymentOptionsLoading, setPaymentOptionsLoading] = useState(false);
   const [startDate, setStartDate] = useState(formatTodayDdMmYyyy);
   const [endDate, setEndDate] = useState('');
   const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
@@ -103,7 +105,17 @@ export function TaskCreateForm() {
     }, 250);
     return () => clearTimeout(t);
   }, [linkQuery]);
-  const paymentOptions = useMemo(() => paymentsForTaskLink(linkSelected?.id ?? ''), [linkSelected]);
+  useEffect(() => {
+    if (!linkSelected) { setPaymentOptions([]); return; }
+    setPaymentOptionsLoading(true);
+    const params = linkSelected.kind === 'asset'
+      ? { propertyId: linkSelected.id }
+      : { projectId: linkSelected.id };
+    listPayments(params)
+      .then(setPaymentOptions)
+      .catch(() => setPaymentOptions([]))
+      .finally(() => setPaymentOptionsLoading(false));
+  }, [linkSelected]);
 
   useEffect(() => {
     const rawId =
@@ -341,7 +353,7 @@ export function TaskCreateForm() {
                 {!linkSelected
                   ? 'בחרו שיוך נכס/פרויקט תחילה'
                   : linkedPaymentId
-                    ? paymentOptions.find((p) => p.id === linkedPaymentId)?.displayName ?? '—'
+                    ? paymentOptions.find((p) => p.id === linkedPaymentId)?.name ?? '—'
                     : 'בחרו תשלום'}
               </AppText>
             </Pressable>
@@ -461,9 +473,13 @@ export function TaskCreateForm() {
                 <AppText variant="bodySm" color="variant">
                   בחרו ישות קודם
                 </AppText>
+              ) : paymentOptionsLoading ? (
+                <AppText variant="bodySm" color="variant">
+                  טוען...
+                </AppText>
               ) : paymentOptions.length === 0 ? (
                 <AppText variant="bodySm" color="variant">
-                  אין תשלומים לישות זו ב-mock
+                  אין תשלומים לישות זו
                 </AppText>
               ) : (
                 paymentOptions.map((p) => (
@@ -476,10 +492,10 @@ export function TaskCreateForm() {
                     style={styles.payRow}
                   >
                     <AppText variant="bodyMd" weight="semiBold">
-                      {p.displayName}
+                      {p.name}
                     </AppText>
                     <AppText variant="caption" color="variant">
-                      {PAYMENT_TYPE_LABELS[p.paymentType]} · {p.dueDate}
+                      {(PAYMENT_TYPE_LABELS as Record<string, string>)[p.paymentType.toLowerCase()] ?? p.paymentType} · {p.dueDate.split('-').reverse().join('/')}
                     </AppText>
                   </Pressable>
                 ))
