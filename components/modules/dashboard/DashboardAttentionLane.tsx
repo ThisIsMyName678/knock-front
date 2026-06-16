@@ -5,16 +5,17 @@ import { AppText } from '@/components/ui/Text';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import type { TasksDashboardPreset } from '@/lib/mocks/dashboard';
+import type { BackendDashboardSummary } from '@/lib/api/tasks';
 
 type Props = {
   payments7d: number;
-  taskCounts: { newCount: number; inProgressCount: number; totalOpen: number };
+  taskCounts: BackendDashboardSummary;
   onPaymentsPress: () => void;
   onTasksPreset: (preset: TasksDashboardPreset) => void;
 };
 
 export function DashboardAttentionLane({ payments7d, taskCounts, onPaymentsPress, onTasksPreset }: Props) {
-  const remainder = Math.max(taskCounts.totalOpen - taskCounts.newCount - taskCounts.inProgressCount, 0);
+  const hasAny = taskCounts.total > 0;
   return (
     <View style={styles.wrap}>
       <AppText style={styles.eyebrow}>דורש טיפול</AppText>
@@ -35,11 +36,13 @@ export function DashboardAttentionLane({ payments7d, taskCounts, onPaymentsPress
             <MaterialCommunityIcons name="format-list-checks" size={22} color={Colors.accent} />
             <AppText variant="labelMd" weight="bold">משימות פתוחות</AppText>
             <View style={styles.pipeline}>
-              {taskCounts.newCount > 0 && <View style={[styles.seg, { flex: taskCounts.newCount, backgroundColor: Colors.statusOpen }]} />}
-              {taskCounts.inProgressCount > 0 && <View style={[styles.seg, { flex: taskCounts.inProgressCount, backgroundColor: Colors.accent }]} />}
-              <View style={[styles.seg, { flex: remainder || 1, backgroundColor: Colors.surfaceVariant }]} />
+              {taskCounts.openCount > 0 && <View style={[styles.seg, { flex: taskCounts.openCount, backgroundColor: Colors.statusOpen }]} />}
+              {taskCounts.inProgressCount > 0 && <View style={[styles.seg, { flex: taskCounts.inProgressCount, backgroundColor: Colors.statusInProgress }]} />}
+              {taskCounts.completedCount > 0 && <View style={[styles.seg, { flex: taskCounts.completedCount, backgroundColor: Colors.statusClosed }]} />}
+              {taskCounts.cancelledCount > 0 && <View style={[styles.seg, { flex: taskCounts.cancelledCount, backgroundColor: Colors.statusCancelled }]} />}
+              {!hasAny && <View style={[styles.seg, { flex: 1, backgroundColor: Colors.surfaceVariant }]} />}
             </View>
-            <AppText variant="caption" color="muted">חדשות {taskCounts.newCount} · בתהליך {taskCounts.inProgressCount} · סה״כ {taskCounts.totalOpen}</AppText>
+            <AppText variant="caption" color="muted">פתוחות {taskCounts.openCount} · בטיפול {taskCounts.inProgressCount} · הושלם {taskCounts.completedCount} · בוטל {taskCounts.cancelledCount}</AppText>
           </View>
         </Pressable>
       </View>

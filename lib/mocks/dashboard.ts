@@ -4,7 +4,7 @@
 
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { MOCK_PAYMENTS_LIST, type PaymentListRow } from '@/lib/mocks/payments';
-import { MOCK_TASKS_LIST, type TaskKind, type TaskListRow, type WorkflowStatus } from '@/lib/mocks/tasks';
+import { MOCK_TASKS_LIST, type TaskKind } from '@/lib/mocks/tasks';
 import { assetOccupancyStats } from '@/lib/mocks/assets';
 
 // ─── Date helpers (DD/MM/YYYY consistent with payments/tasks mocks) ───────────
@@ -76,56 +76,38 @@ export function countPaymentsDueNext7Days(
   return paymentCountsForDashboardWindow(rows, anchor);
 }
 
-/** פרמטרים ל־Expo Router — תשלומים בשבוע הקרוב (ללא התקבלו) */
+/** פרמטרים ל־Expo Router — תשלומים עתידיים בשבוע הקרוב */
 export function paymentsDashboardQueryParams(anchor: Date = new Date()): Record<string, string> {
   const from = startOfLocalDay(anchor);
   const to = addDays(from, 7);
   return {
     dateFrom: formatDdMmYyyy(from),
     dateTo: formatDdMmYyyy(to),
-    statusTab: 'all',
-    excludeReceived: '1',
+    statusTab: 'future',
   };
 }
 
 // ─── Tasks (open) ─────────────────────────────────────────────────────────────
 
-function isOpenWorkflow(w: WorkflowStatus): boolean {
-  return w === 'open' || w === 'not_started' || w === 'in_progress';
-}
-
-export function filterDashboardOpenTasks(rows: TaskListRow[] = MOCK_TASKS_LIST): TaskListRow[] {
-  const open = rows.filter((r) => isOpenWorkflow(r.workflowStatus));
-  if (DASHBOARD_USER_MODE === 'owner') return open;
-  return open.filter((r) => r.isMine || r.assigneeName === 'אני');
-}
-
-export function countOpenTasksByStage(rows: TaskListRow[] = MOCK_TASKS_LIST): {
-  newCount: number;
-  inProgressCount: number;
-  totalOpen: number;
-} {
-  const base = filterDashboardOpenTasks(rows);
-  return {
-    newCount: base.filter((r) => r.workflowStatus === 'not_started').length,
-    inProgressCount: base.filter((r) => r.workflowStatus === 'in_progress').length,
-    totalOpen: base.length,
-  };
-}
-
 /** פרסט ניווט למסך משימות מהדשבורד */
-export type TasksDashboardPreset = 'new' | 'in_progress' | 'total_open';
+export type TasksDashboardPreset = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'total_open';
 
 export function tasksDashboardQueryParams(preset: TasksDashboardPreset): Record<string, string> {
   const base: Record<string, string> = {};
   if (DASHBOARD_USER_MODE === 'worker') {
     base.assignee = 'אני';
   }
-  if (preset === 'new') {
-    return { ...base, statusTab: 'all', workflowStatus: 'not_started' };
+  if (preset === 'open') {
+    return { ...base, statusTab: 'open' };
   }
   if (preset === 'in_progress') {
     return { ...base, statusTab: 'in_progress' };
+  }
+  if (preset === 'completed') {
+    return { ...base, statusTab: 'completed' };
+  }
+  if (preset === 'cancelled') {
+    return { ...base, statusTab: 'all', workflowStatus: 'cancelled' };
   }
   return { ...base, statusTab: 'all' };
 }

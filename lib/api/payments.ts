@@ -84,6 +84,10 @@ export function listPayments(params: ListPaymentsParams = {}): Promise<BackendPa
   return backendRequest<BackendPayment[]>(`/payments${suffix}`);
 }
 
+export function getPaymentsDashboardSummary(): Promise<{ count: number }> {
+  return backendRequest<{ count: number }>('/payments/dashboard-summary');
+}
+
 export function getPayment(id: string): Promise<BackendPayment> {
   return backendRequest<BackendPayment>(`/payments/${id}`);
 }

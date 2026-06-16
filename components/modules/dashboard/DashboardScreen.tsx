@@ -28,8 +28,6 @@ import {
 import { RTL_ROW } from '@/constants/rtl';
 import {
   contactsDashboardCount,
-  countOpenTasksByStage,
-  countPaymentsDueNext7Days,
   getAgendaForDay,
   getCalendarEventsForRange,
   paymentsDashboardQueryParams,
@@ -44,6 +42,8 @@ import { DashboardAttentionLane } from './DashboardAttentionLane';
 import { AgendaTimeline } from './AgendaTimeline';
 import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { getPropertiesStats } from '@/lib/api/properties';
+import { getPaymentsDashboardSummary } from '@/lib/api/payments';
+import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
@@ -268,11 +268,17 @@ export function DashboardScreen() {
 
   const showSkeleton = useSkeletonGate(loading);
 
-  const payments7d = useMemo(() => countPaymentsDueNext7Days(), []);
-  const taskCounts = useMemo(() => countOpenTasksByStage(), []);
+  const [taskCounts, setTaskCounts] = useState<BackendDashboardSummary>({
+    openCount: 0,
+    inProgressCount: 0,
+    completedCount: 0,
+    cancelledCount: 0,
+    total: 0,
+  });
   const contactsN = useMemo(() => contactsDashboardCount(), []);
   const [assetsXY, setAssetsXY] = useState({ rented: 0, total: 0 });
   const [assetsXYIsMock, setAssetsXYIsMock] = useState(true);
+  const [payments7d, setPayments7d] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -285,6 +291,40 @@ export function DashboardScreen() {
       })
       .catch((error) => {
         console.warn(error instanceof Error ? error.message : 'Failed to load properties stats');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getTasksDashboardSummary()
+      .then((summary) => {
+        if (cancelled) return;
+        setTaskCounts(summary);
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load tasks dashboard summary');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getPaymentsDashboardSummary()
+      .then((summary) => {
+        if (cancelled) return;
+        setPayments7d(summary.count);
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load payments dashboard summary');
       });
 
     return () => {
