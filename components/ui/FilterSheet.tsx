@@ -317,9 +317,8 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
               placeholder="DD/MM/YYYY"
               placeholderTextColor={Colors.onSurfaceMuted}
               value={section.from}
-              onChangeText={section.onFromChange}
+              editable={false}
               textAlign="right"
-              onFocus={() => setPickerTarget('from')}
             />
             <MaterialCommunityIcons name="calendar-outline" size={17} color={Colors.primary} style={{ paddingHorizontal: 8 }} />
           </View>
@@ -334,9 +333,8 @@ function DateRangeSectionView({ section }: { section: DateRangeSection }) {
               placeholder="DD/MM/YYYY"
               placeholderTextColor={Colors.onSurfaceMuted}
               value={section.to}
-              onChangeText={section.onToChange}
+              editable={false}
               textAlign="right"
-              onFocus={() => setPickerTarget('to')}
             />
             <MaterialCommunityIcons name="calendar-outline" size={17} color={Colors.primary} style={{ paddingHorizontal: 8 }} />
           </View>

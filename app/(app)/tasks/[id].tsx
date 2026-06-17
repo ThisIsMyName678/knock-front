@@ -43,6 +43,7 @@ import {
   clientPriorityToBackendUrgency,
   ddMmYyyyToIso,
 } from '@/lib/api/tasks';
+import { getPayment } from '@/lib/api/payments';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, FontFamily, FontSize } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { Input } from '@/components/ui/Input';
@@ -85,6 +86,9 @@ export default function TaskDetailRoute() {
   const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Local display state (reflects saves from edit modal)
   const [localTitle, setLocalTitle] = useState('');
@@ -96,6 +100,7 @@ export default function TaskDetailRoute() {
   const [localEndDate, setLocalEndDate] = useState('');
   const [localCostNotes, setLocalCostNotes] = useState('');
   const [localTimeNotes, setLocalTimeNotes] = useState('');
+  const [linkedPaymentName, setLinkedPaymentName] = useState<string | null>(null);
 
   // Edit modal draft state
   const [editOpen, setEditOpen] = useState(false);
@@ -185,6 +190,11 @@ export default function TaskDetailRoute() {
         setLocalEndDate(row.endDate ?? '');
         setLocalCostNotes(row.costNotes ?? '');
         setLocalTimeNotes(row.timeNotes ?? '');
+        if (row.linkedPaymentId) {
+          getPayment(row.linkedPaymentId)
+            .then((p) => { if (active) setLinkedPaymentName(p.name); })
+            .catch(() => {});
+        }
         setLoading(false);
       })
       .catch((err: Error) => {
@@ -265,7 +275,10 @@ export default function TaskDetailRoute() {
             </AppText>
           </Pressable>
           <Pressable
-            onPress={() => setDeleteConfirmOpen(true)}
+            onPress={() => {
+              setDeleteError(null);
+              setDeleteConfirmOpen(true);
+            }}
             style={({ pressed }) => [styles.taskHeaderBtn, styles.taskHeaderBtnDanger, pressed && { opacity: 0.85 }]}
             accessibilityRole="button"
             accessibilityLabel="מחיקת משימה"
@@ -316,6 +329,7 @@ export default function TaskDetailRoute() {
             </AppText>
             {[
               { label: 'שיוך', value: `${task.linkKind === 'asset' ? 'נכס' : 'פרויקט'}: ${task.linkLabel}` },
+              ...(linkedPaymentName ? [{ label: 'תשלום מקושר', value: linkedPaymentName }] : []),
               { label: 'אחראי', value: localAssignee || task.assigneeName },
               { label: 'נוצר על ידי', value: task.createdBy },
               { label: 'תאריך התחלה', value: localStartDate || task.startDate },
@@ -531,6 +545,51 @@ export default function TaskDetailRoute() {
             {imagePreviewUri ? <Image source={{ uri: imagePreviewUri }} style={styles.fullImage} resizeMode="contain" /> : null}
             <Pressable style={[styles.closeFab, { top: insets.top + Spacing.sm }]} onPress={() => setImagePreviewUri(null)}>
               <MaterialCommunityIcons name="close" size={28} color={Colors.onPrimary} />
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* ─── Delete confirm modal ─── */}
+        <Modal visible={deleteConfirmOpen} transparent animationType="fade" onRequestClose={() => setDeleteConfirmOpen(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setDeleteConfirmOpen(false)}>
+            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+              <AppText variant="headingSm" weight="bold" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                מחיקת משימה
+              </AppText>
+              <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.lg }}>
+                האם אתה בטוח שברצונך למחוק את המשימה? פעולה זו אינה ניתנת לביטול.
+              </AppText>
+              {deleteError ? (
+                <AppText variant="bodySm" style={{ color: Colors.error, textAlign: 'right', marginBottom: Spacing.sm }}>
+                  {deleteError}
+                </AppText>
+              ) : null}
+              <View style={{ flexDirection: RTL_ROW, gap: Spacing.sm }}>
+                <Button
+                  label="ביטול"
+                  variant="secondary"
+                  onPress={() => setDeleteConfirmOpen(false)}
+                  style={{ flex: 1 }}
+                  disabled={deleteLoading}
+                />
+                <Button
+                  label={deleteLoading ? 'מוחק...' : 'מחק'}
+                  onPress={async () => {
+                    setDeleteLoading(true);
+                    setDeleteError(null);
+                    try {
+                      await deleteTask(String(id ?? ''));
+                      setDeleteConfirmOpen(false);
+                      router.replace('/(app)/tasks');
+                    } catch (e) {
+                      setDeleteError(e instanceof Error ? e.message : 'שגיאה במחיקת המשימה');
+                      setDeleteLoading(false);
+                    }
+                  }}
+                  style={{ flex: 1, backgroundColor: Colors.error }}
+                  disabled={deleteLoading}
+                />
+              </View>
             </Pressable>
           </Pressable>
         </Modal>

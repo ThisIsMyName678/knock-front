@@ -352,7 +352,7 @@ export function ContactCreateForm({
   };
 
   const fieldErrors = useMemo(() => ({
-    nickname: contactKind === 'role_holder' && !nickname.trim() ? 'שדה חובה' : '',
+    nickname: '',
     displayName: !displayName.trim() ? 'שדה חובה' : '',
     phone: !phone.trim() ? 'שדה חובה' : '',
     assetSelection: !isEdit && !assetSelection ? 'יש לבחור נכס או פרויקט' : '',
@@ -469,11 +469,9 @@ export function ContactCreateForm({
             {contactKind === 'role_holder' && (
               <Input
                 label="כינוי תפקיד"
-                required
                 placeholder="רואה חשבון / שותף / קבלן..."
                 value={nickname}
                 onChangeText={setNickname}
-                error={submitted ? fieldErrors.nickname : ''}
                 containerStyle={{ marginBottom: Spacing.md }}
               />
             )}

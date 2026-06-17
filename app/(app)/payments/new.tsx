@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -82,6 +82,14 @@ export default function NewPaymentScreen() {
     return (
       <PaymentCreateForm
         initialData={{ ...duplicateData, id: '', displayName: `עותק של ${duplicateData.displayName}` }}
+        onSuccess={(created) => {
+          const newId = Array.isArray(created) ? created[0]?.id : created.id;
+          if (newId) {
+            router.replace(`/(app)/payments/${newId}` as `/(app)/payments/${string}`);
+          } else {
+            router.back();
+          }
+        }}
       />
     );
   }
