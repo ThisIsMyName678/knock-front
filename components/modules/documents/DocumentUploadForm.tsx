@@ -58,7 +58,7 @@ function formatTodayDdMmYyyy(): string {
 
 type PreloadedLink = { id: string; name: string; address: string; kind: 'asset' | 'project' };
 
-export function DocumentUploadForm({ initialData, editId, preloadedLink }: { initialData?: DocumentListRow; editId?: string; preloadedLink?: PreloadedLink } = {}) {
+export function DocumentUploadForm({ initialData, editId, preloadedLink, title }: { initialData?: DocumentListRow; editId?: string; preloadedLink?: PreloadedLink; title?: string } = {}) {
   const insets = useSafeAreaInsets();
   const [fileName, setFileName] = useState(() => initialData?.displayName ?? '');
   const [documentType, setDocumentType] = useState<DocumentType>(() => initialData?.documentType ?? 'other');
@@ -178,7 +178,7 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink }: { ini
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <AppHeader title={editId ? 'עריכת מסמך' : (initialData ? 'עריכת מסמך' : 'העלאת מסמך')} showBack />
+        <AppHeader title={title ?? (editId ? 'עריכת מסמך' : (initialData ? 'עריכת מסמך' : 'העלאת מסמך'))} showBack />
 
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Pressable

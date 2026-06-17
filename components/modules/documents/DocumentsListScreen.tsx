@@ -78,10 +78,6 @@ function accessPreset(level: DocumentAccessLevel): React.ComponentProps<typeof B
   return 'success';
 }
 
-function randomDocId() {
-  return `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-}
-
 function fileIconName(kind: DocumentListRow['fileKind']): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
   if (kind === 'pdf') return 'file-pdf-box';
   if (kind === 'image') return 'file-image-outline';
@@ -149,12 +145,7 @@ export function DocumentsListScreen() {
   }, [scope]);
 
   const duplicateRow = useCallback((row: DocumentListRow) => {
-    const copy: DocumentListRow = {
-      ...row,
-      id: randomDocId(),
-      displayName: `${row.displayName} (עותק)`,
-    };
-    setRows((prev) => [copy, ...prev]);
+    router.push(`/(app)/documents/duplicate/${row.id}`);
   }, []);
 
   const deleteRow = useCallback((row: DocumentListRow) => {

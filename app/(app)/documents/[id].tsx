@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   Share,
-  Alert,
   Modal,
   TouchableWithoutFeedback,
   type DimensionValue,
@@ -25,7 +24,7 @@ import {
   DOCUMENT_ACCESS_LABELS,
   type DocumentListRow,
 } from '@/lib/mocks/documents';
-import { getDocument, deleteDocument, createDocument, documentToListRow } from '@/lib/api/documents';
+import { getDocument, deleteDocument, documentToListRow } from '@/lib/api/documents';
 import { MOCK_TASKS_LIST } from '@/lib/mocks/tasks';
 import {
   Colors,
@@ -351,27 +350,9 @@ export default function DocumentDetailScreen() {
     setDeleteConfirmOpen(false);
   }, [doc]);
 
-  const onDuplicate = useCallback(async () => {
+  const onDuplicate = useCallback(() => {
     if (!doc) return;
-    try {
-      const full = await getDocument(doc.id);
-      const created = await createDocument({
-        displayName: `${full.displayName} (עותק)`,
-        documentType: full.documentType,
-        linkScope: full.linkScope,
-        projectId: full.projectId,
-        propertyId: full.propertyId,
-        accessLevel: full.accessLevel,
-        linkedTaskId: full.linkedTaskId,
-        fileType: full.fileType,
-        storageKey: full.storageKey,
-        sizeLabel: full.sizeLabel,
-        uploadedByContactId: full.uploadedByContactId,
-      });
-      router.replace(`/(app)/documents/${created.id}`);
-    } catch (error) {
-      Alert.alert('שגיאה', 'שכפול המסמך נכשל.');
-    }
+    router.push(`/(app)/documents/duplicate/${doc.id}`);
   }, [doc]);
 
   if (loading) {
