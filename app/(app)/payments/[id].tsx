@@ -118,6 +118,7 @@ export default function PaymentDetailScreen() {
   const amtColor = inbound ? Colors.inbound : Colors.outbound;
 
   const rows = [
+    { label: 'שם תשלום', value: detail.displayName },
     { label: 'סוג תשלום', value: PAYMENT_TYPE_LABELS[detail.paymentType] },
     { label: 'אופן תשלום', value: PAYMENT_MODE_LABELS[detail.mode] },
     { label: 'הצמדה למדד', value: detail.indexed ? 'כן' : 'לא' },
