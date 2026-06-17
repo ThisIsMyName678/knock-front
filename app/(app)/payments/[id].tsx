@@ -64,8 +64,9 @@ export default function PaymentDetailScreen() {
   }, [detail]);
 
   const onDuplicate = useCallback(() => {
-    Alert.alert('שכפול', 'ייווצר תשלום טיוטה בהמשך.', [{ text: 'אישור' }]);
-  }, []);
+    if (!detail) return;
+    router.push(`/(app)/payments/new?duplicateFromId=${detail.id}`);
+  }, [detail]);
 
   const onEdit = useCallback(() => {
     if (detail) router.push(`/(app)/payments/edit/${detail.id}`);
