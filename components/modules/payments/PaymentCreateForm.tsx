@@ -161,11 +161,13 @@ export function PaymentCreateForm({
   preloadedLink,
   preloadedContractId,
   preloadedContractName,
+  onSuccess,
 }: {
   initialData?: PaymentDetailMock;
   preloadedLink?: PreloadedLink;
   preloadedContractId?: string;
   preloadedContractName?: string;
+  onSuccess?: (created: BackendPayment | BackendPayment[]) => void;
 } = {}) {
   const insets = useSafeAreaInsets();
   const isEdit = Boolean(initialData?.id);
@@ -488,7 +490,11 @@ export function PaymentCreateForm({
       setIsSaving(false);
 
       if (createdPayment) {
-        router.back();
+        if (onSuccess) {
+          onSuccess(createdPayment);
+        } else {
+          router.back();
+        }
         return;
       }
     }
