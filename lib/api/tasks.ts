@@ -278,6 +278,7 @@ export function backendTaskDetailToRow(task: BackendTaskDetail): TaskListRow {
     ...backendTaskToListRow(task),
     costNotes: task.cost ?? undefined,
     timeNotes: task.handlingTime != null ? String(task.handlingTime) : undefined,
+    linkedPaymentId: task.paymentId ?? undefined,
     messages,
   };
 }
