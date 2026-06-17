@@ -142,6 +142,7 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
     const propertyId = linkSelected.kind === 'asset' ? linkSelected.id : null;
 
     setIsSaving(true);
+    let createdId: string | null = null;
     try {
       if (editId) {
         await updateDocument(editId, {
@@ -154,7 +155,7 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
           linkedTaskId: linkedTaskId ?? null,
         });
       } else {
-        await createDocument({
+        const created = await createDocument({
           displayName: fileName.trim(),
           documentType: clientDocumentTypeToBackend(documentType),
           linkScope,
@@ -164,6 +165,7 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
           linkedTaskId: linkedTaskId ?? null,
           fileType: fileKind,
         });
+        createdId = created.id;
       }
     } catch (error) {
       setIsSaving(false);
@@ -172,7 +174,11 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
       return;
     }
     setIsSaving(false);
-    router.back();
+    if (!editId && initialData && createdId) {
+      router.replace(`/(app)/documents/${createdId}`);
+    } else {
+      router.back();
+    }
   };
 
   return (
