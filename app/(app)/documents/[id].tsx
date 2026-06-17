@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   ScrollView,
@@ -25,7 +25,7 @@ import {
   type DocumentListRow,
 } from '@/lib/mocks/documents';
 import { getDocument, deleteDocument, documentToListRow } from '@/lib/api/documents';
-import { MOCK_TASKS_LIST } from '@/lib/mocks/tasks';
+import { getTask } from '@/lib/api/tasks';
 import {
   Colors,
   Spacing,
@@ -303,6 +303,7 @@ export default function DocumentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [linkedTaskTitle, setLinkedTaskTitle] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -324,7 +325,25 @@ export default function DocumentDetailScreen() {
     }, [id]),
   );
 
-  const taskTitle = doc?.linkedTaskId ? MOCK_TASKS_LIST.find((t) => t.id === doc.linkedTaskId)?.title : null;
+  useEffect(() => {
+    if (!doc?.linkedTaskId) {
+      setLinkedTaskTitle(null);
+      return;
+    }
+    let active = true;
+    getTask(doc.linkedTaskId)
+      .then((task) => {
+        if (active) setLinkedTaskTitle(task.title);
+      })
+      .catch(() => {
+        if (active) setLinkedTaskTitle(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [doc?.linkedTaskId]);
+
+  const taskTitle = linkedTaskTitle;
 
   const onShare = useCallback(() => {
     Share.share({ message: doc?.displayName ?? '', title: 'שיתוף מסמך' }).catch(() => {});
