@@ -7,14 +7,15 @@ import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   PAYMENT_TYPE_LABELS,
   PAYMENT_MODE_LABELS,
   type PaymentDetailMock,
 } from '@/lib/mocks/payments';
-import { getPayment, paymentToDetail } from '@/lib/api/payments';
+import { getPayment, deletePayment, paymentToDetail } from '@/lib/api/payments';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
-import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
+import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 
@@ -23,6 +24,8 @@ export default function PaymentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [detail, setDetail] = useState<PaymentDetailMock | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -69,11 +72,21 @@ export default function PaymentDetailScreen() {
   }, [detail]);
 
   const onDelete = useCallback(() => {
-    Alert.alert('מחיקה', 'למחוק את התשלום?', [
-      { text: 'ביטול', style: 'cancel' },
-      { text: 'מחק', style: 'destructive', onPress: () => router.back() },
-    ]);
+    setDeleteDialogVisible(true);
   }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await deletePayment(id);
+      setDeleteDialogVisible(false);
+      router.back();
+    } catch (error) {
+      setDeleting(false);
+      Alert.alert('שגיאה', error instanceof Error ? error.message : 'מחיקת התשלום נכשלה, נסה שוב.');
+    }
+  }, [id]);
 
   if (loading) {
     return (
@@ -179,6 +192,15 @@ export default function PaymentDetailScreen() {
           ))}
         </Card>
       </ScrollView>
+
+      <ConfirmDialog
+        visible={deleteDialogVisible}
+        title="מחיקת תשלום"
+        message={`האם למחוק את "${detail.displayName}"?\nלא ניתן לשחזר פעולה זו.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteDialogVisible(false)}
+        loading={deleting}
+      />
     </View>
   );
 }

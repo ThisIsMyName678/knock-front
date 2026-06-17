@@ -4,7 +4,7 @@ import {
   StyleSheet,
   Pressable,
   FlatList,
-  Modal,
+  Alert,
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +17,7 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection, DateRangeQuickPreset } from '@/components/ui/FilterSheet';
 import { AppHeader } from '@/components/ui/AppHeader';
-import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RTL_ROW } from '@/constants/rtl';
 import { PaymentsListSkeleton, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import {
@@ -124,6 +124,7 @@ export function PaymentsListScreen() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PaymentListRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -227,13 +228,15 @@ export function PaymentsListScreen() {
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
+    setDeleting(true);
     try {
       await deletePayment(deleteTarget.id);
+      setDeleteTarget(null);
       await loadPayments();
     } catch (error) {
-      console.warn(error instanceof Error ? error.message : 'Failed to delete payment');
+      setDeleting(false);
+      Alert.alert('שגיאה', error instanceof Error ? error.message : 'מחיקת התשלום נכשלה, נסה שוב.');
     }
-    setDeleteTarget(null);
   }, [deleteTarget, loadPayments]);
 
   const activeSecondaryCount = useMemo(() => {
@@ -488,43 +491,14 @@ export function PaymentsListScreen() {
         <MaterialCommunityIcons name="plus" size={26} color={Colors.onPrimary} />
       </Pressable>
 
-      <Modal
+      <ConfirmDialog
         visible={deleteTarget !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDeleteTarget(null)}
-      >
-        <View style={styles.deleteBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setDeleteTarget(null)} />
-          <View style={styles.deleteSheet}>
-            <View style={styles.deleteIconWrap}>
-              <MaterialCommunityIcons name="delete-outline" size={28} color={Colors.error} />
-            </View>
-            <AppText variant="headingSm" weight="bold" align="center" style={{ marginBottom: Spacing.sm }}>
-              מחיקת תשלום
-            </AppText>
-            <AppText variant="bodyMd" color="variant" align="center" style={{ marginBottom: Spacing.lg }}>
-              {deleteTarget
-                ? `האם למחוק את "${deleteTarget.displayName}"?\nלא ניתן לשחזר פעולה זו.`
-                : ''}
-            </AppText>
-            <View style={styles.deleteActions}>
-              <Button
-                label="ביטול"
-                variant="secondary"
-                onPress={() => setDeleteTarget(null)}
-                style={{ flex: 1 }}
-              />
-              <Button
-                label="מחק"
-                variant="danger"
-                onPress={confirmDelete}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
+        title="מחיקת תשלום"
+        message={deleteTarget ? `האם למחוק את "${deleteTarget.displayName}"?\nלא ניתן לשחזר פעולה זו.` : ''}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
+      />
     </View>
   );
 }
@@ -614,36 +588,6 @@ const styles = StyleSheet.create({
   actionBtnDanger: {
     borderColor: `${Colors.error}44`,
     backgroundColor: Colors.errorContainer ?? '#FEE2E2',
-  },
-  deleteBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  deleteSheet: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing.xl,
-    maxWidth: 400,
-    width: '100%',
-    zIndex: 10,
-    ...Shadow.lg,
-  },
-  deleteIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.errorContainer ?? '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: Spacing.md,
-  },
-  deleteActions: {
-    flexDirection: RTL_ROW,
-    gap: Spacing.sm,
   },
   fab: {
     position: 'absolute',
