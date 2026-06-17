@@ -303,6 +303,7 @@ export default function DocumentDetailScreen() {
   const [doc, setDoc] = useState<DocumentListRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -339,18 +340,15 @@ export default function DocumentDetailScreen() {
 
   const onDelete = useCallback(() => {
     if (!doc) return;
-    Alert.alert('מחיקה', 'למחוק את המסמך?', [
-      { text: 'ביטול', style: 'cancel' },
-      {
-        text: 'מחק',
-        style: 'destructive',
-        onPress: () => {
-          deleteDocument(doc.id)
-            .then(() => router.back())
-            .catch((error) => console.warn(error instanceof Error ? error.message : 'Failed to delete document'));
-        },
-      },
-    ]);
+    setDeleteConfirmOpen(true);
+  }, [doc]);
+
+  const confirmDelete = useCallback(() => {
+    if (!doc) return;
+    deleteDocument(doc.id)
+      .then(() => router.back())
+      .catch((error) => console.warn(error instanceof Error ? error.message : 'Failed to delete document'));
+    setDeleteConfirmOpen(false);
   }, [doc]);
 
   const onDuplicate = useCallback(() => {
@@ -484,6 +482,45 @@ export default function DocumentDetailScreen() {
         onClose={() => setMenuOpen(false)}
         actions={actions}
       />
+
+      {/* ── Delete confirmation modal ── */}
+      <Modal
+        visible={deleteConfirmOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteConfirmOpen(false)}
+      >
+        <View style={styles.deleteBackdrop}>
+          <TouchableWithoutFeedback onPress={() => setDeleteConfirmOpen(false)}>
+            <View style={StyleSheet.absoluteFillObject} />
+          </TouchableWithoutFeedback>
+          <View style={styles.deleteSheet}>
+            <View style={styles.deleteIconWrap}>
+              <MaterialCommunityIcons name="delete-outline" size={28} color={Colors.error} />
+            </View>
+            <AppText variant="headingSm" weight="bold" align="center" style={{ marginBottom: Spacing.sm }}>
+              מחיקת מסמך
+            </AppText>
+            <AppText variant="bodyMd" color="variant" align="center" style={{ marginBottom: Spacing.lg }}>
+              {`האם למחוק את "${doc.displayName}"?\nלא ניתן לשחזר פעולה זו.`}
+            </AppText>
+            <View style={styles.deleteActions}>
+              <Button
+                label="ביטול"
+                variant="secondary"
+                onPress={() => setDeleteConfirmOpen(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="מחק"
+                variant="danger"
+                onPress={confirmDelete}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -547,4 +584,36 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
+
+  // Delete confirmation modal
+  deleteBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  deleteSheet: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+    maxWidth: 400,
+    width: '100%',
+    zIndex: 10,
+    ...Shadow.lg,
+  },
+  deleteIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.errorContainer ?? '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  deleteActions: {
+    flexDirection: RTL_ROW,
+    gap: Spacing.sm,
+  },
 });
