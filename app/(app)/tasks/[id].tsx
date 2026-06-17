@@ -116,7 +116,6 @@ export default function TaskDetailRoute() {
   const [editStatus, setEditStatus] = useState<WorkflowStatus>('open');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const confirmDelete = () => {
     setDeleteConfirmOpen(false);
