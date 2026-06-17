@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   Image,
+  TouchableWithoutFeedback,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -115,6 +116,13 @@ export default function TaskDetailRoute() {
   const [editStatus, setEditStatus] = useState<WorkflowStatus>('open');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  const confirmDelete = () => {
+    setDeleteConfirmOpen(false);
+    deleteTask(String(id ?? ''))
+      .then(() => router.back())
+      .catch((err) => Alert.alert('שגיאה', err instanceof Error ? err.message : 'מחיקת המשימה נכשלה'));
+  };
 
   const openEdit = () => {
     setEditTitle(localTitle);
@@ -732,6 +740,34 @@ export default function TaskDetailRoute() {
           onClose={() => setEditDatePickerTarget(null)}
           title={editDatePickerTarget === 'start' ? 'תאריך התחלה' : 'תאריך יעד'}
         />
+
+        <Modal
+          visible={deleteConfirmOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDeleteConfirmOpen(false)}
+        >
+          <View style={styles.deleteBackdrop}>
+            <TouchableWithoutFeedback onPress={() => setDeleteConfirmOpen(false)}>
+              <View style={StyleSheet.absoluteFillObject} />
+            </TouchableWithoutFeedback>
+            <View style={styles.deleteSheet}>
+              <View style={styles.deleteIconWrap}>
+                <MaterialCommunityIcons name="delete-outline" size={28} color={Colors.error} />
+              </View>
+              <AppText variant="headingSm" weight="bold" align="center" style={{ marginBottom: Spacing.sm }}>
+                מחיקת משימה
+              </AppText>
+              <AppText variant="bodyMd" color="variant" align="center" style={{ marginBottom: Spacing.lg }}>
+                {'האם למחוק את המשימה?\nלא ניתן לשחזר פעולה זו.'}
+              </AppText>
+              <View style={styles.deleteActions}>
+                <Button label="ביטול" variant="secondary" onPress={() => setDeleteConfirmOpen(false)} style={{ flex: 1 }} />
+                <Button label="מחק" variant="danger" onPress={confirmDelete} style={{ flex: 1 }} />
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </KeyboardAvoidingView>
   );
@@ -949,5 +985,35 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.md,
     backgroundColor: Colors.surfaceVariant,
+  },
+  deleteBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  deleteSheet: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+    maxWidth: 400,
+    width: '100%',
+    zIndex: 10,
+    ...Shadow.lg,
+  },
+  deleteIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.errorContainer ?? '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.md,
+  },
+  deleteActions: {
+    flexDirection: RTL_ROW,
+    gap: Spacing.sm,
   },
 });
