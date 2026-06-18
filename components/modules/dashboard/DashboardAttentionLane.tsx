@@ -38,11 +38,9 @@ export function DashboardAttentionLane({ payments7d, taskCounts, onPaymentsPress
             <View style={styles.pipeline}>
               {taskCounts.openCount > 0 && <View style={[styles.seg, { flex: taskCounts.openCount, backgroundColor: Colors.statusOpen }]} />}
               {taskCounts.inProgressCount > 0 && <View style={[styles.seg, { flex: taskCounts.inProgressCount, backgroundColor: Colors.statusInProgress }]} />}
-              {taskCounts.completedCount > 0 && <View style={[styles.seg, { flex: taskCounts.completedCount, backgroundColor: Colors.statusClosed }]} />}
-              {taskCounts.cancelledCount > 0 && <View style={[styles.seg, { flex: taskCounts.cancelledCount, backgroundColor: Colors.statusCancelled }]} />}
               {!hasAny && <View style={[styles.seg, { flex: 1, backgroundColor: Colors.surfaceVariant }]} />}
             </View>
-            <AppText variant="caption" color="muted">פתוחות {taskCounts.openCount} · בטיפול {taskCounts.inProgressCount} · הושלם {taskCounts.completedCount} · בוטל {taskCounts.cancelledCount}</AppText>
+            <AppText variant="caption" color="muted">פתוחות {taskCounts.openCount} · בטיפול {taskCounts.inProgressCount}</AppText>
           </View>
         </Pressable>
       </View>

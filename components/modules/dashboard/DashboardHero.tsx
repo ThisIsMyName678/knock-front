@@ -66,16 +66,6 @@ export function DashboardHero(props: Props) {
                 <AppText variant="caption" color="muted">בטיפול</AppText>
               </Pressable>
               <View style={styles.taskDivider} />
-              <Pressable onPress={() => props.onTasksPreset('completed')} style={styles.taskCell} hitSlop={6}>
-                <AppText style={styles.taskNum}>{props.taskCounts.completedCount}</AppText>
-                <AppText variant="caption" color="muted">הושלם</AppText>
-              </Pressable>
-              <View style={styles.taskDivider} />
-              <Pressable onPress={() => props.onTasksPreset('cancelled')} style={styles.taskCell} hitSlop={6}>
-                <AppText style={styles.taskNum}>{props.taskCounts.cancelledCount}</AppText>
-                <AppText variant="caption" color="muted">בוטל</AppText>
-              </Pressable>
-              <View style={styles.taskDivider} />
               <Pressable onPress={() => props.onTasksPreset('total_open')} style={styles.taskCell} hitSlop={6}>
                 <AppText style={styles.taskNum}>{props.taskCounts.total}</AppText>
                 <AppText variant="caption" color="muted">סה״כ</AppText>
