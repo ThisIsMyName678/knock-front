@@ -128,6 +128,7 @@ export function TasksListScreen() {
     assignee?: string;
     workflowStatus?: string;
     statusTab?: string;
+    overdueOnly?: string;
   }>();
   const [rows, setRows] = useState<TaskListRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,6 +141,7 @@ export function TasksListScreen() {
   const [statusTab, setStatusTab] = useState<TaskStatusTab>('all');
   const [assignee, setAssignee] = useState<string | null>(null);
   const [workflowStatusExact, setWorkflowStatusExact] = useState<WorkflowStatus | null>(null);
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [sortKey, setSortKey] = useState<TaskSortKey>('dueDate');
@@ -197,6 +199,10 @@ export function TasksListScreen() {
     }
   }, [params.statusTab]);
 
+  useEffect(() => {
+    setOverdueOnly(paramStr(params.overdueOnly) === 'true');
+  }, [params.overdueOnly]);
+
   const linkScope = linkScopeFromScope(scope);
 
   const filtered = useMemo(
@@ -212,8 +218,9 @@ export function TasksListScreen() {
         dateFrom,
         dateTo,
         workflowStatusExact: workflowStatusExact ?? undefined,
+        overdueOnly,
       }),
-    [rows, search, taskKind, priority, statusTab, linkScope, entityId, assignee, dateFrom, dateTo, workflowStatusExact],
+    [rows, search, taskKind, priority, statusTab, linkScope, entityId, assignee, dateFrom, dateTo, workflowStatusExact, overdueOnly],
   );
 
   const sorted = useMemo(() => sortTaskRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
