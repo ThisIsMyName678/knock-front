@@ -7,6 +7,33 @@ export type CalendarRangeFilters = {
   projectId?: string;
 };
 
+export type CreateCalendarEventInput = {
+  title: string;
+  kind?: string | null;
+  startAt: string;
+  propertyId?: string | null;
+  projectId?: string | null;
+  contactId?: string | null;
+  reminderMinutesBefore?: number | null;
+};
+
+export type BackendCalendarEvent = {
+  id: string;
+  organizationId: string;
+  title: string;
+  kind: string | null;
+  startAt: string;
+  scopeType: 'PROJECT' | 'PROPERTY' | null;
+  projectId: string | null;
+  propertyId: string | null;
+  contactId: string | null;
+  status: 'NEW' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
+  reminderMinutesBefore: number | null;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function getCalendarEvents(
   from: Date,
   to: Date,
@@ -29,4 +56,11 @@ export function getAgendaForDay(
   if (filters.propertyId) q.set('propertyId', filters.propertyId);
   if (filters.projectId) q.set('projectId', filters.projectId);
   return backendRequest<DashboardCalendarEvent[]>(`/calendar/agenda?${q.toString()}`);
+}
+
+export function createEvent(payload: CreateCalendarEventInput): Promise<BackendCalendarEvent> {
+  return backendRequest<BackendCalendarEvent>('/calendar/events', {
+    method: 'POST',
+    body: payload,
+  });
 }
