@@ -27,8 +27,7 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import {
-  getAgendaForDay,
-  getCalendarEventsForRange,
+  MOCK_GOOGLE_CALENDAR_EVENTS,
   paymentsDashboardQueryParams,
   tasksDashboardQueryParams,
   toLocalDateKey,
@@ -42,6 +41,7 @@ import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/
 import { getPropertiesStats } from '@/lib/api/properties';
 import { getPaymentsDashboardSummary } from '@/lib/api/payments';
 import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
+import { getCalendarEvents, getAgendaForDay } from '@/lib/api/calendar';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
@@ -74,17 +74,15 @@ function MonthCalendar({
   selectedDate,
   onSelectDate,
   hasDot,
+  viewMonth,
+  onMonthChange,
 }: {
   selectedDate: Date;
   onSelectDate: (d: Date) => void;
   hasDot: (d: Date) => boolean;
+  viewMonth: Date;
+  onMonthChange: (d: Date) => void;
 }) {
-  const [viewMonth, setViewMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-
-  useEffect(() => {
-    setViewMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-  }, [selectedDate]);
-
   const year = viewMonth.getFullYear();
   const month = viewMonth.getMonth();
 
@@ -110,11 +108,11 @@ function MonthCalendar({
     <View style={calStyles.wrap}>
       {/* Month nav */}
       <View style={calStyles.nav}>
-        <Pressable onPress={() => setViewMonth(new Date(year, month + 1, 1))} style={calStyles.navBtn} hitSlop={8}>
+        <Pressable onPress={() => onMonthChange(new Date(year, month + 1, 1))} style={calStyles.navBtn} hitSlop={8}>
           <MaterialCommunityIcons name="chevron-right" size={22} color={Colors.accent} />
         </Pressable>
         <AppText variant="bodyMd" weight="bold" style={{ flex: 1, textAlign: 'center' }}>{monthLabel}</AppText>
-        <Pressable onPress={() => setViewMonth(new Date(year, month - 1, 1))} style={calStyles.navBtn} hitSlop={8}>
+        <Pressable onPress={() => onMonthChange(new Date(year, month - 1, 1))} style={calStyles.navBtn} hitSlop={8}>
           <MaterialCommunityIcons name="chevron-left" size={22} color={Colors.accent} />
         </Pressable>
       </View>
@@ -330,23 +328,94 @@ export function DashboardScreen() {
     };
   }, []);
 
-  const calendarOpts = useMemo(
-    () => ({ includeGoogle: googleSyncMock, manualEvents }),
-    [googleSyncMock, manualEvents],
+  const [viewMonth, setViewMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  const [monthEvents, setMonthEvents] = useState<DashboardCalendarEvent[]>([]);
+  const [agendaEvents, setAgendaEvents] = useState<DashboardCalendarEvent[]>([]);
+
+  useEffect(() => {
+    setViewMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  }, [selectedDate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const from = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+    const to = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0);
+
+    getCalendarEvents(from, to)
+      .then((events) => {
+        if (!cancelled) setMonthEvents(events);
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load calendar events');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMonth]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getAgendaForDay(selectedDate)
+      .then((events) => {
+        if (!cancelled) setAgendaEvents(events);
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load agenda');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
+
+  const sortEvents = useCallback((events: DashboardCalendarEvent[]) => {
+    return [...events].sort((a, b) => {
+      const c = a.dateKey.localeCompare(b.dateKey);
+      if (c !== 0) return c;
+      const ta = a.timeLabel ?? '';
+      const tb = b.timeLabel ?? '';
+      if (ta !== tb) return ta.localeCompare(tb, 'he');
+      return a.sortOrder - b.sortOrder;
+    });
+  }, []);
+
+  const googleEventsForDay = useCallback(
+    (dateKey: string): DashboardCalendarEvent[] =>
+      googleSyncMock
+        ? MOCK_GOOGLE_CALENDAR_EVENTS.filter((g) => g.dateKey === dateKey).map((g, i) => ({
+            id: `goo-ev-${g.id}`,
+            source: 'google' as const,
+            title: g.title,
+            dateKey: g.dateKey,
+            timeLabel: g.timeLabel,
+            sortOrder: 400 + i,
+            statusLabel: g.statusLabel,
+            detail: g.detail,
+          }))
+        : [],
+    [googleSyncMock],
   );
 
   const weekStart = useMemo(() => startOfWeekMonday(selectedDate), [selectedDate]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   const hasDot = useCallback(
-    (day: Date) => getCalendarEventsForRange(day, day, calendarOpts).length > 0,
-    [calendarOpts],
+    (day: Date) => {
+      const dk = toLocalDateKey(day);
+      if (monthEvents.some((e) => e.dateKey === dk)) return true;
+      if (manualEvents.some((e) => e.dateKey === dk)) return true;
+      return googleEventsForDay(dk).length > 0;
+    },
+    [monthEvents, manualEvents, googleEventsForDay],
   );
 
-  const agenda = useMemo(
-    () => getAgendaForDay(selectedDate, calendarOpts),
-    [selectedDate, calendarOpts],
-  );
+  const agenda = useMemo(() => {
+    const dk = toLocalDateKey(selectedDate);
+    const manualForDay = manualEvents.filter((e) => e.dateKey === dk);
+    return sortEvents([...agendaEvents, ...manualForDay, ...googleEventsForDay(dk)]);
+  }, [agendaEvents, manualEvents, selectedDate, googleEventsForDay, sortEvents]);
 
   const agendaTitle = useMemo(() => {
     const wd = selectedDate.toLocaleDateString('he-IL', { weekday: 'long' });
@@ -500,6 +569,8 @@ export function DashboardScreen() {
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
             hasDot={hasDot}
+            viewMonth={viewMonth}
+            onMonthChange={setViewMonth}
           />
 
           <View style={styles.rowBetween}>
