@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -43,7 +43,7 @@ import { getPaymentsDashboardSummary } from '@/lib/api/payments';
 import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
 import { getCalendarEvents, getAgendaForDay, createEvent } from '@/lib/api/calendar';
 import { AppHeader } from '@/components/ui/AppHeader';
-import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
+import { listContacts, type ContactListItem } from '@/lib/api/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
 
 type EventKind = 'meeting' | 'call' | 'task' | 'maintenance' | 'personal' | 'other';
@@ -248,10 +248,13 @@ export function DashboardScreen() {
   const [newTime, setNewTime] = useState('');
   const [newEventKind, setNewEventKind] = useState<EventKind | ''>('');
   const [newContactId, setNewContactId] = useState<string | null>(null);
+  const [selectedContact, setSelectedContact] = useState<ContactListItem | null>(null);
   const [newReminder, setNewReminder] = useState<'same_day' | '0' | '15' | '30' | '60' | '120' | '1440' | 'custom'>('30');
   const [reminderCustomDate, setReminderCustomDate] = useState('');
   const [reminderCustomTime, setReminderCustomTime] = useState('');
   const [contactSearch, setContactSearch] = useState('');
+  const [contactResults, setContactResults] = useState<ContactListItem[]>([]);
+  const contactSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [agendaStatusForId, setAgendaStatusForId] = useState<Record<string, string>>({});
   const [statusModalEventId, setStatusModalEventId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -426,19 +429,32 @@ export function DashboardScreen() {
     setNewTime('');
     setNewEventKind('');
     setNewContactId(null);
+    setSelectedContact(null);
     setContactSearch('');
+    setContactResults([]);
     setNewReminder('30');
     setReminderCustomDate('');
     setReminderCustomTime('');
     setCreateOpen(true);
   }, [selectedDate]);
 
-  const filteredContacts = useMemo(() => {
+  useEffect(() => {
+    if (contactSearchDebounceRef.current) clearTimeout(contactSearchDebounceRef.current);
     const q = contactSearch.trim();
-    if (!q) return [];
-    return MOCK_CONTACTS_LIST.filter(
-      (c) => c.displayName.includes(q) || c.linkLabel.includes(q),
-    ).slice(0, 8);
+    if (!q) {
+      setContactResults([]);
+      return;
+    }
+    contactSearchDebounceRef.current = setTimeout(() => {
+      listContacts({ search: q, limit: 8 })
+        .then((results) => setContactResults(results))
+        .catch((error) => {
+          console.warn(error instanceof Error ? error.message : 'Failed to search contacts');
+        });
+    }, 300);
+    return () => {
+      if (contactSearchDebounceRef.current) clearTimeout(contactSearchDebounceRef.current);
+    };
   }, [contactSearch]);
 
   const onSaveManualEvent = useCallback(() => {
@@ -656,7 +672,7 @@ export function DashboardScreen() {
             <AppText variant="labelSm" weight="semiBold" align="right" style={[styles.fieldLabel, { marginTop: Spacing.md }]}>שיוך איש קשר</AppText>
             {newContactId ? (
               <Pressable
-                onPress={() => { setNewContactId(null); setContactSearch(''); }}
+                onPress={() => { setNewContactId(null); setSelectedContact(null); setContactSearch(''); }}
                 style={styles.contactRowOn}
               >
                 <View style={[styles.contactAvatar, { backgroundColor: Colors.primaryContainer }]}>
@@ -664,10 +680,10 @@ export function DashboardScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <AppText variant="bodyMd" weight="semiBold" style={{ textAlign: 'right', color: Colors.primary }}>
-                    {MOCK_CONTACTS_LIST.find((c) => c.id === newContactId)?.displayName}
+                    {selectedContact?.displayName}
                   </AppText>
                   <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
-                    {MOCK_CONTACTS_LIST.find((c) => c.id === newContactId)?.linkLabel}
+                    {selectedContact?.linkLabel}
                   </AppText>
                 </View>
                 <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
@@ -682,17 +698,17 @@ export function DashboardScreen() {
                   style={styles.input}
                   textAlign="right"
                 />
-                {contactSearch.trim().length > 0 && filteredContacts.length === 0 && (
+                {contactSearch.trim().length > 0 && contactResults.length === 0 && (
                   <AppText variant="caption" color="muted" align="right" style={{ marginBottom: Spacing.sm }}>
                     לא נמצאו תוצאות
                   </AppText>
                 )}
-                {filteredContacts.length > 0 && (
+                {contactResults.length > 0 && (
                   <View style={styles.contactList}>
-                    {filteredContacts.map((c) => (
+                    {contactResults.map((c) => (
                       <Pressable
                         key={c.id}
-                        onPress={() => { setNewContactId(c.id); setContactSearch(''); }}
+                        onPress={() => { setNewContactId(c.id); setSelectedContact(c); setContactSearch(''); }}
                         style={styles.contactRow}
                       >
                         <View style={styles.contactAvatar}>
