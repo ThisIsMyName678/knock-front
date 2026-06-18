@@ -272,6 +272,7 @@ export function DashboardScreen() {
     inProgressCount: 0,
     completedCount: 0,
     cancelledCount: 0,
+    overdueCount: 0,
     total: 0,
   });
   const [assetsXY, setAssetsXY] = useState({ rented: 0, total: 0 });
