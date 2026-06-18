@@ -90,7 +90,7 @@ export function paymentsDashboardQueryParams(anchor: Date = new Date()): Record<
 // ─── Tasks (open) ─────────────────────────────────────────────────────────────
 
 /** פרסט ניווט למסך משימות מהדשבורד */
-export type TasksDashboardPreset = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'total_open';
+export type TasksDashboardPreset = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'total_open' | 'overdue';
 
 export function tasksDashboardQueryParams(preset: TasksDashboardPreset): Record<string, string> {
   const base: Record<string, string> = {};
@@ -108,6 +108,9 @@ export function tasksDashboardQueryParams(preset: TasksDashboardPreset): Record<
   }
   if (preset === 'cancelled') {
     return { ...base, statusTab: 'all', workflowStatus: 'cancelled' };
+  }
+  if (preset === 'overdue') {
+    return { ...base, statusTab: 'all', overdueOnly: 'true' };
   }
   return { ...base, statusTab: 'all' };
 }

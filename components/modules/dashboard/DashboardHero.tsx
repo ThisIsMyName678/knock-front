@@ -71,7 +71,7 @@ export function DashboardHero(props: Props) {
                 <AppText variant="caption" color="muted">סה״כ</AppText>
               </Pressable>
               <View style={styles.taskDivider} />
-              <Pressable onPress={() => {}} style={styles.taskCell} hitSlop={6}>
+              <Pressable onPress={() => props.onTasksPreset('overdue')} style={styles.taskCell} hitSlop={6}>
                 <AppText style={[styles.taskNum, styles.taskNumOverdue]}>{props.taskCounts.overdueCount}</AppText>
                 <AppText variant="caption" color="muted">באיחור</AppText>
               </Pressable>
