@@ -55,13 +55,13 @@ type AuthContextValue = {
   backendBootstrapComplete: boolean;
   backendAuthError: string | null;
   signInWithPassword: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string) => Promise<any>;
+  signUp: (email: string, password: string, displayName: string, phone: string) => Promise<any>;
   resendConfirmationEmail: (email: string) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
   passwordRecoveryPending: boolean;
   signOut: () => Promise<void>;
-  refreshBackendUser: (onboardData?: { displayName: string }) => Promise<void>;
+  refreshBackendUser: (onboardData?: { displayName: string; phone: string }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -207,7 +207,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
-  async function signUp(email: string, password: string, displayName: string) {
+  async function signUp(email: string, password: string, displayName: string, phone: string) {
     setBackendAuthError(null);
     console.log('[Auth] Supabase signUp started for:', email);
     const { data, error } = await supabase.auth.signUp({
@@ -216,6 +216,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       options: {
         data: {
           full_name: displayName,
+          phone,
         },
       },
     });
@@ -232,7 +233,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (data.session) {
       try {
         console.log('[Auth] Starting refresh with onboarding...');
-        await refreshBackendUser({ displayName });
+        await refreshBackendUser({ displayName, phone });
         console.log('[Auth] Refresh with onboarding success');
       } catch (error) {
         console.error('[Auth] Refresh with onboarding failed:', error);
@@ -240,7 +241,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } else {
       console.log('[Auth] Signup successful, but no session. Email confirmation is likely required.');
     }
-    
+
     return data;
   }
 
@@ -335,7 +336,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
-  async function refreshBackendUser(onboardData?: { displayName: string }) {
+  async function refreshBackendUser(onboardData?: { displayName: string; phone: string }) {
     if (AUTH_DISABLED) {
       setBackendUser(MOCK_BACKEND_USER);
       setBackendAuthError(null);

@@ -28,13 +28,16 @@ export default function RegisterScreen() {
   const { signUp, backendAuthError } = useAuth();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
 
   const handleRegister = async () => {
-    const errors = validateRegisterFields(displayName, email, password);
+    const errors = validateRegisterFields(displayName, email, phone, password, confirmPassword);
     if (hasFieldErrors(errors)) {
       setFieldErrors(errors);
       return;
@@ -44,7 +47,7 @@ export default function RegisterScreen() {
     setLoading(true);
 
     try {
-      const data = await signUp(email, password, displayName);
+      const data = await signUp(email, password, displayName, phone);
 
       if (data?.session) {
         // Logged in immediately — AppLayout redirects when session is ready.
@@ -135,6 +138,23 @@ export default function RegisterScreen() {
             />
 
             <Input
+              label="טלפון"
+              placeholder="05XXXXXXXX"
+              value={phone}
+              onChangeText={(value) => {
+                setPhone(value);
+                if (fieldErrors.phone) {
+                  setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                }
+              }}
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+              maxLength={10}
+              error={fieldErrors.phone}
+              containerStyle={{ marginBottom: Spacing.md }}
+            />
+
+            <Input
               label="סיסמה"
               placeholder="לפחות 6 תווים"
               value={password}
@@ -155,6 +175,30 @@ export default function RegisterScreen() {
                 />
               }
               onIconRightPress={() => setShowPassword((v) => !v)}
+              containerStyle={{ marginBottom: Spacing.md }}
+            />
+
+            <Input
+              label="אימות סיסמה"
+              placeholder="הקלד שוב את הסיסמה"
+              value={confirmPassword}
+              onChangeText={(value) => {
+                setConfirmPassword(value);
+                if (fieldErrors.confirmPassword) {
+                  setFieldErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                }
+              }}
+              secureTextEntry={!showConfirmPassword}
+              textContentType="password"
+              error={fieldErrors.confirmPassword}
+              iconRight={
+                <MaterialCommunityIcons
+                  name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={Colors.onSurfaceVariant}
+                />
+              }
+              onIconRightPress={() => setShowConfirmPassword((v) => !v)}
               containerStyle={{ marginBottom: Spacing.xl }}
             />
 
