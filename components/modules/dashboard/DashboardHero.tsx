@@ -15,11 +15,9 @@ type Props = {
   payments7d: number;
   taskCounts: BackendDashboardSummary;
   assetsXY: { rented: number; total: number };
-  contactsN: number;
   dateLabel: string;
   onPaymentsPress: () => void;
   onTasksPreset: (preset: TasksDashboardPreset) => void;
-  onContactsPress: () => void;
   onAssetsPress: () => void;
 };
 
@@ -68,32 +66,22 @@ export function DashboardHero(props: Props) {
                 <AppText variant="caption" color="muted">בטיפול</AppText>
               </Pressable>
               <View style={styles.taskDivider} />
-              <Pressable onPress={() => props.onTasksPreset('completed')} style={styles.taskCell} hitSlop={6}>
-                <AppText style={styles.taskNum}>{props.taskCounts.completedCount}</AppText>
-                <AppText variant="caption" color="muted">הושלם</AppText>
-              </Pressable>
-              <View style={styles.taskDivider} />
-              <Pressable onPress={() => props.onTasksPreset('cancelled')} style={styles.taskCell} hitSlop={6}>
-                <AppText style={styles.taskNum}>{props.taskCounts.cancelledCount}</AppText>
-                <AppText variant="caption" color="muted">בוטל</AppText>
-              </Pressable>
-              <View style={styles.taskDivider} />
               <Pressable onPress={() => props.onTasksPreset('total_open')} style={styles.taskCell} hitSlop={6}>
                 <AppText style={styles.taskNum}>{props.taskCounts.total}</AppText>
                 <AppText variant="caption" color="muted">סה״כ</AppText>
+              </Pressable>
+              <View style={styles.taskDivider} />
+              <Pressable onPress={() => props.onTasksPreset('overdue')} style={styles.taskCell} hitSlop={6}>
+                <AppText style={[styles.taskNum, styles.taskNumOverdue]}>{props.taskCounts.overdueCount}</AppText>
+                <AppText variant="caption" color="muted">באיחור</AppText>
               </Pressable>
             </View>
           </View>
           <Pressable onPress={props.onAssetsPress} style={({ pressed }) => [styles.miniCard, pressed && styles.pressed]} accessibilityRole="button">
             <MaterialCommunityIcons name="home-city-outline" size={18} color={Colors.success} />
-            <AppText variant="labelSm" weight="semiBold">נכסים</AppText>
+            <AppText variant="labelSm" weight="semiBold">נכסים/נכסים מושכרים</AppText>
             <AppText style={styles.miniCardValue}>{props.assetsXY.rented}/{props.assetsXY.total}</AppText>
             <View style={styles.occupancyTrack}><View style={[styles.occupancyFill, { width: `${occupancyPct}%` }]} /></View>
-          </Pressable>
-          <Pressable onPress={props.onContactsPress} style={({ pressed }) => [styles.contactsPill, pressed && styles.pressed]} accessibilityRole="button">
-            <MaterialCommunityIcons name="contacts-outline" size={16} color={Colors.accent} />
-            <AppText variant="labelSm" weight="bold">{props.contactsN}</AppText>
-            <AppText variant="caption" color="muted">אנשי קשר</AppText>
           </Pressable>
         </View>
       </View>
@@ -158,16 +146,16 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'android' ? { includeFontPadding: false, textAlignVertical: 'center' as const } : {}),
   },
   secondaryStrip: { flexDirection: RTL_ROW, gap: Spacing.sm, alignItems: 'stretch' },
-  tasksStrip: { flex: 2.4, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.md, gap: Spacing.sm },
+  tasksStrip: { flex: 2.4, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.sm, gap: Spacing.sm },
   stripLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.sm, color: Colors.onSurfaceVariant, textAlign: 'right' },
   tasksRow: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'center' },
-  taskCell: { alignItems: 'center', flex: 1, gap: 2, paddingHorizontal: 2 },
-  taskNum: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, color: Colors.onBackground },
+  taskCell: { alignItems: 'center', flex: 1, gap: 2, paddingHorizontal: 0 },
+  taskNum: { fontFamily: FontFamily.bold, fontSize: FontSize.md, color: Colors.onBackground },
+  taskNumOverdue: { color: Colors.error },
   taskDivider: { width: 1, height: 32, backgroundColor: Colors.outlineLight },
   miniCard: { flex: 1, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.md, gap: 4, alignItems: 'flex-end' },
   miniCardValue: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, color: Colors.onBackground },
   occupancyTrack: { width: '100%', height: 4, borderRadius: 2, backgroundColor: Colors.surfaceVariant, overflow: 'hidden', marginTop: 2 },
   occupancyFill: { height: '100%', backgroundColor: Colors.success, borderRadius: 2 },
-  contactsPill: { width: 72, backgroundColor: Colors.accentMuted, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, paddingVertical: Spacing.md, alignItems: 'center', justifyContent: 'center', gap: 4 },
   pressed: { opacity: 0.9 },
 });

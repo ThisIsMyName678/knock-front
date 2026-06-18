@@ -27,7 +27,6 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import {
-  contactsDashboardCount,
   getAgendaForDay,
   getCalendarEventsForRange,
   paymentsDashboardQueryParams,
@@ -38,7 +37,6 @@ import {
 } from '@/lib/mocks/dashboard';
 import { TASK_KIND_ICONS, type TaskKind } from '@/lib/mocks/tasks';
 import { DashboardHero } from './DashboardHero';
-import { DashboardAttentionLane } from './DashboardAttentionLane';
 import { AgendaTimeline } from './AgendaTimeline';
 import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
 import { getPropertiesStats } from '@/lib/api/properties';
@@ -273,9 +271,9 @@ export function DashboardScreen() {
     inProgressCount: 0,
     completedCount: 0,
     cancelledCount: 0,
+    overdueCount: 0,
     total: 0,
   });
-  const contactsN = useMemo(() => contactsDashboardCount(), []);
   const [assetsXY, setAssetsXY] = useState({ rented: 0, total: 0 });
   const [assetsXYIsMock, setAssetsXYIsMock] = useState(true);
   const [payments7d, setPayments7d] = useState(0);
@@ -458,11 +456,9 @@ export function DashboardScreen() {
             payments7d={payments7d}
             taskCounts={taskCounts}
             assetsXY={assetsXY}
-            contactsN={contactsN}
             dateLabel={dateLabel}
             onPaymentsPress={pushPaymentsPreset}
             onTasksPreset={pushTasksPreset}
-            onContactsPress={() => router.push('/(app)/contacts')}
             onAssetsPress={() => router.push('/(app)/assets-screens')}
           />
 
@@ -470,13 +466,6 @@ export function DashboardScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
           >
-        <DashboardAttentionLane
-          payments7d={payments7d}
-          taskCounts={taskCounts}
-          onPaymentsPress={pushPaymentsPreset}
-          onTasksPreset={pushTasksPreset}
-        />
-
         <View style={styles.workspace}>
           <View style={styles.rowBetween}>
             <AppText variant="headingSm" weight="bold" style={styles.sectionTitle}>

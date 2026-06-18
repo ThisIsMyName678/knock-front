@@ -508,6 +508,8 @@ export function filterTaskRows(
     dateTo: string;
     /** סינון מדויק לסטטוס זרימה (למשל מהדשבורד — משימות חדשות) */
     workflowStatusExact?: WorkflowStatus | null;
+    /** משימות באיחור: סטטוס לא הושלם/בוטל, יש תאריך יעד, והוא לפני היום */
+    overdueOnly?: boolean;
   },
 ): TaskListRow[] {
   const q = opts.search.trim().toLowerCase();
@@ -524,6 +526,13 @@ export function filterTaskRows(
       if (opts.statusTab === 'open' && !(r.workflowStatus === 'open' || r.workflowStatus === 'not_started')) return false;
       if (opts.statusTab === 'completed' && r.workflowStatus !== 'completed') return false;
       if (opts.statusTab === 'urgent' && r.priority !== 'urgent') return false;
+    }
+
+    if (opts.overdueOnly) {
+      if (r.workflowStatus === 'completed' || r.workflowStatus === 'cancelled') return false;
+      if (!r.dueDate.trim()) return false;
+      const due = parseDdMmYyyy(r.dueDate);
+      if (!due || due >= new Date().setHours(0, 0, 0, 0)) return false;
     }
 
     const t = parseDdMmYyyy(r.dueDate);
