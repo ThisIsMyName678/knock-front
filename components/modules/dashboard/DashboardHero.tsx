@@ -84,7 +84,7 @@ export function DashboardHero(props: Props) {
           </View>
           <Pressable onPress={props.onAssetsPress} style={({ pressed }) => [styles.miniCard, pressed && styles.pressed]} accessibilityRole="button">
             <MaterialCommunityIcons name="home-city-outline" size={18} color={Colors.success} />
-            <AppText variant="labelSm" weight="semiBold">נכסים</AppText>
+            <AppText variant="labelSm" weight="semiBold">נכסים/נכסים מושכרים</AppText>
             <AppText style={styles.miniCardValue}>{props.assetsXY.rented}/{props.assetsXY.total}</AppText>
             <View style={styles.occupancyTrack}><View style={[styles.occupancyFill, { width: `${occupancyPct}%` }]} /></View>
           </Pressable>
