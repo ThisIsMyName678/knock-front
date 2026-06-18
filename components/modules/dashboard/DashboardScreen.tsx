@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -41,7 +42,7 @@ import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/
 import { getPropertiesStats } from '@/lib/api/properties';
 import { getPaymentsDashboardSummary } from '@/lib/api/payments';
 import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
-import { getCalendarEvents, getAgendaForDay, createEvent, updateEvent, updateEventStatus, type BackendCalendarEvent } from '@/lib/api/calendar';
+import { getCalendarEvents, getAgendaForDay, createEvent, updateEvent, updateEventStatus, deleteEvent, type BackendCalendarEvent } from '@/lib/api/calendar';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { listContacts, type ContactListItem } from '@/lib/api/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
@@ -504,6 +505,37 @@ export function DashboardScreen() {
     [agenda, openEditModal],
   );
 
+  const onDeleteEventPress = useCallback(
+    (eventId: string) => {
+      const runDelete = () => {
+        deleteEvent(rawEventIdFromAgendaId(eventId))
+          .then(() => {
+            refreshMonthEvents();
+            refreshAgenda();
+          })
+          .catch((error) => {
+            console.warn(error instanceof Error ? error.message : 'Failed to delete event');
+            if (Platform.OS === 'web') {
+              window.alert('לא ניתן היה למחוק את האירוע. נסה שוב.');
+            } else {
+              Alert.alert('מחיקת האירוע נכשלה', 'לא ניתן היה למחוק את האירוע. נסה שוב.');
+            }
+          });
+      };
+
+      if (Platform.OS === 'web') {
+        if (window.confirm('האם למחוק את האירוע? לא ניתן לשחזר.')) runDelete();
+        return;
+      }
+
+      Alert.alert('מחיקת אירוע', 'האם למחוק את האירוע? לא ניתן לשחזר.', [
+        { text: 'ביטול', style: 'cancel' },
+        { text: 'מחק', style: 'destructive', onPress: runDelete },
+      ]);
+    },
+    [refreshMonthEvents, refreshAgenda],
+  );
+
   useEffect(() => {
     if (contactSearchDebounceRef.current) clearTimeout(contactSearchDebounceRef.current);
     const q = contactSearch.trim();
@@ -665,6 +697,7 @@ export function DashboardScreen() {
               events={agenda}
               onStatusPress={setStatusModalEventId}
               onEditPress={onEditEventPress}
+              onDeletePress={onDeleteEventPress}
               sourceColor={sourceColor}
               eventIcon={agendaEventIcon}
             />

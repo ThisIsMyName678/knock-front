@@ -12,11 +12,12 @@ type Props = {
   events: DashboardCalendarEvent[];
   onStatusPress: (eventId: string) => void;
   onEditPress: (eventId: string) => void;
+  onDeletePress: (eventId: string) => void;
   sourceColor: (source: DashboardCalendarEvent['source']) => string;
   eventIcon: (ev: DashboardCalendarEvent) => React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 };
 
-export function AgendaTimeline({ events, onStatusPress, onEditPress, sourceColor, eventIcon }: Props) {
+export function AgendaTimeline({ events, onStatusPress, onEditPress, onDeletePress, sourceColor, eventIcon }: Props) {
   if (events.length === 0) {
     return (
       <View style={styles.empty}>
@@ -56,6 +57,11 @@ export function AgendaTimeline({ events, onStatusPress, onEditPress, sourceColor
                   {ev.source === 'manual' ? (
                     <Pressable onPress={() => onStatusPress(ev.id)} hitSlop={6}>
                       <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.accent }}>שינוי סטטוס</AppText>
+                    </Pressable>
+                  ) : null}
+                  {ev.source === 'manual' ? (
+                    <Pressable onPress={() => onDeletePress(ev.id)} hitSlop={6}>
+                      <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.error }}>מחק</AppText>
                     </Pressable>
                   ) : null}
                   {ev.href ? (

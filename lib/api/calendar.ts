@@ -92,3 +92,9 @@ export function updateEvent(
     body: payload,
   });
 }
+
+export function deleteEvent(id: string): Promise<void> {
+  return backendRequest<void>(`/calendar/events/${id}`, {
+    method: 'DELETE',
+  });
+}
