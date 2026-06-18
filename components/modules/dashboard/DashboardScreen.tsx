@@ -41,7 +41,7 @@ import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/
 import { getPropertiesStats } from '@/lib/api/properties';
 import { getPaymentsDashboardSummary } from '@/lib/api/payments';
 import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
-import { getCalendarEvents, getAgendaForDay } from '@/lib/api/calendar';
+import { getCalendarEvents, getAgendaForDay, createEvent } from '@/lib/api/calendar';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
@@ -242,7 +242,6 @@ export function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [googleSyncMock, setGoogleSyncMock] = useState(false);
-  const [manualEvents, setManualEvents] = useState<DashboardCalendarEvent[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
@@ -336,39 +335,31 @@ export function DashboardScreen() {
     setViewMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
   }, [selectedDate]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refreshMonthEvents = useCallback(() => {
     const from = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
     const to = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0);
-
-    getCalendarEvents(from, to)
-      .then((events) => {
-        if (!cancelled) setMonthEvents(events);
-      })
+    return getCalendarEvents(from, to)
+      .then((events) => setMonthEvents(events))
       .catch((error) => {
         console.warn(error instanceof Error ? error.message : 'Failed to load calendar events');
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [viewMonth]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    getAgendaForDay(selectedDate)
-      .then((events) => {
-        if (!cancelled) setAgendaEvents(events);
-      })
+  const refreshAgenda = useCallback(() => {
+    return getAgendaForDay(selectedDate)
+      .then((events) => setAgendaEvents(events))
       .catch((error) => {
         console.warn(error instanceof Error ? error.message : 'Failed to load agenda');
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [selectedDate]);
+
+  useEffect(() => {
+    refreshMonthEvents();
+  }, [refreshMonthEvents]);
+
+  useEffect(() => {
+    refreshAgenda();
+  }, [refreshAgenda]);
 
   const sortEvents = useCallback((events: DashboardCalendarEvent[]) => {
     return [...events].sort((a, b) => {
@@ -405,17 +396,15 @@ export function DashboardScreen() {
     (day: Date) => {
       const dk = toLocalDateKey(day);
       if (monthEvents.some((e) => e.dateKey === dk)) return true;
-      if (manualEvents.some((e) => e.dateKey === dk)) return true;
       return googleEventsForDay(dk).length > 0;
     },
-    [monthEvents, manualEvents, googleEventsForDay],
+    [monthEvents, googleEventsForDay],
   );
 
   const agenda = useMemo(() => {
     const dk = toLocalDateKey(selectedDate);
-    const manualForDay = manualEvents.filter((e) => e.dateKey === dk);
-    return sortEvents([...agendaEvents, ...manualForDay, ...googleEventsForDay(dk)]);
-  }, [agendaEvents, manualEvents, selectedDate, googleEventsForDay, sortEvents]);
+    return sortEvents([...agendaEvents, ...googleEventsForDay(dk)]);
+  }, [agendaEvents, selectedDate, googleEventsForDay, sortEvents]);
 
   const agendaTitle = useMemo(() => {
     const wd = selectedDate.toLocaleDateString('he-IL', { weekday: 'long' });
@@ -460,53 +449,42 @@ export function DashboardScreen() {
     }
     // Parse date input or fall back to selected calendar date
     const dateStr = newDate.trim();
-    let dk = toLocalDateKey(selectedDate);
-    if (dateStr) {
-      const m = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (m) {
-        const parsed = new Date(parseInt(m[3]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[1]!, 10));
-        if (!isNaN(parsed.getTime())) dk = toLocalDateKey(parsed);
-      }
+    let eventDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    const dateMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (dateMatch) {
+      const parsed = new Date(parseInt(dateMatch[3]!, 10), parseInt(dateMatch[2]!, 10) - 1, parseInt(dateMatch[1]!, 10));
+      if (!isNaN(parsed.getTime())) eventDate = parsed;
     }
-    let reminderLabel = 'ללא תזכורת';
-    let reminderMins: number | undefined;
+    const timeMatch = newTime.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (timeMatch) {
+      eventDate.setHours(parseInt(timeMatch[1]!, 10), parseInt(timeMatch[2]!, 10), 0, 0);
+    } else {
+      eventDate.setHours(0, 0, 0, 0);
+    }
+
+    let reminderMins: number | null = null;
     if (newReminder === 'same_day') {
-      reminderLabel = 'תזכורת ביום עצמו';
       reminderMins = 0;
-    } else if (newReminder === 'custom') {
-      const datePart = reminderCustomDate.trim();
-      const timePart = reminderCustomTime.trim();
-      if (datePart || timePart) {
-        reminderLabel = `תזכורת ב-${[datePart, timePart].filter(Boolean).join(' ')}`;
-      }
-    } else if (newReminder !== '0') {
+    } else if (newReminder !== '0' && newReminder !== 'custom') {
       reminderMins = parseInt(newReminder, 10);
-      reminderLabel = `תזכורת ${reminderMins} דק׳ לפני`;
     }
-    const contact = newContactId ? MOCK_CONTACTS_LIST.find((c) => c.id === newContactId) : null;
-    const kindLabel = newEventKind ? EVENT_KIND_OPTIONS.find((k) => k.key === newEventKind)?.label : '';
-    const detailParts = [
-      kindLabel,
-      contact ? `איש קשר: ${contact.displayName}` : '',
-      reminderLabel,
-    ].filter(Boolean);
-    const id = `man-${Date.now()}`;
-    setManualEvents((prev) => [
-      ...prev,
-      {
-        id,
-        source: 'manual',
-        title,
-        dateKey: dk,
-        timeLabel: newTime.trim() || undefined,
-        sortOrder: 900 + prev.length,
-        statusLabel: 'חדש',
-        detail: detailParts.join(' · '),
-        reminderMinutesBefore: reminderMins,
-      },
-    ]);
-    setCreateOpen(false);
-  }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, reminderCustomDate, reminderCustomTime, selectedDate]);
+
+    createEvent({
+      title,
+      kind: newEventKind || null,
+      startAt: eventDate.toISOString(),
+      contactId: newContactId,
+      reminderMinutesBefore: reminderMins,
+    })
+      .then(() => {
+        setCreateOpen(false);
+        refreshMonthEvents();
+        refreshAgenda();
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to create event');
+      });
+  }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, selectedDate, refreshMonthEvents, refreshAgenda]);
 
   const statusModalEvent = statusModalEventId ? agenda.find((e) => e.id === statusModalEventId) : null;
 
