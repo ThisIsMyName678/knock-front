@@ -41,7 +41,7 @@ import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/
 import { getPropertiesStats } from '@/lib/api/properties';
 import { getPaymentsDashboardSummary } from '@/lib/api/payments';
 import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
-import { getCalendarEvents, getAgendaForDay, createEvent, updateEventStatus, type BackendCalendarEvent } from '@/lib/api/calendar';
+import { getCalendarEvents, getAgendaForDay, createEvent, updateEvent, updateEventStatus, type BackendCalendarEvent } from '@/lib/api/calendar';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { listContacts, type ContactListItem } from '@/lib/api/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
@@ -249,18 +249,34 @@ function rawEventIdFromAgendaId(eventId: string): string {
   return eventId.startsWith('manual-') ? eventId.slice('manual-'.length) : eventId;
 }
 
+type ReminderOption = 'same_day' | '0' | '15' | '30' | '60' | '120' | '1440' | 'custom';
+
+function reminderPresetFromMinutes(mins: number | null | undefined): ReminderOption {
+  if (mins == null) return '0';
+  if (mins === 0) return 'same_day';
+  const known: ReminderOption[] = ['15', '30', '60', '120', '1440'];
+  const asStr = String(mins) as ReminderOption;
+  return known.includes(asStr) ? asStr : 'custom';
+}
+
+function dateKeyToDdMmYyyy(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 export function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [googleSyncMock, setGoogleSyncMock] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [newEventKind, setNewEventKind] = useState<EventKind | ''>('');
   const [newContactId, setNewContactId] = useState<string | null>(null);
   const [selectedContact, setSelectedContact] = useState<ContactListItem | null>(null);
-  const [newReminder, setNewReminder] = useState<'same_day' | '0' | '15' | '30' | '60' | '120' | '1440' | 'custom'>('30');
+  const [newReminder, setNewReminder] = useState<ReminderOption>('30');
   const [reminderCustomDate, setReminderCustomDate] = useState('');
   const [reminderCustomTime, setReminderCustomTime] = useState('');
   const [contactSearch, setContactSearch] = useState('');
@@ -434,6 +450,7 @@ export function DashboardScreen() {
   }, []);
 
   const openCreateModal = useCallback(() => {
+    setEditingEventId(null);
     setNewTitle('');
     setNewDate(formatDdMmYyyy(selectedDate));
     setNewTime('');
@@ -447,6 +464,45 @@ export function DashboardScreen() {
     setReminderCustomTime('');
     setCreateOpen(true);
   }, [selectedDate]);
+
+  const openEditModal = useCallback((event: DashboardCalendarEvent) => {
+    setEditingEventId(event.id);
+    setNewTitle(event.title);
+    setNewDate(dateKeyToDdMmYyyy(event.dateKey));
+    setNewTime(event.timeLabel ?? '');
+    setNewEventKind((event.kind as EventKind) || '');
+    setNewContactId(event.contactId ?? null);
+    setSelectedContact(
+      event.contactId
+        ? ({
+            id: event.contactId,
+            contactKind: 'TENANT_BUYER',
+            nickname: null,
+            displayName: event.contactName ?? '',
+            phone: '',
+            email: null,
+            linkKind: null,
+            linkId: null,
+            linkLabel: null,
+            hasUserInSystem: false,
+          } as ContactListItem)
+        : null,
+    );
+    setContactSearch('');
+    setContactResults([]);
+    setNewReminder(reminderPresetFromMinutes(event.reminderMinutesBefore));
+    setReminderCustomDate('');
+    setReminderCustomTime('');
+    setCreateOpen(true);
+  }, []);
+
+  const onEditEventPress = useCallback(
+    (eventId: string) => {
+      const ev = agenda.find((e) => e.id === eventId);
+      if (ev) openEditModal(ev);
+    },
+    [agenda, openEditModal],
+  );
 
   useEffect(() => {
     if (contactSearchDebounceRef.current) clearTimeout(contactSearchDebounceRef.current);
@@ -495,23 +551,30 @@ export function DashboardScreen() {
       reminderMins = parseInt(newReminder, 10);
     }
 
-    createEvent({
+    const payload = {
       title,
       kind: newEventKind || null,
       startAt: eventDate.toISOString(),
       contactId: newContactId,
       reminderMinutesBefore: reminderMins,
-    })
+    };
+
+    const save = editingEventId
+      ? updateEvent(rawEventIdFromAgendaId(editingEventId), payload)
+      : createEvent(payload);
+
+    save
       .then(() => {
         setCreateOpen(false);
+        setEditingEventId(null);
         refreshMonthEvents();
         refreshAgenda();
       })
       .catch((error) => {
-        console.warn(error instanceof Error ? error.message : 'Failed to create event');
+        console.warn(error instanceof Error ? error.message : 'Failed to save event');
         Alert.alert('שמירת האירוע נכשלה', 'לא ניתן היה לשמור את האירוע. נסה שוב.');
       });
-  }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, selectedDate, refreshMonthEvents, refreshAgenda]);
+  }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, selectedDate, editingEventId, refreshMonthEvents, refreshAgenda]);
 
   const statusModalEvent = statusModalEventId ? agenda.find((e) => e.id === statusModalEventId) : null;
 
@@ -601,6 +664,7 @@ export function DashboardScreen() {
             <AgendaTimeline
               events={agenda}
               onStatusPress={setStatusModalEventId}
+              onEditPress={onEditEventPress}
               sourceColor={sourceColor}
               eventIcon={agendaEventIcon}
             />
@@ -610,16 +674,16 @@ export function DashboardScreen() {
         </FadeInContent>
       )}
 
-      <Modal visible={createOpen} animationType="slide" transparent onRequestClose={() => setCreateOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setCreateOpen(false)}>
+      <Modal visible={createOpen} animationType="slide" transparent onRequestClose={() => { setCreateOpen(false); setEditingEventId(null); }}>
+        <Pressable style={styles.modalBackdrop} onPress={() => { setCreateOpen(false); setEditingEventId(null); }}>
           <Pressable onPress={(e) => e.stopPropagation()}>
           <ScrollView style={styles.modalSheet} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <AppText variant="headingSm" weight="bold" align="right">
-                אירוע חדש
+                {editingEventId ? 'עריכת אירוע' : 'אירוע חדש'}
               </AppText>
-              <Pressable onPress={() => setCreateOpen(false)} hitSlop={8}>
+              <Pressable onPress={() => { setCreateOpen(false); setEditingEventId(null); }} hitSlop={8}>
                 <MaterialCommunityIcons name="close" size={22} color={Colors.onSurfaceMuted} />
               </Pressable>
             </View>
@@ -787,7 +851,7 @@ export function DashboardScreen() {
             )}
 
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setCreateOpen(false)} style={styles.modalGhost}>
+              <Pressable onPress={() => { setCreateOpen(false); setEditingEventId(null); }} style={styles.modalGhost}>
                 <AppText variant="labelMd" weight="semiBold" color="variant">ביטול</AppText>
               </Pressable>
               <Pressable onPress={onSaveManualEvent} style={styles.modalPrimary}>

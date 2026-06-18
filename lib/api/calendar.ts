@@ -74,3 +74,21 @@ export function updateEventStatus(
     body: { status },
   });
 }
+
+export type UpdateCalendarEventInput = {
+  title?: string;
+  kind?: string | null;
+  startAt?: string;
+  contactId?: string | null;
+  reminderMinutesBefore?: number | null;
+};
+
+export function updateEvent(
+  id: string,
+  payload: UpdateCalendarEventInput,
+): Promise<BackendCalendarEvent> {
+  return backendRequest<BackendCalendarEvent>(`/calendar/events/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  });
+}

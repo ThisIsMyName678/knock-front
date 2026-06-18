@@ -11,11 +11,12 @@ import type { DashboardCalendarEvent } from '@/lib/mocks/dashboard';
 type Props = {
   events: DashboardCalendarEvent[];
   onStatusPress: (eventId: string) => void;
+  onEditPress: (eventId: string) => void;
   sourceColor: (source: DashboardCalendarEvent['source']) => string;
   eventIcon: (ev: DashboardCalendarEvent) => React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 };
 
-export function AgendaTimeline({ events, onStatusPress, sourceColor, eventIcon }: Props) {
+export function AgendaTimeline({ events, onStatusPress, onEditPress, sourceColor, eventIcon }: Props) {
   if (events.length === 0) {
     return (
       <View style={styles.empty}>
@@ -47,6 +48,11 @@ export function AgendaTimeline({ events, onStatusPress, sourceColor, eventIcon }
               {ev.detail ? <AppText variant="bodySm" color="variant" align="right" numberOfLines={2}>{ev.detail}</AppText> : null}
               {ev.source === 'manual' || ev.href ? (
                 <View style={styles.actions}>
+                  {ev.source === 'manual' ? (
+                    <Pressable onPress={() => onEditPress(ev.id)} hitSlop={6}>
+                      <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.accent }}>ערוך</AppText>
+                    </Pressable>
+                  ) : null}
                   {ev.source === 'manual' ? (
                     <Pressable onPress={() => onStatusPress(ev.id)} hitSlop={6}>
                       <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.accent }}>שינוי סטטוס</AppText>

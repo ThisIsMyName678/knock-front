@@ -141,6 +141,11 @@ export type DashboardCalendarEvent = {
   href?: string;
   /** לאירועי משימה — לאייקון לפי סוג (כמו במסך משימות) */
   taskKind?: TaskKind;
+  /** לאירועים ידניים — לעריכה */
+  kind?: string | null;
+  contactId?: string | null;
+  contactName?: string | null;
+  reminderMinutesBefore?: number | null;
 };
 
 export type UserReminderMock = {
