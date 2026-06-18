@@ -19,3 +19,14 @@ export function getCalendarEvents(
   if (filters.projectId) q.set('projectId', filters.projectId);
   return backendRequest<DashboardCalendarEvent[]>(`/calendar/events?${q.toString()}`);
 }
+
+export function getAgendaForDay(
+  date: Date,
+  filters: CalendarRangeFilters = {},
+): Promise<DashboardCalendarEvent[]> {
+  const q = new URLSearchParams();
+  q.set('date', toLocalDateKey(date));
+  if (filters.propertyId) q.set('propertyId', filters.propertyId);
+  if (filters.projectId) q.set('projectId', filters.projectId);
+  return backendRequest<DashboardCalendarEvent[]>(`/calendar/agenda?${q.toString()}`);
+}
