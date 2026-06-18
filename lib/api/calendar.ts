@@ -64,3 +64,13 @@ export function createEvent(payload: CreateCalendarEventInput): Promise<BackendC
     body: payload,
   });
 }
+
+export function updateEventStatus(
+  id: string,
+  status: BackendCalendarEvent['status'],
+): Promise<BackendCalendarEvent> {
+  return backendRequest<BackendCalendarEvent>(`/calendar/events/${id}`, {
+    method: 'PATCH',
+    body: { status },
+  });
+}
