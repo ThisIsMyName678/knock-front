@@ -612,7 +612,8 @@ export function DashboardScreen() {
 
       <Modal visible={createOpen} animationType="slide" transparent onRequestClose={() => setCreateOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setCreateOpen(false)}>
-          <ScrollView style={styles.modalSheet} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onStartShouldSetResponder={() => true}>
+          <Pressable onPress={(e) => e.stopPropagation()}>
+          <ScrollView style={styles.modalSheet} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <AppText variant="headingSm" weight="bold" align="right">
@@ -794,6 +795,7 @@ export function DashboardScreen() {
               </Pressable>
             </View>
           </ScrollView>
+          </Pressable>
         </Pressable>
       </Modal>
 
