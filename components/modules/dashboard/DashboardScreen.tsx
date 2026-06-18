@@ -483,6 +483,7 @@ export function DashboardScreen() {
       })
       .catch((error) => {
         console.warn(error instanceof Error ? error.message : 'Failed to create event');
+        Alert.alert('שמירת האירוע נכשלה', 'לא ניתן היה לשמור את האירוע. נסה שוב.');
       });
   }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, selectedDate, refreshMonthEvents, refreshAgenda]);
 
