@@ -3,7 +3,6 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  Pressable,
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +18,6 @@ import {
   Radius,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
-import { RTL_ROW } from '@/constants/rtl';
 import { useAuth } from '@/lib/auth';
 import { BackendApiError, updateBackendProfile } from '@/lib/backend';
 import { supabase } from '@/lib/supabase';
@@ -29,28 +27,6 @@ import {
   resolveProfileDisplayName,
   resolveProfilePhone,
 } from '@/lib/profile-labels';
-
-type UiLang = 'he' | 'en';
-
-const LANG_OPTIONS: {
-  id: UiLang;
-  title: string;
-  hint: string;
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-}[] = [
-  {
-    id: 'he',
-    title: 'עברית',
-    hint: 'ממשק מימין לשמאל',
-    icon: 'format-align-right' as React.ComponentProps<typeof MaterialCommunityIcons>['name'],
-  },
-  {
-    id: 'en',
-    title: 'English',
-    hint: 'Left-to-right interface',
-    icon: 'format-align-left' as React.ComponentProps<typeof MaterialCommunityIcons>['name'],
-  },
-];
 
 export default function ProfileEditScreen() {
   const insets = useSafeAreaInsets();
@@ -69,7 +45,6 @@ export default function ProfileEditScreen() {
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
-  const [uiLang, setUiLang] = useState<UiLang>('he');
 
   const canEditCompany = canEditOrganizationName(backendUser?.organizationRole);
 
@@ -83,7 +58,6 @@ export default function ProfileEditScreen() {
     setPhone(resolveProfilePhone(backendUser, user));
     setRole(resolveOrganizationRoleLabel(backendUser.organizationRole));
     setCompany(backendUser.organization?.name ?? '');
-    setUiLang(backendUser.profile?.settings?.language === 'EN' ? 'en' : 'he');
     setHydrated(true);
   }, [backendUser, user, hydrated]);
 
@@ -99,7 +73,6 @@ export default function ProfileEditScreen() {
       await updateBackendProfile({
         displayName: fullName.trim(),
         organizationName: canEditCompany ? company.trim() : undefined,
-        language: uiLang === 'en' ? 'EN' : 'HE',
       });
 
       const { error: metadataError } = await supabase.auth.updateUser({
@@ -141,7 +114,7 @@ export default function ProfileEditScreen() {
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <AppHeader
         title="עריכת פרופיל"
-        subtitle="פרטים אישיים, תמונה, שפה וסיסמה"
+        subtitle="פרטים אישיים, תמונה וסיסמה"
         showBack
         onBack={() => router.replace('/(app)/settings')}
       />
@@ -227,48 +200,6 @@ export default function ProfileEditScreen() {
             }
           />
         </View>
-
-        <AppText variant="labelSm" weight="semiBold" color="muted" style={styles.sectionLabel}>
-          שפה וממשק
-        </AppText>
-        <View style={styles.langCard}>
-          {LANG_OPTIONS.map((opt, i) => {
-            const selected = uiLang === opt.id;
-            return (
-              <Pressable
-                key={opt.id}
-                onPress={() => setUiLang(opt.id)}
-                style={({ pressed }) => [
-                  styles.langRow,
-                  pressed && { backgroundColor: Colors.surfaceVariant },
-                  i < LANG_OPTIONS.length - 1 && styles.langRowBorder,
-                  selected && styles.langRowSelected,
-                ]}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selected }}
-                accessibilityLabel={`שפת ממשק: ${opt.title}`}
-              >
-                <MaterialCommunityIcons name={opt.icon} size={22} color={Colors.primary} />
-                <View style={styles.langTextCol}>
-                  <AppText variant="bodyMd" weight="semiBold" style={styles.langTitle}>
-                    {opt.title}
-                  </AppText>
-                  <AppText variant="caption" color="muted">
-                    {opt.hint}
-                  </AppText>
-                </View>
-                <MaterialCommunityIcons
-                  name={selected ? 'check-circle' : 'circle-outline'}
-                  size={22}
-                  color={selected ? Colors.primary : Colors.onSurfaceMuted}
-                />
-              </Pressable>
-            );
-          })}
-        </View>
-        <AppText variant="caption" color="muted" style={styles.langFootnote}>
-          שפת הממשק נשמרת בהגדרות החשבון. תרגום מלא של המסכים יתווסף בהמשך.
-        </AppText>
 
         <AppText variant="labelSm" weight="semiBold" color="muted" style={styles.sectionLabel}>
           שינוי סיסמה
@@ -386,29 +317,5 @@ const styles = StyleSheet.create({
     padding: Spacing.base,
     gap: Spacing.md,
   },
-  langCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    overflow: 'hidden',
-  },
-  langRow: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
-  },
-  langRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
-  },
-  langRowSelected: {
-    backgroundColor: Colors.primaryContainer,
-  },
-  langTextCol: { flex: 1, alignItems: 'flex-end' },
-  langTitle: { textAlign: 'right' },
-  langFootnote: { textAlign: 'right', paddingHorizontal: 4 },
   lastField: { marginBottom: 0 },
 });
