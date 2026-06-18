@@ -10,13 +10,12 @@ import type { DashboardCalendarEvent } from '@/lib/mocks/dashboard';
 
 type Props = {
   events: DashboardCalendarEvent[];
-  statusById: Record<string, string>;
   onStatusPress: (eventId: string) => void;
   sourceColor: (source: DashboardCalendarEvent['source']) => string;
   eventIcon: (ev: DashboardCalendarEvent) => React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 };
 
-export function AgendaTimeline({ events, statusById, onStatusPress, sourceColor, eventIcon }: Props) {
+export function AgendaTimeline({ events, onStatusPress, sourceColor, eventIcon }: Props) {
   if (events.length === 0) {
     return (
       <View style={styles.empty}>
@@ -39,23 +38,27 @@ export function AgendaTimeline({ events, statusById, onStatusPress, sourceColor,
             <AppText variant="labelSm" weight="semiBold" style={styles.time}>{ev.timeLabel ?? '—'}</AppText>
             <View style={styles.card}>
               <View style={styles.cardHead}>
-                <Badge label={statusById[ev.id] ?? ev.statusLabel} preset="neutral" />
+                <Badge label={ev.statusLabel} preset="neutral" />
                 <View style={[styles.icon, { backgroundColor: `${tint}18` }]}>
                   <MaterialCommunityIcons name={eventIcon(ev)} size={18} color={tint} />
                 </View>
               </View>
               <AppText variant="bodyMd" weight="semiBold" align="right" numberOfLines={2}>{ev.title}</AppText>
               {ev.detail ? <AppText variant="bodySm" color="variant" align="right" numberOfLines={2}>{ev.detail}</AppText> : null}
-              <View style={styles.actions}>
-                <Pressable onPress={() => onStatusPress(ev.id)} hitSlop={6}>
-                  <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.accent }}>שינוי סטטוס</AppText>
-                </Pressable>
-                {ev.href ? (
-                  <Pressable onPress={() => router.push(ev.href as Href)} hitSlop={6}>
-                    <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.accent }}>פרטים</AppText>
-                  </Pressable>
-                ) : null}
-              </View>
+              {ev.source === 'manual' || ev.href ? (
+                <View style={styles.actions}>
+                  {ev.source === 'manual' ? (
+                    <Pressable onPress={() => onStatusPress(ev.id)} hitSlop={6}>
+                      <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.accent }}>שינוי סטטוס</AppText>
+                    </Pressable>
+                  ) : null}
+                  {ev.href ? (
+                    <Pressable onPress={() => router.push(ev.href as Href)} hitSlop={6}>
+                      <AppText variant="labelSm" weight="semiBold" style={{ color: Colors.accent }}>פרטים</AppText>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
           </View>
         );

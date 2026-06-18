@@ -41,7 +41,7 @@ import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/
 import { getPropertiesStats } from '@/lib/api/properties';
 import { getPaymentsDashboardSummary } from '@/lib/api/payments';
 import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
-import { getCalendarEvents, getAgendaForDay, createEvent } from '@/lib/api/calendar';
+import { getCalendarEvents, getAgendaForDay, createEvent, updateEventStatus, type BackendCalendarEvent } from '@/lib/api/calendar';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { listContacts, type ContactListItem } from '@/lib/api/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
@@ -238,6 +238,17 @@ const AGENDA_STATUS_OPTIONS: { key: string; label: string; preset: React.Compone
   { key: 'נדחה', label: 'נדחה', preset: 'statusCancelled' },
 ];
 
+const AGENDA_STATUS_TO_BACKEND: Record<string, BackendCalendarEvent['status']> = {
+  'חדש': 'NEW',
+  'בטיפול': 'IN_PROGRESS',
+  'הושלם': 'DONE',
+  'נדחה': 'CANCELLED',
+};
+
+function rawEventIdFromAgendaId(eventId: string): string {
+  return eventId.startsWith('manual-') ? eventId.slice('manual-'.length) : eventId;
+}
+
 export function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -255,7 +266,6 @@ export function DashboardScreen() {
   const [contactSearch, setContactSearch] = useState('');
   const [contactResults, setContactResults] = useState<ContactListItem[]>([]);
   const contactSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [agendaStatusForId, setAgendaStatusForId] = useState<Record<string, string>>({});
   const [statusModalEventId, setStatusModalEventId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -590,7 +600,6 @@ export function DashboardScreen() {
             </AppText>
             <AgendaTimeline
               events={agenda}
-              statusById={agendaStatusForId}
               onStatusPress={setStatusModalEventId}
               sourceColor={sourceColor}
               eventIcon={agendaEventIcon}
@@ -803,10 +812,17 @@ export function DashboardScreen() {
               <Pressable
                 key={o.key}
                 onPress={() => {
-                  if (statusModalEventId) {
-                    setAgendaStatusForId((prev) => ({ ...prev, [statusModalEventId]: o.label }));
-                  }
-                  setStatusModalEventId(null);
+                  if (!statusModalEventId) return;
+                  const rawId = rawEventIdFromAgendaId(statusModalEventId);
+                  updateEventStatus(rawId, AGENDA_STATUS_TO_BACKEND[o.key])
+                    .then(() => {
+                      setStatusModalEventId(null);
+                      refreshAgenda();
+                    })
+                    .catch((error) => {
+                      console.warn(error instanceof Error ? error.message : 'Failed to update event status');
+                      Alert.alert('עדכון הסטטוס נכשל', 'לא ניתן היה לעדכן את הסטטוס. נסה שוב.');
+                    });
                 }}
                 style={({ pressed }) => [styles.statusOption, pressed && { opacity: 0.85 }]}
               >
