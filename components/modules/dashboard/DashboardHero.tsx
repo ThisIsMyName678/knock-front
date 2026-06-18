@@ -70,6 +70,11 @@ export function DashboardHero(props: Props) {
                 <AppText style={styles.taskNum}>{props.taskCounts.total}</AppText>
                 <AppText variant="caption" color="muted">סה״כ</AppText>
               </Pressable>
+              <View style={styles.taskDivider} />
+              <Pressable onPress={() => {}} style={styles.taskCell} hitSlop={6}>
+                <AppText style={[styles.taskNum, styles.taskNumOverdue]}>{props.taskCounts.overdueCount}</AppText>
+                <AppText variant="caption" color="muted">באיחור</AppText>
+              </Pressable>
             </View>
           </View>
           <Pressable onPress={props.onAssetsPress} style={({ pressed }) => [styles.miniCard, pressed && styles.pressed]} accessibilityRole="button">
@@ -141,11 +146,12 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'android' ? { includeFontPadding: false, textAlignVertical: 'center' as const } : {}),
   },
   secondaryStrip: { flexDirection: RTL_ROW, gap: Spacing.sm, alignItems: 'stretch' },
-  tasksStrip: { flex: 2.4, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.md, gap: Spacing.sm },
+  tasksStrip: { flex: 2.4, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.sm, gap: Spacing.sm },
   stripLabel: { fontFamily: FontFamily.semiBold, fontSize: FontSize.sm, color: Colors.onSurfaceVariant, textAlign: 'right' },
   tasksRow: { flexDirection: RTL_ROW, justifyContent: 'space-between', alignItems: 'center' },
-  taskCell: { alignItems: 'center', flex: 1, gap: 2, paddingHorizontal: 2 },
-  taskNum: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, color: Colors.onBackground },
+  taskCell: { alignItems: 'center', flex: 1, gap: 2, paddingHorizontal: 0 },
+  taskNum: { fontFamily: FontFamily.bold, fontSize: FontSize.md, color: Colors.onBackground },
+  taskNumOverdue: { color: Colors.error },
   taskDivider: { width: 1, height: 32, backgroundColor: Colors.outlineLight },
   miniCard: { flex: 1, backgroundColor: Colors.background, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, padding: Spacing.md, gap: 4, alignItems: 'flex-end' },
   miniCardValue: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, color: Colors.onBackground },
