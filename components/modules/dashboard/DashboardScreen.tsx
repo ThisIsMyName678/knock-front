@@ -27,7 +27,6 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import {
-  contactsDashboardCount,
   getAgendaForDay,
   getCalendarEventsForRange,
   paymentsDashboardQueryParams,
@@ -275,7 +274,6 @@ export function DashboardScreen() {
     cancelledCount: 0,
     total: 0,
   });
-  const contactsN = useMemo(() => contactsDashboardCount(), []);
   const [assetsXY, setAssetsXY] = useState({ rented: 0, total: 0 });
   const [assetsXYIsMock, setAssetsXYIsMock] = useState(true);
   const [payments7d, setPayments7d] = useState(0);
@@ -458,11 +456,9 @@ export function DashboardScreen() {
             payments7d={payments7d}
             taskCounts={taskCounts}
             assetsXY={assetsXY}
-            contactsN={contactsN}
             dateLabel={dateLabel}
             onPaymentsPress={pushPaymentsPreset}
             onTasksPreset={pushTasksPreset}
-            onContactsPress={() => router.push('/(app)/contacts')}
             onAssetsPress={() => router.push('/(app)/assets-screens')}
           />
 

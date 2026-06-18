@@ -15,11 +15,9 @@ type Props = {
   payments7d: number;
   taskCounts: BackendDashboardSummary;
   assetsXY: { rented: number; total: number };
-  contactsN: number;
   dateLabel: string;
   onPaymentsPress: () => void;
   onTasksPreset: (preset: TasksDashboardPreset) => void;
-  onContactsPress: () => void;
   onAssetsPress: () => void;
 };
 
@@ -89,11 +87,6 @@ export function DashboardHero(props: Props) {
             <AppText variant="labelSm" weight="semiBold">נכסים</AppText>
             <AppText style={styles.miniCardValue}>{props.assetsXY.rented}/{props.assetsXY.total}</AppText>
             <View style={styles.occupancyTrack}><View style={[styles.occupancyFill, { width: `${occupancyPct}%` }]} /></View>
-          </Pressable>
-          <Pressable onPress={props.onContactsPress} style={({ pressed }) => [styles.contactsPill, pressed && styles.pressed]} accessibilityRole="button">
-            <MaterialCommunityIcons name="contacts-outline" size={16} color={Colors.accent} />
-            <AppText variant="labelSm" weight="bold">{props.contactsN}</AppText>
-            <AppText variant="caption" color="muted">אנשי קשר</AppText>
           </Pressable>
         </View>
       </View>
@@ -168,6 +161,5 @@ const styles = StyleSheet.create({
   miniCardValue: { fontFamily: FontFamily.bold, fontSize: FontSize.lg, color: Colors.onBackground },
   occupancyTrack: { width: '100%', height: 4, borderRadius: 2, backgroundColor: Colors.surfaceVariant, overflow: 'hidden', marginTop: 2 },
   occupancyFill: { height: '100%', backgroundColor: Colors.success, borderRadius: 2 },
-  contactsPill: { width: 72, backgroundColor: Colors.accentMuted, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.outlineLight, paddingVertical: Spacing.md, alignItems: 'center', justifyContent: 'center', gap: 4 },
   pressed: { opacity: 0.9 },
 });
