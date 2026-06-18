@@ -468,9 +468,7 @@ export function DashboardScreen() {
             contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
           >
         <DashboardAttentionLane
-          payments7d={payments7d}
           taskCounts={taskCounts}
-          onPaymentsPress={pushPaymentsPreset}
           onTasksPreset={pushTasksPreset}
         />
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Pressable, Text, Platform } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize } from '@/constants/tokens';
@@ -8,28 +8,16 @@ import type { TasksDashboardPreset } from '@/lib/mocks/dashboard';
 import type { BackendDashboardSummary } from '@/lib/api/tasks';
 
 type Props = {
-  payments7d: number;
   taskCounts: BackendDashboardSummary;
-  onPaymentsPress: () => void;
   onTasksPreset: (preset: TasksDashboardPreset) => void;
 };
 
-export function DashboardAttentionLane({ payments7d, taskCounts, onPaymentsPress, onTasksPreset }: Props) {
+export function DashboardAttentionLane({ taskCounts, onTasksPreset }: Props) {
   const hasAny = taskCounts.total > 0;
   return (
     <View style={styles.wrap}>
       <AppText style={styles.eyebrow}>דורש טיפול</AppText>
       <View style={styles.row}>
-        <Pressable onPress={onPaymentsPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]} accessibilityRole="button">
-          <View style={[styles.rail, { backgroundColor: Colors.warning }]} />
-          <View style={styles.cardBody}>
-            <MaterialCommunityIcons name="calendar-clock" size={22} color={Colors.warning} />
-            <AppText variant="labelMd" weight="bold">תשלומים (7 ימים)</AppText>
-            <Text style={styles.cardValue} allowFontScaling={false}>
-              {payments7d}
-            </Text>
-          </View>
-        </Pressable>
         <Pressable onPress={() => onTasksPreset('total_open')} style={({ pressed }) => [styles.card, pressed && styles.pressed]} accessibilityRole="button">
           <View style={[styles.rail, { backgroundColor: Colors.accent }]} />
           <View style={styles.cardBody}>
@@ -61,14 +49,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg + 4,
     gap: Spacing.sm,
     alignItems: 'flex-end',
-  },
-  cardValue: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: FontSize['3xl'],
-    lineHeight: FontSize['3xl'] * 1.35,
-    color: Colors.onBackground,
-    textAlign: 'right',
-    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
   pipeline: { flexDirection: RTL_ROW, height: 8, borderRadius: 4, overflow: 'hidden', width: '100%', backgroundColor: Colors.surfaceVariant },
   seg: { minWidth: 4 },
