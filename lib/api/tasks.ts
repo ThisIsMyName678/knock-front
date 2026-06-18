@@ -79,6 +79,7 @@ export type BackendDashboardSummary = {
   inProgressCount: number;
   completedCount: number;
   cancelledCount: number;
+  overdueCount: number;
   total: number;
 };
 
