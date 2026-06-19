@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   ScrollView,
@@ -21,7 +21,7 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { ListRowSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
-import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
+import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
 import {
   filterContactRows,
   sortContactRows,
@@ -90,6 +90,7 @@ export function ContactsListScreen() {
   const [sortKey, setSortKey] = useState<ContactSortKey>('displayName');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [entityLinks, setEntityLinks] = useState<EntityLinkOption[]>([]);
 
   const linkScope = linkScopeFromScope(scope);
 
@@ -110,6 +111,12 @@ export function ContactsListScreen() {
       void loadContacts();
     }, [loadContacts]),
   );
+
+  useEffect(() => {
+    searchEntityLinks('')
+      .then(setEntityLinks)
+      .catch((error) => console.warn(error instanceof Error ? error.message : 'Failed to load entity links'));
+  }, []);
 
    //     setLoading(true);
   //     setRows((prev) => {
@@ -152,10 +159,10 @@ export function ContactsListScreen() {
   }, []);
 
   const entitiesForScope = useMemo(() => {
-    if (scope === 'by_asset') return MOCK_ENTITY_LINKS.filter((e) => e.kind === 'asset');
-    if (scope === 'by_project') return MOCK_ENTITY_LINKS.filter((e) => e.kind === 'project');
+    if (scope === 'by_asset') return entityLinks.filter((e) => e.kind === 'asset');
+    if (scope === 'by_project') return entityLinks.filter((e) => e.kind === 'project');
     return [];
-  }, [scope]);
+  }, [scope, entityLinks]);
 
   const activeSecondaryCount = scope !== 'all' ? 1 : 0;
 
