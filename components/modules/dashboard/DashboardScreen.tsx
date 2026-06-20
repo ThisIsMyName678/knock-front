@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -27,8 +28,7 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import {
-  getAgendaForDay,
-  getCalendarEventsForRange,
+  MOCK_GOOGLE_CALENDAR_EVENTS,
   paymentsDashboardQueryParams,
   tasksDashboardQueryParams,
   toLocalDateKey,
@@ -42,8 +42,9 @@ import { DashboardSkeleton, FadeInContent, useSkeletonGate } from '@/components/
 import { getPropertiesStats } from '@/lib/api/properties';
 import { getPaymentsDashboardSummary } from '@/lib/api/payments';
 import { getTasksDashboardSummary, type BackendDashboardSummary } from '@/lib/api/tasks';
+import { getCalendarEvents, getAgendaForDay, createEvent, updateEvent, updateEventStatus, deleteEvent, type BackendCalendarEvent } from '@/lib/api/calendar';
 import { AppHeader } from '@/components/ui/AppHeader';
-import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
+import { listContacts, type ContactListItem } from '@/lib/api/contacts';
 import { formatDdMmYyyy } from '@/lib/mocks/dashboard';
 
 type EventKind = 'meeting' | 'call' | 'task' | 'maintenance' | 'personal' | 'other';
@@ -74,17 +75,15 @@ function MonthCalendar({
   selectedDate,
   onSelectDate,
   hasDot,
+  viewMonth,
+  onMonthChange,
 }: {
   selectedDate: Date;
   onSelectDate: (d: Date) => void;
   hasDot: (d: Date) => boolean;
+  viewMonth: Date;
+  onMonthChange: (d: Date) => void;
 }) {
-  const [viewMonth, setViewMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-
-  useEffect(() => {
-    setViewMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-  }, [selectedDate]);
-
   const year = viewMonth.getFullYear();
   const month = viewMonth.getMonth();
 
@@ -110,11 +109,11 @@ function MonthCalendar({
     <View style={calStyles.wrap}>
       {/* Month nav */}
       <View style={calStyles.nav}>
-        <Pressable onPress={() => setViewMonth(new Date(year, month + 1, 1))} style={calStyles.navBtn} hitSlop={8}>
+        <Pressable onPress={() => onMonthChange(new Date(year, month + 1, 1))} style={calStyles.navBtn} hitSlop={8}>
           <MaterialCommunityIcons name="chevron-right" size={22} color={Colors.accent} />
         </Pressable>
         <AppText variant="bodyMd" weight="bold" style={{ flex: 1, textAlign: 'center' }}>{monthLabel}</AppText>
-        <Pressable onPress={() => setViewMonth(new Date(year, month - 1, 1))} style={calStyles.navBtn} hitSlop={8}>
+        <Pressable onPress={() => onMonthChange(new Date(year, month - 1, 1))} style={calStyles.navBtn} hitSlop={8}>
           <MaterialCommunityIcons name="chevron-left" size={22} color={Colors.accent} />
         </Pressable>
       </View>
@@ -240,22 +239,50 @@ const AGENDA_STATUS_OPTIONS: { key: string; label: string; preset: React.Compone
   { key: 'נדחה', label: 'נדחה', preset: 'statusCancelled' },
 ];
 
+const AGENDA_STATUS_TO_BACKEND: Record<string, BackendCalendarEvent['status']> = {
+  'חדש': 'NEW',
+  'בטיפול': 'IN_PROGRESS',
+  'הושלם': 'DONE',
+  'נדחה': 'CANCELLED',
+};
+
+function rawEventIdFromAgendaId(eventId: string): string {
+  return eventId.startsWith('manual-') ? eventId.slice('manual-'.length) : eventId;
+}
+
+type ReminderOption = 'same_day' | '0' | '15' | '30' | '60' | '120' | '1440' | 'custom';
+
+function reminderPresetFromMinutes(mins: number | null | undefined): ReminderOption {
+  if (mins == null) return '0';
+  if (mins === 0) return 'same_day';
+  const known: ReminderOption[] = ['15', '30', '60', '120', '1440'];
+  const asStr = String(mins) as ReminderOption;
+  return known.includes(asStr) ? asStr : 'custom';
+}
+
+function dateKeyToDdMmYyyy(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 export function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [googleSyncMock, setGoogleSyncMock] = useState(false);
-  const [manualEvents, setManualEvents] = useState<DashboardCalendarEvent[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [newEventKind, setNewEventKind] = useState<EventKind | ''>('');
   const [newContactId, setNewContactId] = useState<string | null>(null);
-  const [newReminder, setNewReminder] = useState<'same_day' | '0' | '15' | '30' | '60' | '120' | '1440' | 'custom'>('30');
+  const [selectedContact, setSelectedContact] = useState<ContactListItem | null>(null);
+  const [newReminder, setNewReminder] = useState<ReminderOption>('30');
   const [reminderCustomDate, setReminderCustomDate] = useState('');
   const [reminderCustomTime, setReminderCustomTime] = useState('');
   const [contactSearch, setContactSearch] = useState('');
-  const [agendaStatusForId, setAgendaStatusForId] = useState<Record<string, string>>({});
+  const [contactResults, setContactResults] = useState<ContactListItem[]>([]);
+  const contactSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [statusModalEventId, setStatusModalEventId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -330,23 +357,84 @@ export function DashboardScreen() {
     };
   }, []);
 
-  const calendarOpts = useMemo(
-    () => ({ includeGoogle: googleSyncMock, manualEvents }),
-    [googleSyncMock, manualEvents],
+  const [viewMonth, setViewMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  const [monthEvents, setMonthEvents] = useState<DashboardCalendarEvent[]>([]);
+  const [agendaEvents, setAgendaEvents] = useState<DashboardCalendarEvent[]>([]);
+
+  useEffect(() => {
+    setViewMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  }, [selectedDate]);
+
+  const refreshMonthEvents = useCallback(() => {
+    const from = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+    const to = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0);
+    return getCalendarEvents(from, to)
+      .then((events) => setMonthEvents(events))
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load calendar events');
+      });
+  }, [viewMonth]);
+
+  const refreshAgenda = useCallback(() => {
+    return getAgendaForDay(selectedDate)
+      .then((events) => setAgendaEvents(events))
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to load agenda');
+      });
+  }, [selectedDate]);
+
+  useEffect(() => {
+    refreshMonthEvents();
+  }, [refreshMonthEvents]);
+
+  useEffect(() => {
+    refreshAgenda();
+  }, [refreshAgenda]);
+
+  const sortEvents = useCallback((events: DashboardCalendarEvent[]) => {
+    return [...events].sort((a, b) => {
+      const c = a.dateKey.localeCompare(b.dateKey);
+      if (c !== 0) return c;
+      const ta = a.timeLabel ?? '';
+      const tb = b.timeLabel ?? '';
+      if (ta !== tb) return ta.localeCompare(tb, 'he');
+      return a.sortOrder - b.sortOrder;
+    });
+  }, []);
+
+  const googleEventsForDay = useCallback(
+    (dateKey: string): DashboardCalendarEvent[] =>
+      googleSyncMock
+        ? MOCK_GOOGLE_CALENDAR_EVENTS.filter((g) => g.dateKey === dateKey).map((g, i) => ({
+            id: `goo-ev-${g.id}`,
+            source: 'google' as const,
+            title: g.title,
+            dateKey: g.dateKey,
+            timeLabel: g.timeLabel,
+            sortOrder: 400 + i,
+            statusLabel: g.statusLabel,
+            detail: g.detail,
+          }))
+        : [],
+    [googleSyncMock],
   );
 
   const weekStart = useMemo(() => startOfWeekMonday(selectedDate), [selectedDate]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   const hasDot = useCallback(
-    (day: Date) => getCalendarEventsForRange(day, day, calendarOpts).length > 0,
-    [calendarOpts],
+    (day: Date) => {
+      const dk = toLocalDateKey(day);
+      if (monthEvents.some((e) => e.dateKey === dk)) return true;
+      return googleEventsForDay(dk).length > 0;
+    },
+    [monthEvents, googleEventsForDay],
   );
 
-  const agenda = useMemo(
-    () => getAgendaForDay(selectedDate, calendarOpts),
-    [selectedDate, calendarOpts],
-  );
+  const agenda = useMemo(() => {
+    const dk = toLocalDateKey(selectedDate);
+    return sortEvents([...agendaEvents, ...googleEventsForDay(dk)]);
+  }, [agendaEvents, selectedDate, googleEventsForDay, sortEvents]);
 
   const agendaTitle = useMemo(() => {
     const wd = selectedDate.toLocaleDateString('he-IL', { weekday: 'long' });
@@ -363,24 +451,108 @@ export function DashboardScreen() {
   }, []);
 
   const openCreateModal = useCallback(() => {
+    setEditingEventId(null);
     setNewTitle('');
     setNewDate(formatDdMmYyyy(selectedDate));
     setNewTime('');
     setNewEventKind('');
     setNewContactId(null);
+    setSelectedContact(null);
     setContactSearch('');
+    setContactResults([]);
     setNewReminder('30');
     setReminderCustomDate('');
     setReminderCustomTime('');
     setCreateOpen(true);
   }, [selectedDate]);
 
-  const filteredContacts = useMemo(() => {
+  const openEditModal = useCallback((event: DashboardCalendarEvent) => {
+    setEditingEventId(event.id);
+    setNewTitle(event.title);
+    setNewDate(dateKeyToDdMmYyyy(event.dateKey));
+    setNewTime(event.timeLabel ?? '');
+    setNewEventKind((event.kind as EventKind) || '');
+    setNewContactId(event.contactId ?? null);
+    setSelectedContact(
+      event.contactId
+        ? ({
+            id: event.contactId,
+            contactKind: 'TENANT_BUYER',
+            nickname: null,
+            displayName: event.contactName ?? '',
+            phone: '',
+            email: null,
+            linkKind: null,
+            linkId: null,
+            linkLabel: null,
+            hasUserInSystem: false,
+          } as ContactListItem)
+        : null,
+    );
+    setContactSearch('');
+    setContactResults([]);
+    setNewReminder(reminderPresetFromMinutes(event.reminderMinutesBefore));
+    setReminderCustomDate('');
+    setReminderCustomTime('');
+    setCreateOpen(true);
+  }, []);
+
+  const onEditEventPress = useCallback(
+    (eventId: string) => {
+      const ev = agenda.find((e) => e.id === eventId);
+      if (ev) openEditModal(ev);
+    },
+    [agenda, openEditModal],
+  );
+
+  const onDeleteEventPress = useCallback(
+    (eventId: string) => {
+      const runDelete = () => {
+        deleteEvent(rawEventIdFromAgendaId(eventId))
+          .then(() => {
+            refreshMonthEvents();
+            refreshAgenda();
+          })
+          .catch((error) => {
+            console.warn(error instanceof Error ? error.message : 'Failed to delete event');
+            if (Platform.OS === 'web') {
+              window.alert('לא ניתן היה למחוק את האירוע. נסה שוב.');
+            } else {
+              Alert.alert('מחיקת האירוע נכשלה', 'לא ניתן היה למחוק את האירוע. נסה שוב.');
+            }
+          });
+      };
+
+      if (Platform.OS === 'web') {
+        if (window.confirm('האם למחוק את האירוע? לא ניתן לשחזר.')) runDelete();
+        return;
+      }
+
+      Alert.alert('מחיקת אירוע', 'האם למחוק את האירוע? לא ניתן לשחזר.', [
+        { text: 'ביטול', style: 'cancel' },
+        { text: 'מחק', style: 'destructive', onPress: runDelete },
+      ]);
+    },
+    [refreshMonthEvents, refreshAgenda],
+  );
+
+  useEffect(() => {
+    if (contactSearchDebounceRef.current) clearTimeout(contactSearchDebounceRef.current);
     const q = contactSearch.trim();
-    if (!q) return [];
-    return MOCK_CONTACTS_LIST.filter(
-      (c) => c.displayName.includes(q) || c.linkLabel.includes(q),
-    ).slice(0, 8);
+    if (!q) {
+      setContactResults([]);
+      return;
+    }
+    contactSearchDebounceRef.current = setTimeout(() => {
+      listContacts({ search: q, limit: 8 })
+        .then((results) => setContactResults(results))
+        .catch((error) => {
+          console.warn(error instanceof Error ? error.message : 'Failed to search contacts');
+        });
+    }, 300);
+    return () => {
+      if (contactSearchDebounceRef.current) clearTimeout(contactSearchDebounceRef.current);
+    };
   }, [contactSearch]);
 
   const onSaveManualEvent = useCallback(() => {
@@ -391,53 +563,50 @@ export function DashboardScreen() {
     }
     // Parse date input or fall back to selected calendar date
     const dateStr = newDate.trim();
-    let dk = toLocalDateKey(selectedDate);
-    if (dateStr) {
-      const m = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (m) {
-        const parsed = new Date(parseInt(m[3]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[1]!, 10));
-        if (!isNaN(parsed.getTime())) dk = toLocalDateKey(parsed);
-      }
+    let eventDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    const dateMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (dateMatch) {
+      const parsed = new Date(parseInt(dateMatch[3]!, 10), parseInt(dateMatch[2]!, 10) - 1, parseInt(dateMatch[1]!, 10));
+      if (!isNaN(parsed.getTime())) eventDate = parsed;
     }
-    let reminderLabel = 'ללא תזכורת';
-    let reminderMins: number | undefined;
+    const timeMatch = newTime.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (timeMatch) {
+      eventDate.setHours(parseInt(timeMatch[1]!, 10), parseInt(timeMatch[2]!, 10), 0, 0);
+    } else {
+      eventDate.setHours(0, 0, 0, 0);
+    }
+
+    let reminderMins: number | null = null;
     if (newReminder === 'same_day') {
-      reminderLabel = 'תזכורת ביום עצמו';
       reminderMins = 0;
-    } else if (newReminder === 'custom') {
-      const datePart = reminderCustomDate.trim();
-      const timePart = reminderCustomTime.trim();
-      if (datePart || timePart) {
-        reminderLabel = `תזכורת ב-${[datePart, timePart].filter(Boolean).join(' ')}`;
-      }
-    } else if (newReminder !== '0') {
+    } else if (newReminder !== '0' && newReminder !== 'custom') {
       reminderMins = parseInt(newReminder, 10);
-      reminderLabel = `תזכורת ${reminderMins} דק׳ לפני`;
     }
-    const contact = newContactId ? MOCK_CONTACTS_LIST.find((c) => c.id === newContactId) : null;
-    const kindLabel = newEventKind ? EVENT_KIND_OPTIONS.find((k) => k.key === newEventKind)?.label : '';
-    const detailParts = [
-      kindLabel,
-      contact ? `איש קשר: ${contact.displayName}` : '',
-      reminderLabel,
-    ].filter(Boolean);
-    const id = `man-${Date.now()}`;
-    setManualEvents((prev) => [
-      ...prev,
-      {
-        id,
-        source: 'manual',
-        title,
-        dateKey: dk,
-        timeLabel: newTime.trim() || undefined,
-        sortOrder: 900 + prev.length,
-        statusLabel: 'חדש',
-        detail: detailParts.join(' · '),
-        reminderMinutesBefore: reminderMins,
-      },
-    ]);
-    setCreateOpen(false);
-  }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, reminderCustomDate, reminderCustomTime, selectedDate]);
+
+    const payload = {
+      title,
+      kind: newEventKind || null,
+      startAt: eventDate.toISOString(),
+      contactId: newContactId,
+      reminderMinutesBefore: reminderMins,
+    };
+
+    const save = editingEventId
+      ? updateEvent(rawEventIdFromAgendaId(editingEventId), payload)
+      : createEvent(payload);
+
+    save
+      .then(() => {
+        setCreateOpen(false);
+        setEditingEventId(null);
+        refreshMonthEvents();
+        refreshAgenda();
+      })
+      .catch((error) => {
+        console.warn(error instanceof Error ? error.message : 'Failed to save event');
+        Alert.alert('שמירת האירוע נכשלה', 'לא ניתן היה לשמור את האירוע. נסה שוב.');
+      });
+  }, [newTitle, newDate, newTime, newEventKind, newContactId, newReminder, selectedDate, editingEventId, refreshMonthEvents, refreshAgenda]);
 
   const statusModalEvent = statusModalEventId ? agenda.find((e) => e.id === statusModalEventId) : null;
 
@@ -500,6 +669,8 @@ export function DashboardScreen() {
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
             hasDot={hasDot}
+            viewMonth={viewMonth}
+            onMonthChange={setViewMonth}
           />
 
           <View style={styles.rowBetween}>
@@ -524,8 +695,9 @@ export function DashboardScreen() {
             </AppText>
             <AgendaTimeline
               events={agenda}
-              statusById={agendaStatusForId}
               onStatusPress={setStatusModalEventId}
+              onEditPress={onEditEventPress}
+              onDeletePress={onDeleteEventPress}
               sourceColor={sourceColor}
               eventIcon={agendaEventIcon}
             />
@@ -535,15 +707,16 @@ export function DashboardScreen() {
         </FadeInContent>
       )}
 
-      <Modal visible={createOpen} animationType="slide" transparent onRequestClose={() => setCreateOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setCreateOpen(false)}>
-          <ScrollView style={styles.modalSheet} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onStartShouldSetResponder={() => true}>
+      <Modal visible={createOpen} animationType="slide" transparent onRequestClose={() => { setCreateOpen(false); setEditingEventId(null); }}>
+        <Pressable style={styles.modalBackdrop} onPress={() => { setCreateOpen(false); setEditingEventId(null); }}>
+          <Pressable onPress={(e) => e.stopPropagation()}>
+          <ScrollView style={styles.modalSheet} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <AppText variant="headingSm" weight="bold" align="right">
-                אירוע חדש
+                {editingEventId ? 'עריכת אירוע' : 'אירוע חדש'}
               </AppText>
-              <Pressable onPress={() => setCreateOpen(false)} hitSlop={8}>
+              <Pressable onPress={() => { setCreateOpen(false); setEditingEventId(null); }} hitSlop={8}>
                 <MaterialCommunityIcons name="close" size={22} color={Colors.onSurfaceMuted} />
               </Pressable>
             </View>
@@ -606,7 +779,7 @@ export function DashboardScreen() {
             <AppText variant="labelSm" weight="semiBold" align="right" style={[styles.fieldLabel, { marginTop: Spacing.md }]}>שיוך איש קשר</AppText>
             {newContactId ? (
               <Pressable
-                onPress={() => { setNewContactId(null); setContactSearch(''); }}
+                onPress={() => { setNewContactId(null); setSelectedContact(null); setContactSearch(''); }}
                 style={styles.contactRowOn}
               >
                 <View style={[styles.contactAvatar, { backgroundColor: Colors.primaryContainer }]}>
@@ -614,10 +787,10 @@ export function DashboardScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <AppText variant="bodyMd" weight="semiBold" style={{ textAlign: 'right', color: Colors.primary }}>
-                    {MOCK_CONTACTS_LIST.find((c) => c.id === newContactId)?.displayName}
+                    {selectedContact?.displayName}
                   </AppText>
                   <AppText variant="caption" color="muted" style={{ textAlign: 'right' }}>
-                    {MOCK_CONTACTS_LIST.find((c) => c.id === newContactId)?.linkLabel}
+                    {selectedContact?.linkLabel}
                   </AppText>
                 </View>
                 <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
@@ -632,17 +805,17 @@ export function DashboardScreen() {
                   style={styles.input}
                   textAlign="right"
                 />
-                {contactSearch.trim().length > 0 && filteredContacts.length === 0 && (
+                {contactSearch.trim().length > 0 && contactResults.length === 0 && (
                   <AppText variant="caption" color="muted" align="right" style={{ marginBottom: Spacing.sm }}>
                     לא נמצאו תוצאות
                   </AppText>
                 )}
-                {filteredContacts.length > 0 && (
+                {contactResults.length > 0 && (
                   <View style={styles.contactList}>
-                    {filteredContacts.map((c) => (
+                    {contactResults.map((c) => (
                       <Pressable
                         key={c.id}
-                        onPress={() => { setNewContactId(c.id); setContactSearch(''); }}
+                        onPress={() => { setNewContactId(c.id); setSelectedContact(c); setContactSearch(''); }}
                         style={styles.contactRow}
                       >
                         <View style={styles.contactAvatar}>
@@ -711,7 +884,7 @@ export function DashboardScreen() {
             )}
 
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setCreateOpen(false)} style={styles.modalGhost}>
+              <Pressable onPress={() => { setCreateOpen(false); setEditingEventId(null); }} style={styles.modalGhost}>
                 <AppText variant="labelMd" weight="semiBold" color="variant">ביטול</AppText>
               </Pressable>
               <Pressable onPress={onSaveManualEvent} style={styles.modalPrimary}>
@@ -719,6 +892,7 @@ export function DashboardScreen() {
               </Pressable>
             </View>
           </ScrollView>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -737,10 +911,17 @@ export function DashboardScreen() {
               <Pressable
                 key={o.key}
                 onPress={() => {
-                  if (statusModalEventId) {
-                    setAgendaStatusForId((prev) => ({ ...prev, [statusModalEventId]: o.label }));
-                  }
-                  setStatusModalEventId(null);
+                  if (!statusModalEventId) return;
+                  const rawId = rawEventIdFromAgendaId(statusModalEventId);
+                  updateEventStatus(rawId, AGENDA_STATUS_TO_BACKEND[o.key])
+                    .then(() => {
+                      setStatusModalEventId(null);
+                      refreshAgenda();
+                    })
+                    .catch((error) => {
+                      console.warn(error instanceof Error ? error.message : 'Failed to update event status');
+                      Alert.alert('עדכון הסטטוס נכשל', 'לא ניתן היה לעדכן את הסטטוס. נסה שוב.');
+                    });
                 }}
                 style={({ pressed }) => [styles.statusOption, pressed && { opacity: 0.85 }]}
               >
