@@ -40,6 +40,13 @@ import {
   MIN_TOUCH,
 } from '@/constants/tokens';
 
+function ddMmYyyyToIso(value: string): string | undefined {
+  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return undefined;
+  const [, d, m, y] = match;
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
 // ─── Filter options ────────────────────────────────────────────────────────────
 
 const LINK_SCOPE_OPTIONS: { key: LinkScopeFilter; label: string }[] = [
@@ -176,8 +183,10 @@ export function ContractsListScreen() {
     if (typeFilter !== 'all') filters.contractType = typeFilter as ContractListItem['contractType'];
     if (linkScope === 'PROJECT' && entityId) filters.projectId = entityId;
     if (linkScope === 'PROPERTY' && entityId) filters.propertyId = entityId;
-    if (agreementDateFrom.trim()) filters.dateFrom = agreementDateFrom;
-    if (agreementDateTo.trim()) filters.dateTo = agreementDateTo;
+    const isoDateFrom = ddMmYyyyToIso(agreementDateFrom);
+    const isoDateTo = ddMmYyyyToIso(agreementDateTo);
+    if (isoDateFrom) filters.dateFrom = isoDateFrom;
+    if (isoDateTo) filters.dateTo = isoDateTo;
     fetchContracts(filters)
       .then((data) => { if (!cancelled) setContracts(data); })
       .catch(() => { if (!cancelled) setContracts([]); })

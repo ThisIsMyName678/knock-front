@@ -109,13 +109,19 @@ export type TaskListRow = {
   cost?: number;
 };
 
-function parseDdMmYyyy(s: string): number {
+function parseDdMmYyyy(s: string): number | null {
   const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!m) return 0;
+  if (!m) return null;
   const d = parseInt(m[1]!, 10);
   const mo = parseInt(m[2]!, 10) - 1;
   const y = parseInt(m[3]!, 10);
   return new Date(y, mo, d).getTime();
+}
+
+/** ל-sort בלבד: משימה בלי תאריך יעד תקין נחשבת "אינסוף" כדי שתישאר תמיד בסוף הסדר */
+function dueDateSortValue(s: string): number {
+  const t = parseDdMmYyyy(s);
+  return t === null ? Number.POSITIVE_INFINITY : t;
 }
 
 const MESSAGES_T1: TaskMessage[] = [
@@ -532,17 +538,20 @@ export function filterTaskRows(
       if (r.workflowStatus === 'completed' || r.workflowStatus === 'cancelled') return false;
       if (!r.dueDate.trim()) return false;
       const due = parseDdMmYyyy(r.dueDate);
-      if (!due || due >= new Date().setHours(0, 0, 0, 0)) return false;
+      if (due === null || due >= new Date().setHours(0, 0, 0, 0)) return false;
     }
 
-    const t = parseDdMmYyyy(r.dueDate);
-    if (opts.dateFrom.trim()) {
-      const from = parseDdMmYyyy(opts.dateFrom);
-      if (from && t && t < from) return false;
-    }
-    if (opts.dateTo.trim()) {
-      const to = parseDdMmYyyy(opts.dateTo);
-      if (to && t && t > to) return false;
+    if (opts.dateFrom.trim() || opts.dateTo.trim()) {
+      const t = parseDdMmYyyy(r.dueDate);
+      if (t === null) return false;
+      if (opts.dateFrom.trim()) {
+        const from = parseDdMmYyyy(opts.dateFrom);
+        if (from !== null && t < from) return false;
+      }
+      if (opts.dateTo.trim()) {
+        const to = parseDdMmYyyy(opts.dateTo);
+        if (to !== null && t > to) return false;
+      }
     }
 
     if (!q) return true;
@@ -553,7 +562,7 @@ export function filterTaskRows(
 
 export function getRecentTasksForUser(rows: TaskListRow[], limit: number): TaskListRow[] {
   const mine = rows.filter((r) => r.isMine);
-  return [...mine].sort((a, b) => parseDdMmYyyy(b.dueDate) - parseDdMmYyyy(a.dueDate)).slice(0, limit);
+  return [...mine].sort((a, b) => dueDateSortValue(b.dueDate) - dueDateSortValue(a.dueDate)).slice(0, limit);
 }
 
 export function getTaskDetailMock(id: string): TaskListRow | null {
@@ -577,7 +586,7 @@ const PRI_ORDER: Record<TaskPriority, number> = { urgent: 0, high: 1, medium: 2,
 export function sortTaskRows(rows: TaskListRow[], key: TaskSortKey, dir: SortDir): TaskListRow[] {
   const mul = dir === 'asc' ? 1 : -1;
   return [...rows].sort((a, b) => {
-    if (key === 'dueDate') return mul * (parseDdMmYyyy(a.dueDate) - parseDdMmYyyy(b.dueDate));
+    if (key === 'dueDate') return mul * (dueDateSortValue(a.dueDate) - dueDateSortValue(b.dueDate));
     if (key === 'title') return mul * a.title.localeCompare(b.title, 'he');
     return mul * (PRI_ORDER[a.priority] - PRI_ORDER[b.priority]);
   });

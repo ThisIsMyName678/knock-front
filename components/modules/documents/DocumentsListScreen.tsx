@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -21,8 +21,7 @@ import { FilterBar } from '@/components/ui/FilterBar';
 import { FilterSheet } from '@/components/ui/FilterSheet';
 import type { FilterSection } from '@/components/ui/FilterSheet';
 import { ListRowSkeletonList, FadeInContent, useSkeletonGate } from '@/components/ui/skeleton';
-import type { LinkKind } from '@/lib/mocks/contracts';
-import { MOCK_ENTITY_LINKS } from '@/lib/mocks/contracts';
+import { searchEntityLinks, type LinkKind, type EntityLinkOption } from '@/lib/api/entity-links';
 import {
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_CATEGORY_LABELS,
@@ -93,6 +92,7 @@ function fileIconColor(kind: DocumentListRow['fileKind']): string {
 export function DocumentsListScreen() {
   const insets = useSafeAreaInsets();
   const [rows, setRows] = useState<DocumentListRow[]>([]);
+  const [entityLinks, setEntityLinks] = useState<EntityLinkOption[]>([]);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<ScopeFilter>('all');
   const [entityId, setEntityId] = useState<string | null>(null);
@@ -125,6 +125,12 @@ export function DocumentsListScreen() {
     }, [loadDocuments]),
   );
 
+  useEffect(() => {
+    searchEntityLinks('')
+      .then(setEntityLinks)
+      .catch((error) => console.warn(error instanceof Error ? error.message : 'Failed to load entity links'));
+  }, []);
+
   const filtered = useMemo(
     () =>
       filterDocumentRows(rows, {
@@ -139,10 +145,10 @@ export function DocumentsListScreen() {
   const sorted = useMemo(() => sortDocumentRows(filtered, sortKey, sortDir), [filtered, sortKey, sortDir]);
 
   const entitiesForScope = useMemo(() => {
-    if (scope === 'by_asset') return MOCK_ENTITY_LINKS.filter((e) => e.kind === 'asset');
-    if (scope === 'by_project') return MOCK_ENTITY_LINKS.filter((e) => e.kind === 'project');
+    if (scope === 'by_asset') return entityLinks.filter((e) => e.kind === 'asset');
+    if (scope === 'by_project') return entityLinks.filter((e) => e.kind === 'project');
     return [];
-  }, [scope]);
+  }, [scope, entityLinks]);
 
   const duplicateRow = useCallback((row: DocumentListRow) => {
     router.push(`/(app)/documents/duplicate/${row.id}`);
