@@ -38,7 +38,7 @@ export type BackendTaskListItem = {
   assignedContactName: string | null;
   assignedContactPhone: string | null;
   startDate: string;       // YYYY-MM-DD
-  dueDate: string | null;  // YYYY-MM-DD
+  dueDate: string;         // YYYY-MM-DD
   createdAt: string;
 };
 
