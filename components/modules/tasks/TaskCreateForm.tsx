@@ -90,8 +90,8 @@ export function TaskCreateForm() {
   const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
   const [paymentOptions, setPaymentOptions] = useState<BackendPayment[]>([]);
   const [paymentOptionsLoading, setPaymentOptionsLoading] = useState(false);
-  const [startDate, setStartDate] = useState(formatTodayDdMmYyyy);
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState(formatTodayDdMmYyyy);
   const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
   const [cost, setCost] = useState('');
   const [handlingTime, setHandlingTime] = useState('');
