@@ -216,11 +216,11 @@ function agendaEventIcon(ev: DashboardCalendarEvent): React.ComponentProps<typeo
 function sourceColor(source: DashboardCalendarEvent['source']): string {
   switch (source) {
     case 'payment':
-      return Colors.warning;
+      return Colors.feedPayments;
     case 'contract':
-      return Colors.primary;
+      return Colors.feedContracts;
     case 'task':
-      return Colors.info;
+      return Colors.feedMaintenance;
     case 'reminder':
       return Colors.error;
     case 'manual':
