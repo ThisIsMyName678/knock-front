@@ -142,9 +142,9 @@ export function TaskCreateForm() {
 
   const errors = useMemo(() => ({
     title: title.trim().length === 0 ? 'שדה חובה' : '',
-    startDate: startDate.trim().length === 0 ? 'שדה חובה' : '',
+    endDate: endDate.trim().length === 0 ? 'שדה חובה' : '',
     link: !linkSelected ? 'נא לבחור נכס או פרויקט' : '',
-  }), [title, startDate, linkSelected]);
+  }), [title, endDate, linkSelected]);
 
   const onSave = async () => {
     setSubmitted(true);
@@ -169,8 +169,8 @@ export function TaskCreateForm() {
         status,
         propertyId: linkSelected!.kind === 'asset' ? linkSelected!.id : null,
         projectId: linkSelected!.kind === 'project' ? linkSelected!.id : null,
-        startDate: ddMmYyyyToIso(startDate),
-        dueDate: endDate.trim() ? ddMmYyyyToIso(endDate) : null,
+        startDate: startDate.trim() ? ddMmYyyyToIso(startDate) : null,
+        dueDate: ddMmYyyyToIso(endDate),
         cost: cost.trim() || null,
         handlingTime: handlingTime.trim() ? parseInt(handlingTime.trim(), 10) : null,
         paymentId: linkedPaymentId ?? null,

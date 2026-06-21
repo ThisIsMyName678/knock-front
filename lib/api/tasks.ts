@@ -97,7 +97,7 @@ export type CreateTaskInput = {
   cost?: string | null;
   handlingTime?: number | null;
   startDate?: string | null;  // ISO YYYY-MM-DD
-  dueDate?: string | null;    // ISO YYYY-MM-DD
+  dueDate: string;            // ISO YYYY-MM-DD
 };
 
 export type UpdateTaskInput = Partial<CreateTaskInput>;
