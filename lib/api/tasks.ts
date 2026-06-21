@@ -38,7 +38,7 @@ export type BackendTaskListItem = {
   assignedContactName: string | null;
   assignedContactPhone: string | null;
   startDate: string;       // YYYY-MM-DD
-  dueDate: string | null;  // YYYY-MM-DD
+  dueDate: string;         // YYYY-MM-DD
   createdAt: string;
 };
 
@@ -97,7 +97,7 @@ export type CreateTaskInput = {
   cost?: string | null;
   handlingTime?: number | null;
   startDate?: string | null;  // ISO YYYY-MM-DD
-  dueDate?: string | null;    // ISO YYYY-MM-DD
+  dueDate: string;            // ISO YYYY-MM-DD
 };
 
 export type UpdateTaskInput = Partial<CreateTaskInput>;

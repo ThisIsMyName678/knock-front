@@ -139,6 +139,10 @@ export default function TaskDetailRoute() {
 
   const saveEdit = async () => {
     setEditError(null);
+    if (!editDueDate.trim()) {
+      setEditError('יש לבחור תאריך יעד');
+      return;
+    }
     const newTitle = editTitle.trim() || localTitle;
     setEditSaving(true);
     try {
@@ -148,7 +152,7 @@ export default function TaskDetailRoute() {
         urgency: clientPriorityToBackendUrgency(editPriority),
         status: clientStatusToBackend(editStatus) ?? undefined,
         startDate: editStartDate.trim() ? ddMmYyyyToIso(editStartDate) : undefined,
-        dueDate: editDueDate.trim() ? ddMmYyyyToIso(editDueDate) : null,
+        dueDate: ddMmYyyyToIso(editDueDate),
         cost: editCostNotes.trim() || null,
         handlingTime: editTimeNotes.trim() ? parseInt(editTimeNotes.trim(), 10) : null,
       });
@@ -705,7 +709,9 @@ export default function TaskDetailRoute() {
                       </AppText>
                     </Pressable>
 
-                    <AppText variant="labelSm" weight="semiBold" style={[styles.dateFieldLabel, { marginTop: Spacing.sm }]}>תאריך יעד</AppText>
+                    <AppText variant="labelSm" weight="semiBold" style={[styles.dateFieldLabel, { marginTop: Spacing.sm }]}>
+                      תאריך יעד <AppText variant="labelSm" style={{ color: Colors.error }}>*</AppText>
+                    </AppText>
                     <Pressable onPress={() => setEditDatePickerTarget('due')} style={styles.dateTrigger} accessibilityRole="button">
                       <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
                       <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right', color: editDueDate ? Colors.onBackground : Colors.onSurfaceMuted }}>

@@ -90,8 +90,8 @@ export function TaskCreateForm() {
   const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
   const [paymentOptions, setPaymentOptions] = useState<BackendPayment[]>([]);
   const [paymentOptionsLoading, setPaymentOptionsLoading] = useState(false);
-  const [startDate, setStartDate] = useState(formatTodayDdMmYyyy);
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState(formatTodayDdMmYyyy);
   const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
   const [cost, setCost] = useState('');
   const [handlingTime, setHandlingTime] = useState('');
@@ -142,9 +142,9 @@ export function TaskCreateForm() {
 
   const errors = useMemo(() => ({
     title: title.trim().length === 0 ? 'שדה חובה' : '',
-    startDate: startDate.trim().length === 0 ? 'שדה חובה' : '',
+    endDate: endDate.trim().length === 0 ? 'שדה חובה' : '',
     link: !linkSelected ? 'נא לבחור נכס או פרויקט' : '',
-  }), [title, startDate, linkSelected]);
+  }), [title, endDate, linkSelected]);
 
   const onSave = async () => {
     setSubmitted(true);
@@ -169,8 +169,8 @@ export function TaskCreateForm() {
         status,
         propertyId: linkSelected!.kind === 'asset' ? linkSelected!.id : null,
         projectId: linkSelected!.kind === 'project' ? linkSelected!.id : null,
-        startDate: ddMmYyyyToIso(startDate),
-        dueDate: endDate.trim() ? ddMmYyyyToIso(endDate) : null,
+        startDate: startDate.trim() ? ddMmYyyyToIso(startDate) : null,
+        dueDate: ddMmYyyyToIso(endDate),
         cost: cost.trim() || null,
         handlingTime: handlingTime.trim() ? parseInt(handlingTime.trim(), 10) : null,
         paymentId: linkedPaymentId ?? null,
@@ -361,11 +361,11 @@ export function TaskCreateForm() {
 
             <View style={{ marginTop: Spacing.md }}>
               <AppText variant="labelSm" weight="semiBold" style={styles.dateLabel}>
-                תאריך התחלה <AppText variant="labelSm" style={{ color: Colors.error }}>*</AppText>
+                תאריך התחלה
               </AppText>
               <Pressable
                 onPress={() => setDatePickerTarget('start')}
-                style={[styles.dateTrigger, submitted && errors.startDate ? styles.dateTriggerError : null]}
+                style={styles.dateTrigger}
                 accessibilityRole="button"
               >
                 <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
@@ -373,18 +373,15 @@ export function TaskCreateForm() {
                   {startDate || 'בחר תאריך'}
                 </AppText>
               </Pressable>
-              {submitted && errors.startDate ? (
-                <AppText variant="caption" style={{ color: Colors.error, textAlign: 'right', marginTop: 4 }}>{errors.startDate}</AppText>
-              ) : null}
             </View>
 
             <View style={{ marginTop: Spacing.sm }}>
               <AppText variant="labelSm" weight="semiBold" style={styles.dateLabel}>
-                תאריך יעד (אופציונלי)
+                תאריך יעד <AppText variant="labelSm" style={{ color: Colors.error }}>*</AppText>
               </AppText>
               <Pressable
                 onPress={() => setDatePickerTarget('end')}
-                style={styles.dateTrigger}
+                style={[styles.dateTrigger, submitted && errors.endDate ? styles.dateTriggerError : null]}
                 accessibilityRole="button"
               >
                 <MaterialCommunityIcons name="calendar-outline" size={18} color={Colors.onSurfaceVariant} />
@@ -392,6 +389,9 @@ export function TaskCreateForm() {
                   {endDate || 'בחר תאריך'}
                 </AppText>
               </Pressable>
+              {submitted && errors.endDate ? (
+                <AppText variant="caption" style={{ color: Colors.error, textAlign: 'right', marginTop: 4 }}>{errors.endDate}</AppText>
+              ) : null}
             </View>
 
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
