@@ -7,9 +7,7 @@ import { DrawerMenu } from './DrawerMenu';
 import { NotificationsPanel } from './NotificationsPanel';
 import { Colors, Spacing, CONTENT_HORIZONTAL_PADDING, Shadow, Radius } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
-
-// דוגמא בלבד — מספר התראות דמה, ללא לוגיקה אמיתית
-const DUMMY_NOTIFICATIONS_COUNT = 3;
+import { useNotificationsBadge } from '@/lib/notifications-badge';
 
 type Props = {
   title: string;
@@ -23,6 +21,7 @@ type Props = {
 export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, showMenu }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { count: notificationsCount } = useNotificationsBadge();
   const canGoBack = router.canGoBack();
   const showBackBtn = showBack === true || (showBack !== false && canGoBack);
   const handleBack = onBack ?? (() => router.back());
@@ -35,10 +34,10 @@ export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, sho
             <View style={styles.menuGroup}>
               <Pressable onPress={() => setNotificationsOpen(true)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="התראות">
                 <MaterialCommunityIcons name="bell-outline" size={22} color={Colors.onBackground} />
-                {DUMMY_NOTIFICATIONS_COUNT > 0 && (
+                {notificationsCount > 0 && (
                   <View style={styles.notificationBadge}>
                     <AppText variant="caption" color="white" weight="bold" style={styles.notificationBadgeText}>
-                      {DUMMY_NOTIFICATIONS_COUNT}
+                      {notificationsCount}
                     </AppText>
                   </View>
                 )}
