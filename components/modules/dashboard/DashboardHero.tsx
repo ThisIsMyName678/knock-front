@@ -27,7 +27,7 @@ export function DashboardHero(props: Props) {
   const insets = useSafeAreaInsets();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { count: notificationsCount } = useNotificationsBadge();
+  const { count: notificationsCount, markSeen } = useNotificationsBadge();
   const { backendUser, user } = useAuth();
   const firstName = resolveFirstName({
     profileDisplayName: backendUser?.profile?.displayName,
@@ -102,7 +102,13 @@ export function DashboardHero(props: Props) {
         </View>
       </View>
       <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
-      <NotificationsPanel visible={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+      <NotificationsPanel
+        visible={notificationsOpen}
+        onClose={() => {
+          setNotificationsOpen(false);
+          void markSeen();
+        }}
+      />
     </>
   );
 }

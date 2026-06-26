@@ -21,7 +21,7 @@ type Props = {
 export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, showMenu }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { count: notificationsCount } = useNotificationsBadge();
+  const { count: notificationsCount, markSeen } = useNotificationsBadge();
   const canGoBack = router.canGoBack();
   const showBackBtn = showBack === true || (showBack !== false && canGoBack);
   const handleBack = onBack ?? (() => router.back());
@@ -67,7 +67,15 @@ export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, sho
         </View>
       </View>
       {showMenu && <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />}
-      {showMenu && <NotificationsPanel visible={notificationsOpen} onClose={() => setNotificationsOpen(false)} />}
+      {showMenu && (
+        <NotificationsPanel
+          visible={notificationsOpen}
+          onClose={() => {
+            setNotificationsOpen(false);
+            void markSeen();
+          }}
+        />
+      )}
     </>
   );
 }
