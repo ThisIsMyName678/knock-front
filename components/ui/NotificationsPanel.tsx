@@ -1,27 +1,38 @@
-import React from 'react';
-import { View, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
+import { listNotifications } from '@/lib/api/notifications';
+import { feedEventToItem, type FeedItem, type FeedKind } from '@/lib/api/feed';
 
-// דוגמא בלבד — נתוני דמה, ללא לוגיקה אמיתית
-type DummyNotification = {
-  id: string;
-  title: string;
-  description: string;
-  time: string;
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-  unread: boolean;
-};
+function feedColor(kind: FeedKind): string {
+  if (kind === 'task') return Colors.feedMaintenance;
+  if (kind === 'payment') return Colors.feedPayments;
+  if (kind === 'message') return Colors.feedMessages;
+  if (kind === 'document') return Colors.feedDocuments;
+  return Colors.feedContracts;
+}
 
-const DUMMY_NOTIFICATIONS: DummyNotification[] = [
-  { id: '1', title: 'תשלום התקבל', description: 'דניאל כהן שילם 3,500 ₪ עבור דירה 4', time: 'לפני 10 דק׳', icon: 'cash-check', unread: true },
-  { id: '2', title: 'משימה חדשה הוקצתה לך', description: 'תיקון נזילה בנכס רחוב הרצל 12', time: 'לפני שעה', icon: 'checkbox-marked-outline', unread: true },
-  { id: '3', title: 'חוזה עומד לפוג', description: 'חוזה השכירות של משפחת לוי יסתיים בעוד 14 יום', time: 'לפני 3 שעות', icon: 'file-sign', unread: true },
-  { id: '4', title: 'מסמך הועלה', description: 'אישור ביטוח נוסף לנכס שדרות בן גוריון 8', time: 'אתמול', icon: 'folder-outline', unread: false },
-];
+function feedIcon(kind: FeedKind): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (kind === 'task') return 'hammer-wrench';
+  if (kind === 'payment') return 'cash-check';
+  if (kind === 'message') return 'message-outline';
+  if (kind === 'document') return 'file-outline';
+  return 'file-sign';
+}
+
+function pad2(n: number) {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function fmtDateTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)} · ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
 
 type Props = {
   visible: boolean;
@@ -30,6 +41,21 @@ type Props = {
 
 export function NotificationsPanel({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
+  const [items, setItems] = useState<FeedItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    setLoading(true);
+    listNotifications({ limit: 10 })
+      .then((res) => {
+        if (cancelled) return;
+        setItems(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [visible]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -44,22 +70,33 @@ export function NotificationsPanel({ visible, onClose }: Props) {
           </View>
 
           <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
-            {DUMMY_NOTIFICATIONS.map((item, i) => (
-              <View
-                key={item.id}
-                style={[styles.row, i < DUMMY_NOTIFICATIONS.length - 1 && styles.rowBorder]}
-              >
-                <View style={[styles.iconWrap, item.unread && styles.iconWrapUnread]}>
-                  <MaterialCommunityIcons name={item.icon} size={18} color={item.unread ? Colors.accent : Colors.onSurfaceMuted} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <AppText variant="bodyMd" weight={item.unread ? 'bold' : 'regular'}>{item.title}</AppText>
-                  <AppText variant="bodySm" color="variant" numberOfLines={2} style={{ marginTop: 2 }}>{item.description}</AppText>
-                  <AppText variant="caption" color="muted" style={{ marginTop: 4 }}>{item.time}</AppText>
-                </View>
-                {item.unread && <View style={styles.unreadDot} />}
+            {loading && items.length === 0 ? (
+              <View style={styles.statusWrap}>
+                <ActivityIndicator color={Colors.accent} />
               </View>
-            ))}
+            ) : items.length === 0 ? (
+              <View style={styles.statusWrap}>
+                <AppText variant="bodyMd" color="muted">אין התראות</AppText>
+              </View>
+            ) : (
+              items.map((item, i) => {
+                const color = feedColor(item.kind);
+                return (
+                  <View
+                    key={item.id}
+                    style={[styles.row, i < items.length - 1 && styles.rowBorder]}
+                  >
+                    <View style={[styles.iconWrap, { backgroundColor: `${color}18` }]}>
+                      <MaterialCommunityIcons name={feedIcon(item.kind)} size={18} color={color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <AppText variant="bodyMd" weight="regular">{item.title}</AppText>
+                      <AppText variant="caption" color="muted" style={{ marginTop: 4 }}>{fmtDateTime(item.dateIso)}</AppText>
+                    </View>
+                  </View>
+                );
+              })
+            )}
           </ScrollView>
         </View>
       </View>
@@ -114,12 +151,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrapUnread: { backgroundColor: Colors.accentMuted },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.accent,
-    marginTop: 6,
+  statusWrap: {
+    paddingVertical: Spacing.xl,
+    alignItems: 'center',
   },
 });
