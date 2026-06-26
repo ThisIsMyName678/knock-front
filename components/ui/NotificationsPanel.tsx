@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
-import { listNotifications } from '@/lib/api/notifications';
+import { listNotifications, type NotificationsCursor } from '@/lib/api/notifications';
 import { feedEventToItem, type FeedItem, type FeedKind } from '@/lib/api/feed';
 
 function feedColor(kind: FeedKind): string {
@@ -43,6 +43,12 @@ export function NotificationsPanel({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [nextLoading, setNextLoading] = useState(false);
+  const [cursor, setCursor] = useState<NotificationsCursor>(null);
+  const [since, setSince] = useState<string | undefined>(undefined);
+  const [readLocally, setReadLocally] = useState<Set<string>>(new Set());
+  const [lastPageIds, setLastPageIds] = useState<string[]>([]);
+  const [newItemsCount, setNewItemsCount] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
@@ -51,11 +57,56 @@ export function NotificationsPanel({ visible, onClose }: Props) {
     listNotifications({ limit: 10 })
       .then((res) => {
         if (cancelled) return;
-        setItems(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
+        const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
+        setItems(mapped);
+        setCursor(res.nextCursor);
+        setSince(res.items[0]?.createdAt);
+        setLastPageIds(mapped.map((item) => item.id));
+        setReadLocally(new Set());
+        setNewItemsCount(0);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [visible]);
+
+  const toggleRead = (id: string) => {
+    setReadLocally((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const canGoNext = !!cursor && lastPageIds.length > 0 && lastPageIds.every((id) => readLocally.has(id));
+
+  const handleNext = () => {
+    if (!canGoNext || nextLoading) return;
+    setNextLoading(true);
+    listNotifications({ cursor, since, limit: 10 })
+      .then((res) => {
+        const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
+        setItems((prev) => [...prev, ...mapped]);
+        setCursor(res.nextCursor);
+        setLastPageIds(mapped.map((item) => item.id));
+        setNewItemsCount(res.newItemsCount);
+      })
+      .finally(() => setNextLoading(false));
+  };
+
+  const handleRefresh = () => {
+    setLoading(true);
+    listNotifications({ limit: 10 })
+      .then((res) => {
+        const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
+        setItems(mapped);
+        setCursor(res.nextCursor);
+        setSince(res.items[0]?.createdAt);
+        setLastPageIds(mapped.map((item) => item.id));
+        setReadLocally(new Set());
+        setNewItemsCount(0);
+      })
+      .finally(() => setLoading(false));
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -81,23 +132,57 @@ export function NotificationsPanel({ visible, onClose }: Props) {
             ) : (
               items.map((item, i) => {
                 const color = feedColor(item.kind);
+                const isRead = readLocally.has(item.id);
                 return (
-                  <View
+                  <Pressable
                     key={item.id}
+                    onPress={() => toggleRead(item.id)}
                     style={[styles.row, i < items.length - 1 && styles.rowBorder]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isRead }}
                   >
                     <View style={[styles.iconWrap, { backgroundColor: `${color}18` }]}>
                       <MaterialCommunityIcons name={feedIcon(item.kind)} size={18} color={color} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <AppText variant="bodyMd" weight="regular">{item.title}</AppText>
+                      <AppText variant="bodyMd" weight="regular" style={{ opacity: isRead ? 0.5 : 1 }}>{item.title}</AppText>
                       <AppText variant="caption" color="muted" style={{ marginTop: 4 }}>{fmtDateTime(item.dateIso)}</AppText>
                     </View>
-                  </View>
+                    <MaterialCommunityIcons
+                      name={isRead ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                      size={20}
+                      color={isRead ? Colors.success : Colors.outlineVariant}
+                    />
+                  </Pressable>
                 );
               })
             )}
           </ScrollView>
+
+          {newItemsCount > 0 && (
+            <View style={styles.banner}>
+              <AppText variant="bodySm" color="primary">נוספו {newItemsCount} התראות חדשות</AppText>
+              <Pressable onPress={handleRefresh} accessibilityRole="button" accessibilityLabel="רענן">
+                <AppText variant="bodySm" weight="bold" color="primary">רענון</AppText>
+              </Pressable>
+            </View>
+          )}
+
+          {cursor && (
+            <Pressable
+              onPress={handleNext}
+              disabled={!canGoNext || nextLoading}
+              style={[styles.nextBtn, (!canGoNext || nextLoading) && styles.nextBtnDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="הבא"
+            >
+              {nextLoading ? (
+                <ActivityIndicator color={Colors.onAccent} size="small" />
+              ) : (
+                <AppText variant="bodyMd" weight="bold" style={{ color: canGoNext ? Colors.onAccent : Colors.onSurfaceMuted }}>הבא</AppText>
+              )}
+            </Pressable>
+          )}
         </View>
       </View>
     </Modal>
@@ -154,5 +239,26 @@ const styles = StyleSheet.create({
   statusWrap: {
     paddingVertical: Spacing.xl,
     alignItems: 'center',
+  },
+  banner: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.accentMuted,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineLight,
+  },
+  nextBtn: {
+    margin: Spacing.base,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextBtnDisabled: {
+    backgroundColor: Colors.surfaceVariant,
   },
 });
