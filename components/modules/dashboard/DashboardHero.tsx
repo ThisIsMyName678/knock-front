@@ -4,8 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { DrawerMenu } from '@/components/ui/DrawerMenu';
+import { NotificationsPanel } from '@/components/ui/NotificationsPanel';
 import { Colors, Spacing, Radius, Shadow, FontFamily, FontSize, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
+
+// דוגמא בלבד — מספר התראות דמה, ללא לוגיקה אמיתית
+const DUMMY_NOTIFICATIONS_COUNT = 3;
 import type { TasksDashboardPreset } from '@/lib/mocks/dashboard';
 import type { BackendDashboardSummary } from '@/lib/api/tasks';
 import { useAuth } from '@/lib/auth';
@@ -24,6 +28,7 @@ type Props = {
 export function DashboardHero(props: Props) {
   const insets = useSafeAreaInsets();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { backendUser, user } = useAuth();
   const firstName = resolveFirstName({
     profileDisplayName: backendUser?.profile?.displayName,
@@ -40,9 +45,21 @@ export function DashboardHero(props: Props) {
             <AppText style={styles.greeting}>שלום, {firstName} 👋</AppText>
             <AppText variant="bodyMd" color="variant" style={styles.dateLine}>{props.dateLabel}</AppText>
           </View>
-          <Pressable onPress={() => setDrawerOpen(true)} style={styles.menuBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
-            <MaterialCommunityIcons name="menu" size={22} color={Colors.onBackground} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable onPress={() => setNotificationsOpen(true)} style={styles.menuBtn} accessibilityRole="button" accessibilityLabel="התראות">
+              <MaterialCommunityIcons name="bell-outline" size={22} color={Colors.onBackground} />
+              {DUMMY_NOTIFICATIONS_COUNT > 0 && (
+                <View style={styles.notificationBadge}>
+                  <AppText variant="caption" color="white" weight="bold" style={styles.notificationBadgeText}>
+                    {DUMMY_NOTIFICATIONS_COUNT}
+                  </AppText>
+                </View>
+              )}
+            </Pressable>
+            <Pressable onPress={() => setDrawerOpen(true)} style={styles.menuBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
+              <MaterialCommunityIcons name="menu" size={22} color={Colors.onBackground} />
+            </Pressable>
+          </View>
         </View>
         <Pressable onPress={props.onPaymentsPress} style={({ pressed }) => [styles.primaryMetric, pressed && styles.pressed]} accessibilityRole="button">
           <AppText style={styles.metricEyebrow}>תשלומים בשבוע הקרוב</AppText>
@@ -86,6 +103,7 @@ export function DashboardHero(props: Props) {
         </View>
       </View>
       <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <NotificationsPanel visible={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
     </>
   );
 }
@@ -113,7 +131,21 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   dateLine: { textAlign: 'right' },
+  headerActions: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
   menuBtn: { width: 44, height: 44, borderRadius: Radius.lg, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
+  notificationBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notificationBadgeText: { fontSize: 10, lineHeight: 12 },
   primaryMetric: {
     backgroundColor: Colors.background,
     borderRadius: Radius.xl,
