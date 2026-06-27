@@ -366,6 +366,8 @@ export function PaymentCreateForm({
       setPaymentMode('recurring');
       setRecCycle('monthly');
       setRecCount('12');
+    } else {
+      setPaymentMode('full');
     }
     setPaymentTypeModal(false);
   };
