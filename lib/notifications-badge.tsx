@@ -17,14 +17,14 @@ export function NotificationsBadgeProvider({ children }: PropsWithChildren) {
 
   const refresh = useCallback(async () => {
     const lastSeenAt = localStorage.getItem(LAST_SEEN_KEY);
-    if (!lastSeenAt) {
-      localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
-      setCount(0);
-      return;
-    }
+    const now = new Date();
+    const since = lastSeenAt ?? new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     try {
-      const res = await listNotifications({ date: toLocalDateKey(new Date()), since: lastSeenAt });
+      const res = await listNotifications({ date: toLocalDateKey(now), since });
       setCount(res.newItemsCount);
+      if (!lastSeenAt) {
+        localStorage.setItem(LAST_SEEN_KEY, now.toISOString());
+      }
     } catch {
       // ignore — keep previous count, retried on next refresh
     }
