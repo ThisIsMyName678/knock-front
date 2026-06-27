@@ -81,7 +81,12 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
   const [readLocally, setReadLocally] = useState<Set<string>>(new Set());
   const [lastPageIds, setLastPageIds] = useState<string[]>([]);
   const [newItemsCount, setNewItemsCount] = useState(0);
+  const [openBaseline, setOpenBaseline] = useState<number | null>(null);
   const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    setOpenBaseline(visible ? (newIndicatorCount ?? 0) : null);
+  }, [visible]);
 
   useEffect(() => {
     if (!visible || hasLoadedRef.current) return;
@@ -112,7 +117,12 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
   };
 
   const canGoNext = !!cursor && lastPageIds.length > 0 && lastPageIds.every((id) => readLocally.has(id));
-  const indicatorCount = newItemsCount > 0 ? newItemsCount : (newIndicatorCount ?? 0);
+  const hasNewSinceOpen = openBaseline !== null && (newIndicatorCount ?? 0) > openBaseline;
+  const indicatorCount = newItemsCount > 0
+    ? newItemsCount
+    : hasNewSinceOpen
+      ? (newIndicatorCount ?? 0) - openBaseline!
+      : 0;
 
   const handleNext = () => {
     if (!canGoNext || nextLoading) return;
