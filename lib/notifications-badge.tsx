@@ -2,7 +2,7 @@ import React, { createContext, PropsWithChildren, useCallback, useContext, useEf
 import { listNotifications } from '@/lib/api/notifications';
 import { toLocalDateKey } from '@/lib/mocks/dashboard';
 
-const LAST_SEEN_KEY = 'notifications.lastSeenAt';
+export const LAST_SEEN_KEY = 'notifications.lastSeenAt';
 
 type NotificationsBadgeContextValue = {
   count: number;

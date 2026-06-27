@@ -8,6 +8,7 @@ import { RTL_ROW } from '@/constants/rtl';
 import { listNotifications, type NotificationsCursor } from '@/lib/api/notifications';
 import { feedEventToItem, type FeedItem, type FeedKind } from '@/lib/api/feed';
 import { toLocalDateKey } from '@/lib/mocks/dashboard';
+import { PASSED_IDS_KEY } from '@/lib/notifications-storage-keys';
 
 function feedColor(kind: FeedKind): string {
   if (kind === 'task') return Colors.feedMaintenance;
@@ -25,7 +26,6 @@ function feedIcon(kind: FeedKind): React.ComponentProps<typeof MaterialCommunity
   return 'file-sign';
 }
 
-const PASSED_IDS_KEY = 'notifications.passedIds';
 const PASSED_IDS_CAP = 200;
 
 function getPassedIds(): Set<string> {
