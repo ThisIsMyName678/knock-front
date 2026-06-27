@@ -7,6 +7,7 @@ import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/c
 import { RTL_ROW } from '@/constants/rtl';
 import { listNotifications, type NotificationsCursor } from '@/lib/api/notifications';
 import { feedEventToItem, type FeedItem, type FeedKind } from '@/lib/api/feed';
+import { toLocalDateKey } from '@/lib/mocks/dashboard';
 
 function feedColor(kind: FeedKind): string {
   if (kind === 'task') return Colors.feedMaintenance;
@@ -54,7 +55,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
     if (!visible) return;
     let cancelled = false;
     setLoading(true);
-    listNotifications({ limit: 10 })
+    listNotifications({ date: toLocalDateKey(new Date()), limit: 10 })
       .then((res) => {
         if (cancelled) return;
         const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
@@ -82,7 +83,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
   const handleNext = () => {
     if (!canGoNext || nextLoading) return;
     setNextLoading(true);
-    listNotifications({ cursor, since, limit: 10 })
+    listNotifications({ date: toLocalDateKey(new Date()), cursor, since, limit: 10 })
       .then((res) => {
         const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
         setItems((prev) => [...prev, ...mapped]);
@@ -95,7 +96,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
 
   const handleRefresh = () => {
     setLoading(true);
-    listNotifications({ limit: 10 })
+    listNotifications({ date: toLocalDateKey(new Date()), limit: 10 })
       .then((res) => {
         const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
         setItems(mapped);
