@@ -4,10 +4,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { AppText } from './Text';
 import { DrawerMenu } from './DrawerMenu';
-import { NotificationsPanel } from './NotificationsPanel';
 import { Colors, Spacing, CONTENT_HORIZONTAL_PADDING, Shadow, Radius } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
-import { useNotificationsBadge } from '@/lib/notifications-badge';
 
 type Props = {
   title: string;
@@ -20,8 +18,6 @@ type Props = {
 
 export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, showMenu }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { count: notificationsCount, markSeen } = useNotificationsBadge();
   const canGoBack = router.canGoBack();
   const showBackBtn = showBack === true || (showBack !== false && canGoBack);
   const handleBack = onBack ?? (() => router.back());
@@ -32,16 +28,6 @@ export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, sho
         <View style={[styles.side, showMenu && styles.sideMenu]}>
           {showMenu ? (
             <View style={styles.menuGroup}>
-              <Pressable onPress={() => setNotificationsOpen(true)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="התראות">
-                <MaterialCommunityIcons name="bell-outline" size={22} color={Colors.onBackground} />
-                {notificationsCount > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <AppText variant="caption" color="white" weight="bold" style={styles.notificationBadgeText}>
-                      {notificationsCount}
-                    </AppText>
-                  </View>
-                )}
-              </Pressable>
               <Pressable onPress={() => setDrawerOpen(true)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
                 <MaterialCommunityIcons name="menu" size={22} color={Colors.onBackground} />
               </Pressable>
@@ -67,15 +53,6 @@ export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, sho
         </View>
       </View>
       {showMenu && <DrawerMenu visible={drawerOpen} onClose={() => setDrawerOpen(false)} />}
-      {showMenu && (
-        <NotificationsPanel
-          visible={notificationsOpen}
-          onClose={() => {
-            setNotificationsOpen(false);
-            void markSeen();
-          }}
-        />
-      )}
     </>
   );
 }
@@ -104,20 +81,4 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center',
   },
   placeholder: { width: 40, height: 40 },
-  notificationBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: Colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  notificationBadgeText: {
-    fontSize: 10,
-    lineHeight: 12,
-  },
 });
