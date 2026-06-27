@@ -152,8 +152,8 @@ export function NotificationsPanel({ visible, onClose }: Props) {
                     </View>
                     <MaterialCommunityIcons
                       name={isRead ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                      size={20}
-                      color={isRead ? Colors.success : Colors.outlineVariant}
+                      size={26}
+                      color={isRead ? Colors.success : Colors.onSurfaceMuted}
                     />
                   </Pressable>
                 );
