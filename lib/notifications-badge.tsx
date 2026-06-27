@@ -1,5 +1,6 @@
 import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
 import { listNotifications } from '@/lib/api/notifications';
+import { toLocalDateKey } from '@/lib/mocks/dashboard';
 
 const LAST_SEEN_KEY = 'notifications.lastSeenAt';
 
@@ -22,7 +23,7 @@ export function NotificationsBadgeProvider({ children }: PropsWithChildren) {
       return;
     }
     try {
-      const res = await listNotifications({ since: lastSeenAt });
+      const res = await listNotifications({ date: toLocalDateKey(new Date()), since: lastSeenAt });
       setCount(res.newItemsCount);
     } catch {
       // ignore — keep previous count, retried on next refresh
@@ -36,6 +37,10 @@ export function NotificationsBadgeProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     void refresh();
+    const intervalId = setInterval(() => {
+      void refresh();
+    }, 60000);
+    return () => clearInterval(intervalId);
   }, [refresh]);
 
   return (
