@@ -1,4 +1,5 @@
 import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { listNotifications } from '@/lib/api/notifications';
 import { toLocalDateKey } from '@/lib/mocks/dashboard';
 
@@ -26,7 +27,7 @@ export function NotificationsBadgeProvider({ children }: PropsWithChildren) {
         localStorage.setItem(LAST_SEEN_KEY, now.toISOString());
       }
     } catch {
-      // ignore — keep previous count, retried on next refresh
+      // ignore — badge keeps its last known count on a failed refresh
     }
   }, []);
 
@@ -40,7 +41,21 @@ export function NotificationsBadgeProvider({ children }: PropsWithChildren) {
     const intervalId = setInterval(() => {
       void refresh();
     }, 60000);
-    return () => clearInterval(intervalId);
+
+    if (Platform.OS !== 'web') {
+      return () => clearInterval(intervalId);
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [refresh]);
 
   return (

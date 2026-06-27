@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, Pressable, Text, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { DrawerMenu } from '@/components/ui/DrawerMenu';
@@ -27,7 +28,14 @@ export function DashboardHero(props: Props) {
   const insets = useSafeAreaInsets();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { count: notificationsCount, markSeen } = useNotificationsBadge();
+  const { count: notificationsCount, markSeen, refresh } = useNotificationsBadge();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
+
   const { backendUser, user } = useAuth();
   const firstName = resolveFirstName({
     profileDisplayName: backendUser?.profile?.displayName,
