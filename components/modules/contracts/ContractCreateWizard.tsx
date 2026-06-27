@@ -13,7 +13,7 @@ import {
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -29,6 +29,13 @@ import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { createContract, updateContract } from '@/lib/api/contracts';
 import type { ContractType, ContractAccessLevel, ContractDetail, CreateContractInput } from '@/lib/api/contracts';
+import { createPayment } from '@/lib/api/payments';
+import {
+  getDraftContractPayments,
+  removeDraftContractPayment,
+  clearDraftContractPayments,
+  type DraftContractPayment,
+} from '@/lib/navigation-state';
 import {
   Colors,
   Spacing,
@@ -165,6 +172,18 @@ export function ContractCreateWizard({
 
   // Step 1 – תיעוד תשלום
   const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
+  // תשלומים חדשים שתועדו בתור מקומי כל עוד אין UUID אמיתי לחוזה (מצב יצירה)
+  const [draftPayments, setDraftPayments] = useState<DraftContractPayment[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!contractId) setDraftPayments(getDraftContractPayments());
+    }, [contractId])
+  );
+
+  useEffect(() => {
+    return () => clearDraftContractPayments();
+  }, []);
 
   // Step 2 – מונים
   const [meters, setMeters] = useState<MeterRow[]>([]);
@@ -306,6 +325,22 @@ export function ContractCreateWizard({
       const result = contractId
         ? await updateContract(contractId, dto)
         : await createContract(dto);
+
+      if (!contractId && draftPayments.length > 0) {
+        let failedCount = 0;
+        for (const draft of draftPayments) {
+          try {
+            await createPayment({ ...draft.input, contractId: result.id });
+          } catch {
+            failedCount += 1;
+          }
+        }
+        clearDraftContractPayments();
+        if (failedCount > 0) {
+          Alert.alert('שגיאה', `החוזה נשמר, אך ${failedCount} מתוך ${draftPayments.length} תשלומים לא נשמרו. ניתן להוסיפם דרך מסך החוזה.`);
+        }
+      }
+
       if (contractId) {
         router.replace(`/(app)/contracts/${result.id}`);
       } else {
@@ -622,7 +657,11 @@ export function ContractCreateWizard({
                         router.push({
                           pathname: '/(app)/payments/new',
                           params: {
-                            preloadContractId: `contract_${Date.now()}`,
+                            // אם החוזה כבר קיים בשרת (מצב עריכה) יש UUID אמיתי ואפשר ליצור תשלום ישירות.
+                            // במצב יצירה החוזה עדיין לא נשמר — מתעדים את התשלום בתור עד שהחוזה ייווצר.
+                            ...(contractId
+                              ? { preloadContractId: contractId }
+                              : { draftForContract: '1' }),
                             preloadContractName: contractName || 'חוזה חדש',
                             preloadLinkId: linkSelected?.id ?? '',
                             preloadLinkLabel: linkSelected?.name ?? '',
@@ -637,6 +676,29 @@ export function ContractCreateWizard({
                         יצירת תשלום חדש
                       </AppText>
                     </Pressable>
+
+                    {draftPayments.length > 0 && (
+                      <View style={{ marginTop: Spacing.base }}>
+                        <AppText variant="labelMd" weight="semiBold" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
+                          תשלומים שיתועדו עם החוזה
+                        </AppText>
+                        {draftPayments.map((d) => (
+                          <View key={d.id} style={[styles.paymentLinkRow, { justifyContent: 'space-between' }]}>
+                            <AppText variant="bodySm" style={{ flex: 1, textAlign: 'right' }}>
+                              {d.summaryLabel}
+                            </AppText>
+                            <Pressable
+                              onPress={() => {
+                                removeDraftContractPayment(d.id);
+                                setDraftPayments(getDraftContractPayments());
+                              }}
+                            >
+                              <MaterialCommunityIcons name="close-circle-outline" size={20} color={Colors.error} />
+                            </Pressable>
+                          </View>
+                        ))}
+                      </View>
+                    )}
                   </>
                 );
               })()}

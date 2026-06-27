@@ -42,6 +42,7 @@ import {
   type BackendPayment,
 } from '@/lib/api/payments';
 import { BackendApiError } from '@/lib/backend';
+import { addDraftContractPayment } from '@/lib/navigation-state';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
 import {
   Colors,
@@ -161,12 +162,16 @@ export function PaymentCreateForm({
   preloadedLink,
   preloadedContractId,
   preloadedContractName,
+  draftForContract,
   onSuccess,
 }: {
   initialData?: PaymentDetailMock;
   preloadedLink?: PreloadedLink;
   preloadedContractId?: string;
   preloadedContractName?: string;
+  // האשף נמצא בתהליך יצירת חוזה חדש: אין עדיין contractId אמיתי, אז התשלום מתועד
+  // בתור מקומי ונוצר בשרת רק לאחר שהחוזה עצמו נשמר ומקבל UUID.
+  draftForContract?: boolean;
   onSuccess?: (created: BackendPayment | BackendPayment[]) => void;
 } = {}) {
   const insets = useSafeAreaInsets();
@@ -198,6 +203,7 @@ export function PaymentCreateForm({
   const [recRows, setRecRows] = useState<RecurringRow[]>([]);
 
   const [contractId, setContractId] = useState<string | null>(() => preloadedContractId ?? null);
+  const isContractLinked = Boolean(preloadedContractId) || Boolean(draftForContract);
   const [paymentType, setPaymentType] = useState<PaymentTypeKey>(() => initialData?.paymentType ?? 'rent');
   const [maintenanceCallId, setMaintenanceCallId] = useState<string | null>(null);
   const [amountExVat, setAmountExVat] = useState(() => initialData?.amountNet ? String(initialData.amountNet) : '');
@@ -444,43 +450,56 @@ export function PaymentCreateForm({
     }
 
     if ((paymentMode === 'full' || paymentMode === 'recurring' || paymentMode === 'installments' || paymentMode === 'shafif_plus') && linkSelected) {
+      const paymentInput = {
+        name: paymentName.trim(),
+        direction: clientDirectionToBackend(direction),
+        paymentType: clientPaymentTypeToBackend(paymentType),
+        mode: paymentMode === 'recurring' ? 'RECURRING' as const : paymentMode === 'installments' ? 'INSTALLMENTS' as const : paymentMode === 'shafif_plus' ? 'SHAFIF_PLUS' as const : 'FULL' as const,
+        linkScope: linkSelected.kind === 'project' ? 'PROJECT' as const : 'PROPERTY' as const,
+        projectId: linkSelected.kind === 'project' ? linkSelected.id : null,
+        propertyId: linkSelected.kind === 'asset' ? linkSelected.id : null,
+        amountNet,
+        amountGross,
+        vatPercent: parsePct(vatPct),
+        paymentMethod: clientMeansToBackend(means),
+        dueDate: dueDateIso ?? new Date().toISOString().slice(0, 10),
+        payerType,
+        payerContactId,
+        notes: notes.trim() || null,
+        ...(paymentMode === 'recurring'
+          ? { cycle: clientCycleToBackend(recCycle), count: Math.min(36, Math.max(1, parseInt(recCount, 10) || 1)) }
+          : {}),
+        ...(paymentMode === 'installments'
+          ? {
+              installments: instRows.map((row) => ({
+                amount: digitsToInt(row.amountDigits),
+                dueDate: ddMmYyyyToIso(row.dueDate) ?? dueDateIso ?? new Date().toISOString().slice(0, 10),
+                paymentMethod: clientMeansToBackend(row.means),
+                indexed: row.indexed,
+              })),
+            }
+          : {}),
+        ...(paymentMode === 'shafif_plus'
+          ? { shafifPlusDays: parseInt(shafifDays, 10) || 0 }
+          : {}),
+      };
+
+      // החוזה עדיין לא נשמר בשרת (אין UUID אמיתי) — מתעדים את התשלום בתור מקומי,
+      // והוא ייווצר בפועל רק לאחר שהחוזה נשמר ומקבל contractId אמיתי.
+      if (draftForContract) {
+        addDraftContractPayment({
+          id: randomId(),
+          summaryLabel: `${paymentName.trim()} · ${amountGross.toLocaleString('he-IL')} ₪ · ${dueDate}`,
+          input: paymentInput,
+        });
+        router.back();
+        return;
+      }
+
       setIsSaving(true);
       let createdPayment: BackendPayment | BackendPayment[] | undefined;
       try {
-        createdPayment = await createPayment({
-          name: paymentName.trim(),
-          direction: clientDirectionToBackend(direction),
-          paymentType: clientPaymentTypeToBackend(paymentType),
-          mode: paymentMode === 'recurring' ? 'RECURRING' : paymentMode === 'installments' ? 'INSTALLMENTS' : paymentMode === 'shafif_plus' ? 'SHAFIF_PLUS' : 'FULL',
-          linkScope: linkSelected.kind === 'project' ? 'PROJECT' : 'PROPERTY',
-          projectId: linkSelected.kind === 'project' ? linkSelected.id : null,
-          propertyId: linkSelected.kind === 'asset' ? linkSelected.id : null,
-          contractId: contractId,
-          amountNet,
-          amountGross,
-          vatPercent: parsePct(vatPct),
-          paymentMethod: clientMeansToBackend(means),
-          dueDate: dueDateIso ?? new Date().toISOString().slice(0, 10),
-          payerType,
-          payerContactId,
-          notes: notes.trim() || null,
-          ...(paymentMode === 'recurring'
-            ? { cycle: clientCycleToBackend(recCycle), count: Math.min(36, Math.max(1, parseInt(recCount, 10) || 1)) }
-            : {}),
-          ...(paymentMode === 'installments'
-            ? {
-                installments: instRows.map((row) => ({
-                  amount: digitsToInt(row.amountDigits),
-                  dueDate: ddMmYyyyToIso(row.dueDate) ?? dueDateIso ?? new Date().toISOString().slice(0, 10),
-                  paymentMethod: clientMeansToBackend(row.means),
-                  indexed: row.indexed,
-                })),
-              }
-            : {}),
-          ...(paymentMode === 'shafif_plus'
-            ? { shafifPlusDays: parseInt(shafifDays, 10) || 0 }
-            : {}),
-        });
+        createdPayment = await createPayment({ ...paymentInput, contractId });
       } catch (error) {
         setIsSaving(false);
         const message = error instanceof BackendApiError ? error.message : 'שמירת התשלום נכשלה';
@@ -499,7 +518,7 @@ export function PaymentCreateForm({
       }
     }
 
-    if (preloadedContractId) {
+    if (isContractLinked) {
       router.replace('/(app)/contracts' as const);
     } else {
       router.back();
@@ -537,7 +556,7 @@ export function PaymentCreateForm({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {preloadedContractId && (
+          {isContractLinked && (
             <View style={styles.contractBanner}>
               <MaterialCommunityIcons name="file-document-outline" size={18} color={Colors.primary} />
               <AppText variant="bodySm" color="primary" style={{ flex: 1, textAlign: 'right' }}>
@@ -629,7 +648,7 @@ export function PaymentCreateForm({
           ) : null}
 
           {/* ─── שיוך לחוזה ─── */}
-          {!preloadedContractId && (
+          {!isContractLinked && (
             <>
               <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.md }]}>
                 שיוך לחוזה (לא חובה)
