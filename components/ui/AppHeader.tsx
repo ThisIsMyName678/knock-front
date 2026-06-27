@@ -25,11 +25,13 @@ export function AppHeader({ title, subtitle, subtitleNode, showBack, onBack, sho
   return (
     <>
       <View style={styles.header}>
-        <View style={styles.side}>
+        <View style={[styles.side, showMenu && styles.sideMenu]}>
           {showMenu ? (
-            <Pressable onPress={() => setDrawerOpen(true)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
-              <MaterialCommunityIcons name="menu" size={22} color={Colors.onBackground} />
-            </Pressable>
+            <View style={styles.menuGroup}>
+              <Pressable onPress={() => setDrawerOpen(true)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="תפריט ראשי">
+                <MaterialCommunityIcons name="menu" size={22} color={Colors.onBackground} />
+              </Pressable>
+            </View>
           ) : (
             <View style={styles.placeholder} />
           )}
@@ -69,9 +71,11 @@ const styles = StyleSheet.create({
     ...Shadow.sm,
   },
   side: { width: 40, alignItems: 'center', justifyContent: 'center' },
+  sideMenu: { width: undefined },
   titleContainer: { flex: 1, alignItems: 'center', paddingHorizontal: Spacing.sm },
   title: { textAlign: 'center', color: Colors.onBackground },
   subtitle: { textAlign: 'center', marginTop: 2 },
+  menuGroup: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.xs },
   iconBtn: {
     width: 40, height: 40, borderRadius: Radius.md,
     backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center',

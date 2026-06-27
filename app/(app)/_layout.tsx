@@ -3,6 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Stack, Redirect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth';
+import { NotificationsBadgeProvider } from '@/lib/notifications-badge';
 import { Colors, Spacing, Radius } from '@/constants/tokens';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
@@ -91,7 +92,9 @@ export default function AppLayout() {
 
   console.log('[AppLayout] Rendering protected stack');
   return (
-    <Stack screenOptions={{ headerShown: false }} />
+    <NotificationsBadgeProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </NotificationsBadgeProvider>
   );
 }
 

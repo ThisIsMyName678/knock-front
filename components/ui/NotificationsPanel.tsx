@@ -1,0 +1,319 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { AppText } from './Text';
+import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING } from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
+import { listNotifications, type NotificationsCursor } from '@/lib/api/notifications';
+import { feedEventToItem, type FeedItem, type FeedKind } from '@/lib/api/feed';
+import { toLocalDateKey } from '@/lib/mocks/dashboard';
+import { PASSED_IDS_KEY } from '@/lib/notifications-storage-keys';
+
+function feedColor(kind: FeedKind): string {
+  if (kind === 'task') return Colors.feedMaintenance;
+  if (kind === 'payment') return Colors.feedPayments;
+  if (kind === 'message') return Colors.feedMessages;
+  if (kind === 'document') return Colors.feedDocuments;
+  return Colors.feedContracts;
+}
+
+function feedIcon(kind: FeedKind): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
+  if (kind === 'task') return 'hammer-wrench';
+  if (kind === 'payment') return 'cash-check';
+  if (kind === 'message') return 'message-outline';
+  if (kind === 'document') return 'file-outline';
+  return 'file-sign';
+}
+
+const PASSED_IDS_CAP = 200;
+
+function getPassedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(PASSED_IDS_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function addPassedIds(ids: string[]) {
+  if (ids.length === 0) return;
+  try {
+    const current = getPassedIds();
+    ids.forEach((id) => current.add(id));
+    const trimmed = Array.from(current).slice(-PASSED_IDS_CAP);
+    localStorage.setItem(PASSED_IDS_KEY, JSON.stringify(trimmed));
+  } catch {
+    // ignore — feature degrades gracefully without persistence
+  }
+}
+
+function filterPassed(items: FeedItem[]): FeedItem[] {
+  const passed = getPassedIds();
+  return items.filter((item) => !passed.has(item.id));
+}
+
+function clearPassedIds() {
+  try {
+    localStorage.removeItem(PASSED_IDS_KEY);
+  } catch {
+    // ignore — feature degrades gracefully without persistence
+  }
+}
+
+function pad2(n: number) {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function fmtDateTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)} · ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+type Props = {
+  visible: boolean;
+  onClose: () => void;
+  newIndicatorCount?: number;
+  onIndicatorSeen?: () => void;
+};
+
+export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndicatorSeen }: Props) {
+  const insets = useSafeAreaInsets();
+  const [items, setItems] = useState<FeedItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [nextLoading, setNextLoading] = useState(false);
+  const [cursor, setCursor] = useState<NotificationsCursor>(null);
+  const [since, setSince] = useState<string | undefined>(undefined);
+  const [readLocally, setReadLocally] = useState<Set<string>>(new Set());
+  const [lastPageIds, setLastPageIds] = useState<string[]>([]);
+  const [openBaseline, setOpenBaseline] = useState<number | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setOpenBaseline(null);
+      return;
+    }
+    setOpenBaseline((prev) => (prev === null ? (newIndicatorCount ?? 0) : prev));
+  }, [visible, newIndicatorCount]);
+
+  useEffect(() => {
+    if (!visible || hasLoadedRef.current) return;
+    let cancelled = false;
+    setLoading(true);
+    listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
+      .then((res) => {
+        if (cancelled) return;
+        hasLoadedRef.current = true;
+        const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
+        setItems(mapped);
+        setCursor(res.nextCursor);
+        setSince(res.items[0]?.createdAt);
+        setLastPageIds(mapped.map((item) => item.id));
+        setReadLocally(new Set());
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [visible]);
+
+  const toggleRead = (id: string) => {
+    setReadLocally((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const canGoNext = !!cursor && lastPageIds.length > 0 && lastPageIds.every((id) => readLocally.has(id));
+  const indicatorDelta = openBaseline !== null ? (newIndicatorCount ?? 0) - openBaseline : 0;
+  const hasUpdateSinceOpen = openBaseline !== null && indicatorDelta !== 0;
+
+  const handleNext = () => {
+    if (!canGoNext || nextLoading) return;
+    addPassedIds(lastPageIds);
+    setNextLoading(true);
+    listNotifications({ date: toLocalDateKey(new Date()), cursor, since, limit: 5 })
+      .then((res) => {
+        const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
+        setItems(mapped);
+        setCursor(res.nextCursor);
+        setLastPageIds(mapped.map((item) => item.id));
+        setReadLocally(new Set());
+      })
+      .finally(() => setNextLoading(false));
+  };
+
+  const handleRefresh = () => {
+    setLoading(true);
+    onIndicatorSeen?.();
+    setOpenBaseline(0);
+    clearPassedIds();
+    listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
+      .then((res) => {
+        const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
+        setItems(mapped);
+        setCursor(res.nextCursor);
+        setSince(res.items[0]?.createdAt);
+        setLastPageIds(mapped.map((item) => item.id));
+        setReadLocally(new Set());
+      })
+      .finally(() => setLoading(false));
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalRoot}>
+        <Pressable style={styles.backdropFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="סגור התראות" />
+        <View style={[styles.panel, { top: insets.top + 56 }]}>
+          <View style={styles.panelHeader}>
+            <View style={styles.titleRow}>
+              <AppText variant="headingSm" weight="bold">התראות</AppText>
+              {hasUpdateSinceOpen && (
+                <Pressable onPress={handleRefresh} style={styles.refreshPill} accessibilityRole="button" accessibilityLabel="רענון">
+                  <AppText variant="bodySm" weight="bold" color="primary">
+                    {indicatorDelta > 0 ? `נוספו ${indicatorDelta} · רענון` : 'התראות עודכנו · רענון'}
+                  </AppText>
+                </Pressable>
+              )}
+            </View>
+            <Pressable onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="סגור">
+              <MaterialCommunityIcons name="close" size={18} color={Colors.onBackground} />
+            </Pressable>
+          </View>
+
+          <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            {loading && items.length === 0 ? (
+              <View style={styles.statusWrap}>
+                <ActivityIndicator color={Colors.accent} />
+              </View>
+            ) : items.length === 0 ? (
+              <View style={styles.statusWrap}>
+                <AppText variant="bodyMd" color="muted">אין התראות</AppText>
+              </View>
+            ) : (
+              items.map((item, i) => {
+                const color = feedColor(item.kind);
+                const isRead = readLocally.has(item.id);
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => toggleRead(item.id)}
+                    style={[styles.row, i < items.length - 1 && styles.rowBorder]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isRead }}
+                  >
+                    <View style={[styles.iconWrap, { backgroundColor: `${color}18` }]}>
+                      <MaterialCommunityIcons name={feedIcon(item.kind)} size={18} color={color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <AppText variant="bodyMd" weight="regular" style={{ opacity: isRead ? 0.5 : 1 }}>{item.title}</AppText>
+                      <AppText variant="caption" color="muted" style={{ marginTop: 4 }}>{fmtDateTime(item.dateIso)}</AppText>
+                    </View>
+                    <MaterialCommunityIcons
+                      name={isRead ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                      size={26}
+                      color={isRead ? Colors.success : Colors.onSurfaceMuted}
+                    />
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {cursor && (
+            <Pressable
+              onPress={handleNext}
+              disabled={!canGoNext || nextLoading}
+              style={[styles.nextBtn, (!canGoNext || nextLoading) && styles.nextBtnDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="הבא"
+            >
+              {nextLoading ? (
+                <ActivityIndicator color={Colors.onAccent} size="small" />
+              ) : (
+                <AppText variant="bodyMd" weight="bold" style={{ color: canGoNext ? Colors.onAccent : Colors.onSurfaceMuted }}>הבא</AppText>
+              )}
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalRoot: { flex: 1, position: 'relative' },
+  backdropFill: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  panel: {
+    position: 'absolute',
+    right: CONTENT_HORIZONTAL_PADDING,
+    left: CONTENT_HORIZONTAL_PADDING,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineLight,
+    overflow: 'hidden',
+    ...Shadow.lg,
+  },
+  panelHeader: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineLight,
+  },
+  titleRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  refreshPill: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.accentMuted,
+  },
+  closeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  row: {
+    flexDirection: RTL_ROW,
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+  },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
+  iconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusWrap: {
+    paddingVertical: Spacing.xl,
+    alignItems: 'center',
+  },
+  nextBtn: {
+    margin: Spacing.base,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextBtnDisabled: {
+    backgroundColor: Colors.surfaceVariant,
+  },
+});

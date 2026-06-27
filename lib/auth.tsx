@@ -18,6 +18,8 @@ import {
 } from './backend';
 import { isAuthDisabled } from './auth-config';
 import { isValidEmail } from './auth-validation';
+import { LAST_SEEN_KEY } from './notifications-badge';
+import { PASSED_IDS_KEY } from './notifications-storage-keys';
 import {
   getPasswordResetRedirectUrl,
   handleAuthDeepLink,
@@ -328,7 +330,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
       
       // 2. Clear Supabase session (fire and forget, don't wait for it)
       supabase.auth.signOut().catch(err => console.error('Supabase signOut error:', err));
-      
+
+      // 3. Clear device-local notification state so the next user on this device doesn't inherit it
+      try {
+        localStorage.removeItem(PASSED_IDS_KEY);
+        localStorage.removeItem(LAST_SEEN_KEY);
+      } catch (err) {
+        console.error('[Auth] Failed to clear notifications storage on signOut:', err);
+      }
+
       console.log('[Auth] State cleared, forcing redirect');
       router.replace('/(auth)/login');
     } catch (error) {
