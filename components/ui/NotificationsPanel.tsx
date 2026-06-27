@@ -67,9 +67,10 @@ function fmtDateTime(iso: string) {
 type Props = {
   visible: boolean;
   onClose: () => void;
+  newIndicatorCount?: number;
 };
 
-export function NotificationsPanel({ visible, onClose }: Props) {
+export function NotificationsPanel({ visible, onClose, newIndicatorCount }: Props) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -110,6 +111,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
   };
 
   const canGoNext = !!cursor && lastPageIds.length > 0 && lastPageIds.every((id) => readLocally.has(id));
+  const indicatorCount = newItemsCount > 0 ? newItemsCount : (newIndicatorCount ?? 0);
 
   const handleNext = () => {
     if (!canGoNext || nextLoading) return;
@@ -150,9 +152,9 @@ export function NotificationsPanel({ visible, onClose }: Props) {
           <View style={styles.panelHeader}>
             <View style={styles.titleRow}>
               <AppText variant="headingSm" weight="bold">התראות</AppText>
-              {newItemsCount > 0 && (
+              {indicatorCount > 0 && (
                 <Pressable onPress={handleRefresh} style={styles.refreshPill} accessibilityRole="button" accessibilityLabel="רענון">
-                  <AppText variant="bodySm" weight="bold" color="primary">נוספו {newItemsCount} · רענון</AppText>
+                  <AppText variant="bodySm" weight="bold" color="primary">נוספו {indicatorCount} · רענון</AppText>
                 </Pressable>
               )}
             </View>
