@@ -22,10 +22,12 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import {
   PAYMENT_TYPE_LABELS,
+  PAYMENT_STATUS_LABELS,
   maintenanceCallsForLink,
   type PaymentTypeKey,
   type PaymentModeKey,
   type PaymentDetailMock,
+  type ClientPaymentStatus,
 } from '@/lib/mocks/payments';
 import { MOCK_CONTACTS_LIST } from '@/lib/mocks/contacts';
 import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links';
@@ -38,6 +40,7 @@ import {
   clientPaymentTypeToBackend,
   clientMeansToBackend,
   clientCycleToBackend,
+  clientStatusToBackend,
   ddMmYyyyToIso,
   type BackendPayment,
 } from '@/lib/api/payments';
@@ -73,6 +76,10 @@ const MODES: { key: PaymentModeKey; label: string }[] = [
   { key: 'installments', label: 'תשלומים' },
   { key: 'shafif_plus', label: 'שוטף+' },
 ];
+
+const STATUS_OPTIONS: { key: ClientPaymentStatus; label: string }[] = (
+  ['planned', 'paid', 'cancelled'] as const
+).map((key) => ({ key, label: PAYMENT_STATUS_LABELS[key] }));
 
 const GUARANTEE_TYPES = [
   'כתב שיפוי',
@@ -211,6 +218,7 @@ export function PaymentCreateForm({
   const [vatPct, setVatPct] = useState('18');
   const [vatSource, setVatSource] = useState<'ex' | 'inc'>('ex');
   const [means, setMeans] = useState(() => initialData?.paymentMethodKey ?? 'bank');
+  const [status, setStatus] = useState<ClientPaymentStatus>(() => initialData?.status ?? 'planned');
   const [dueDate, setDueDate] = useState(() => initialData?.dueDate ?? todayDdMmYyyy());
   const [paymentMode, setPaymentMode] = useState<PaymentModeKey>(() => initialData?.mode ?? 'recurring');
   const [recCycle, setRecCycle] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
@@ -436,6 +444,7 @@ export function PaymentCreateForm({
           vatPercent: parsePct(vatPct),
           paymentMethod: clientMeansToBackend(means),
           dueDate: dueDateIso ?? undefined,
+          status: clientStatusToBackend(status),
           payerType,
           payerContactId,
           notes: notes.trim() || null,
@@ -764,6 +773,22 @@ export function PaymentCreateForm({
             <MaterialCommunityIcons name="calendar" size={20} color={Colors.primary} />
             <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>{dueDate || 'בחר תאריך'}</AppText>
           </Pressable>
+
+          {/* ─── סטטוס תשלום ─── */}
+          {isEdit && (
+            <>
+              <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>סטטוס תשלום</AppText>
+              <View style={styles.rowChips}>
+                {STATUS_OPTIONS.map((s) => (
+                  <Pressable key={s.key} onPress={() => setStatus(s.key)} style={[styles.miniChip, status === s.key && styles.miniChipActive]}>
+                    <AppText variant="caption" weight={status === s.key ? 'bold' : 'regular'} style={{ color: status === s.key ? Colors.onPrimary : Colors.onSurfaceVariant }}>
+                      {s.label}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
           {/* ─── אופן תשלום ─── */}
           {!isEdit && (

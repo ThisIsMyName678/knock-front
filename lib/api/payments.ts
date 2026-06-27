@@ -1,5 +1,5 @@
 import { backendRequest } from '@/lib/backend';
-import type { PaymentListRow, PaymentDetailMock, PaymentTypeKey, PaymentModeKey, StatusBucket } from '@/lib/mocks/payments';
+import type { PaymentListRow, PaymentDetailMock, PaymentTypeKey, PaymentModeKey, StatusBucket, ClientPaymentStatus } from '@/lib/mocks/payments';
 
 export type ClientDirection = 'in' | 'out';
 export type ClientPaymentMethodKey = 'check' | 'bank' | 'cash' | 'credit' | 'other';
@@ -190,6 +190,27 @@ export function backendMeansToClient(method: BackendPaymentMethod): ClientPaymen
   return BACKEND_TO_CLIENT_MEANS[method] ?? 'other';
 }
 
+const CLIENT_STATUS_TO_BACKEND: Record<ClientPaymentStatus, BackendPaymentStatus> = {
+  planned: 'PLANNED',
+  paid: 'PAID',
+  cancelled: 'CANCELLED',
+};
+
+export function clientStatusToBackend(status: ClientPaymentStatus): BackendPaymentStatus {
+  return CLIENT_STATUS_TO_BACKEND[status];
+}
+
+const BACKEND_TO_CLIENT_STATUS: Record<BackendPaymentStatus, ClientPaymentStatus> = {
+  PLANNED: 'planned',
+  PAID: 'paid',
+  OVERDUE: 'planned',
+  CANCELLED: 'cancelled',
+};
+
+export function backendStatusToClient(status: BackendPaymentStatus): ClientPaymentStatus {
+  return BACKEND_TO_CLIENT_STATUS[status] ?? 'planned';
+}
+
 export function clientDirectionToBackend(direction: ClientDirection): BackendPaymentDirection {
   return direction === 'in' ? 'IN' : 'OUT';
 }
@@ -243,6 +264,7 @@ export function paymentToListRow(payment: BackendPayment): PaymentListRow {
     linkLabel: payment.linkLabel ?? '',
     dueDate: isoDateToDdMmYyyy(payment.dueDate),
     statusBucket: payment.statusBucket,
+    status: backendStatusToClient(payment.status),
     amount: Number(payment.amountGross),
     direction: payment.direction === 'IN' ? 'inbound' : 'outbound',
     progressLabel: payment.progressLabel,

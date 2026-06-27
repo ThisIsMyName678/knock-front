@@ -60,6 +60,15 @@ export const PAYMENT_MODE_LABELS: Record<PaymentModeKey, string> = {
 
 export type StatusBucket = 'future' | 'received' | 'overdue';
 
+/** סטטוס תשלום בפועל (להבדיל מ-statusBucket שמייצג קיבוץ תצוגתי). */
+export type ClientPaymentStatus = 'planned' | 'paid' | 'cancelled';
+
+export const PAYMENT_STATUS_LABELS: Record<ClientPaymentStatus, string> = {
+  planned: 'טרם שולם',
+  paid: 'התקבל',
+  cancelled: 'בוטל',
+};
+
 export type PaymentListRow = {
   id: string;
   displayName: string;
@@ -71,6 +80,7 @@ export type PaymentListRow = {
   linkLabel: string;
   dueDate: string;
   statusBucket: StatusBucket;
+  status?: ClientPaymentStatus;
   amount: number;
   direction: PaymentDirection;
   progressLabel: string;
