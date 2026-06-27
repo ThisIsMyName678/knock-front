@@ -93,8 +93,13 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    setOpenBaseline(visible ? (newIndicatorCount ?? 0) : null);
-  }, [visible]);
+    if (!visible) {
+      setOpenBaseline(null);
+      return;
+    }
+    const current = newIndicatorCount ?? 0;
+    setOpenBaseline((prev) => (prev === null || current < prev ? current : prev));
+  }, [visible, newIndicatorCount]);
 
   useEffect(() => {
     if (!visible || hasLoadedRef.current) return;
