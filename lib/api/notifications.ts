@@ -24,11 +24,13 @@ export type ListNotificationsResponse = {
 
 // ─── API functions ──────────────────────────────────────────────
 export function listNotifications(params: {
+  date: string;
   cursor?: NotificationsCursor;
   since?: string;
   limit?: number;
 }): Promise<ListNotificationsResponse> {
   const searchParams = new URLSearchParams();
+  searchParams.set('date', params.date);
   if (params.cursor) {
     searchParams.set('cursorCreatedAt', params.cursor.createdAt);
     searchParams.set('cursorId', params.cursor.id);
