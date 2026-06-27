@@ -55,7 +55,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
     if (!visible) return;
     let cancelled = false;
     setLoading(true);
-    listNotifications({ date: toLocalDateKey(new Date()), limit: 10 })
+    listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
       .then((res) => {
         if (cancelled) return;
         const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
@@ -83,7 +83,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
   const handleNext = () => {
     if (!canGoNext || nextLoading) return;
     setNextLoading(true);
-    listNotifications({ date: toLocalDateKey(new Date()), cursor, since, limit: 10 })
+    listNotifications({ date: toLocalDateKey(new Date()), cursor, since, limit: 5 })
       .then((res) => {
         const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
         setItems(mapped);
@@ -97,7 +97,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
 
   const handleRefresh = () => {
     setLoading(true);
-    listNotifications({ date: toLocalDateKey(new Date()), limit: 10 })
+    listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
       .then((res) => {
         const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
         setItems(mapped);
