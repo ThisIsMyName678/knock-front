@@ -88,7 +88,6 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
   const [since, setSince] = useState<string | undefined>(undefined);
   const [readLocally, setReadLocally] = useState<Set<string>>(new Set());
   const [lastPageIds, setLastPageIds] = useState<string[]>([]);
-  const [newItemsCount, setNewItemsCount] = useState(0);
   const [openBaseline, setOpenBaseline] = useState<number | null>(null);
   const hasLoadedRef = useRef(false);
 
@@ -97,8 +96,7 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
       setOpenBaseline(null);
       return;
     }
-    const current = newIndicatorCount ?? 0;
-    setOpenBaseline((prev) => (prev === null || current < prev ? current : prev));
+    setOpenBaseline((prev) => (prev === null ? (newIndicatorCount ?? 0) : prev));
   }, [visible, newIndicatorCount]);
 
   useEffect(() => {
@@ -115,7 +113,6 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
         setSince(res.items[0]?.createdAt);
         setLastPageIds(mapped.map((item) => item.id));
         setReadLocally(new Set());
-        setNewItemsCount(0);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -130,12 +127,8 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
   };
 
   const canGoNext = !!cursor && lastPageIds.length > 0 && lastPageIds.every((id) => readLocally.has(id));
-  const hasNewSinceOpen = openBaseline !== null && (newIndicatorCount ?? 0) > openBaseline;
-  const indicatorCount = newItemsCount > 0
-    ? newItemsCount
-    : hasNewSinceOpen
-      ? (newIndicatorCount ?? 0) - openBaseline!
-      : 0;
+  const indicatorDelta = openBaseline !== null ? (newIndicatorCount ?? 0) - openBaseline : 0;
+  const hasUpdateSinceOpen = openBaseline !== null && indicatorDelta !== 0;
 
   const handleNext = () => {
     if (!canGoNext || nextLoading) return;
@@ -148,7 +141,6 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
         setCursor(res.nextCursor);
         setLastPageIds(mapped.map((item) => item.id));
         setReadLocally(new Set());
-        setNewItemsCount(res.newItemsCount);
       })
       .finally(() => setNextLoading(false));
   };
@@ -156,6 +148,7 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
   const handleRefresh = () => {
     setLoading(true);
     onIndicatorSeen?.();
+    setOpenBaseline(0);
     clearPassedIds();
     listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
       .then((res) => {
@@ -165,7 +158,6 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
         setSince(res.items[0]?.createdAt);
         setLastPageIds(mapped.map((item) => item.id));
         setReadLocally(new Set());
-        setNewItemsCount(0);
       })
       .finally(() => setLoading(false));
   };
@@ -178,9 +170,11 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
           <View style={styles.panelHeader}>
             <View style={styles.titleRow}>
               <AppText variant="headingSm" weight="bold">התראות</AppText>
-              {indicatorCount > 0 && (
+              {hasUpdateSinceOpen && (
                 <Pressable onPress={handleRefresh} style={styles.refreshPill} accessibilityRole="button" accessibilityLabel="רענון">
-                  <AppText variant="bodySm" weight="bold" color="primary">נוספו {indicatorCount} · רענון</AppText>
+                  <AppText variant="bodySm" weight="bold" color="primary">
+                    {indicatorDelta > 0 ? `נוספו ${indicatorDelta} · רענון` : 'התראות עודכנו · רענון'}
+                  </AppText>
                 </Pressable>
               )}
             </View>
