@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -79,14 +79,16 @@ export function NotificationsPanel({ visible, onClose }: Props) {
   const [readLocally, setReadLocally] = useState<Set<string>>(new Set());
   const [lastPageIds, setLastPageIds] = useState<string[]>([]);
   const [newItemsCount, setNewItemsCount] = useState(0);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || hasLoadedRef.current) return;
     let cancelled = false;
     setLoading(true);
     listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
       .then((res) => {
         if (cancelled) return;
+        hasLoadedRef.current = true;
         const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
         setItems(mapped);
         setCursor(res.nextCursor);
