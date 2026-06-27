@@ -148,7 +148,14 @@ export function NotificationsPanel({ visible, onClose }: Props) {
         <Pressable style={styles.backdropFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="סגור התראות" />
         <View style={[styles.panel, { top: insets.top + 56 }]}>
           <View style={styles.panelHeader}>
-            <AppText variant="headingSm" weight="bold">התראות</AppText>
+            <View style={styles.titleRow}>
+              <AppText variant="headingSm" weight="bold">התראות</AppText>
+              {newItemsCount > 0 && (
+                <Pressable onPress={handleRefresh} style={styles.refreshPill} accessibilityRole="button" accessibilityLabel="רענון">
+                  <AppText variant="bodySm" weight="bold" color="primary">נוספו {newItemsCount} · רענון</AppText>
+                </Pressable>
+              )}
+            </View>
             <Pressable onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="סגור">
               <MaterialCommunityIcons name="close" size={18} color={Colors.onBackground} />
             </Pressable>
@@ -192,15 +199,6 @@ export function NotificationsPanel({ visible, onClose }: Props) {
               })
             )}
           </ScrollView>
-
-          {newItemsCount > 0 && (
-            <View style={styles.banner}>
-              <AppText variant="bodySm" color="primary">נוספו {newItemsCount} התראות חדשות</AppText>
-              <Pressable onPress={handleRefresh} accessibilityRole="button" accessibilityLabel="רענן">
-                <AppText variant="bodySm" weight="bold" color="primary">רענון</AppText>
-              </Pressable>
-            </View>
-          )}
 
           {cursor && (
             <Pressable
@@ -246,6 +244,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.outlineLight,
   },
+  titleRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  refreshPill: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.accentMuted,
+  },
   closeBtn: {
     width: 28,
     height: 28,
@@ -273,16 +282,6 @@ const styles = StyleSheet.create({
   statusWrap: {
     paddingVertical: Spacing.xl,
     alignItems: 'center',
-  },
-  banner: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.accentMuted,
-    borderTopWidth: 1,
-    borderTopColor: Colors.outlineLight,
   },
   nextBtn: {
     margin: Spacing.base,
