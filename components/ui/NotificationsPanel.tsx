@@ -25,6 +25,35 @@ function feedIcon(kind: FeedKind): React.ComponentProps<typeof MaterialCommunity
   return 'file-sign';
 }
 
+const PASSED_IDS_KEY = 'notifications.passedIds';
+const PASSED_IDS_CAP = 200;
+
+function getPassedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(PASSED_IDS_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function addPassedIds(ids: string[]) {
+  if (ids.length === 0) return;
+  try {
+    const current = getPassedIds();
+    ids.forEach((id) => current.add(id));
+    const trimmed = Array.from(current).slice(-PASSED_IDS_CAP);
+    localStorage.setItem(PASSED_IDS_KEY, JSON.stringify(trimmed));
+  } catch {
+    // ignore — feature degrades gracefully without persistence
+  }
+}
+
+function filterPassed(items: FeedItem[]): FeedItem[] {
+  const passed = getPassedIds();
+  return items.filter((item) => !passed.has(item.id));
+}
+
 function pad2(n: number) {
   return n < 10 ? `0${n}` : String(n);
 }
@@ -58,7 +87,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
     listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
       .then((res) => {
         if (cancelled) return;
-        const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
+        const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
         setItems(mapped);
         setCursor(res.nextCursor);
         setSince(res.items[0]?.createdAt);
@@ -82,10 +111,11 @@ export function NotificationsPanel({ visible, onClose }: Props) {
 
   const handleNext = () => {
     if (!canGoNext || nextLoading) return;
+    addPassedIds(lastPageIds);
     setNextLoading(true);
     listNotifications({ date: toLocalDateKey(new Date()), cursor, since, limit: 5 })
       .then((res) => {
-        const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
+        const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
         setItems(mapped);
         setCursor(res.nextCursor);
         setLastPageIds(mapped.map((item) => item.id));
@@ -99,7 +129,7 @@ export function NotificationsPanel({ visible, onClose }: Props) {
     setLoading(true);
     listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
       .then((res) => {
-        const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
+        const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
         setItems(mapped);
         setCursor(res.nextCursor);
         setSince(res.items[0]?.createdAt);
