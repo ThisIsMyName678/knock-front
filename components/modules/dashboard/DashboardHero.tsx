@@ -105,6 +105,7 @@ export function DashboardHero(props: Props) {
       <NotificationsPanel
         visible={notificationsOpen}
         newIndicatorCount={notificationsCount}
+        onIndicatorSeen={() => void markSeen()}
         onClose={() => {
           setNotificationsOpen(false);
           void markSeen();

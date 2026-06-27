@@ -68,9 +68,10 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   newIndicatorCount?: number;
+  onIndicatorSeen?: () => void;
 };
 
-export function NotificationsPanel({ visible, onClose, newIndicatorCount }: Props) {
+export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndicatorSeen }: Props) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -131,6 +132,7 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount }: Prop
 
   const handleRefresh = () => {
     setLoading(true);
+    onIndicatorSeen?.();
     listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
       .then((res) => {
         const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
