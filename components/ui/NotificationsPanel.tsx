@@ -54,6 +54,14 @@ function filterPassed(items: FeedItem[]): FeedItem[] {
   return items.filter((item) => !passed.has(item.id));
 }
 
+function clearPassedIds() {
+  try {
+    localStorage.removeItem(PASSED_IDS_KEY);
+  } catch {
+    // ignore — feature degrades gracefully without persistence
+  }
+}
+
 function pad2(n: number) {
   return n < 10 ? `0${n}` : String(n);
 }
@@ -143,6 +151,7 @@ export function NotificationsPanel({ visible, onClose, newIndicatorCount, onIndi
   const handleRefresh = () => {
     setLoading(true);
     onIndicatorSeen?.();
+    clearPassedIds();
     listNotifications({ date: toLocalDateKey(new Date()), limit: 5 })
       .then((res) => {
         const mapped = filterPassed(res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null));
