@@ -339,7 +339,7 @@ export function PaymentsListScreen() {
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
             <AppText variant="caption" color="muted">
-              יתרה
+              מאזן
             </AppText>
             <AppText variant="headingSm" weight="extraBold">
               {totals.net >= 0 ? '+' : ''}₪{formatIlsInteger(Math.abs(totals.net))}
