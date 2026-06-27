@@ -72,6 +72,7 @@ type Step1Data = {
   occupancyStatus: BackendOccupancyStatus;
   address: string;
   addressSuggestion: AddressSuggestion | null;
+  houseNumber: string;
   apartmentNumber: string;
   floorNumber: string;
   sizeSqm: string;
@@ -258,6 +259,7 @@ function step1FromProperty(property: BackendProperty): Step1Data {
     occupancyStatus: property.occupancyStatus ?? 'VACANT',
     address: propertyAddressLabel(property),
     addressSuggestion: addressSuggestionFromProperty(property),
+    houseNumber: typeof addressJson?.houseNumber === 'string' ? addressJson.houseNumber : '',
     apartmentNumber: typeof addressJson?.apartmentNumber === 'string' ? addressJson.apartmentNumber : '',
     floorNumber: metadataString(property.metadata, 'floorNumber'),
     sizeSqm: metadataString(property.metadata, 'sizeSqm'),
@@ -991,6 +993,14 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
         ) : null}
       </View>
 
+      {/* House number */}
+      <FieldInput
+        label="מספר בית"
+        value={data.houseNumber}
+        onChangeText={(t) => update('houseNumber', t)}
+        placeholder="לדוגמה: 12"
+      />
+
       {/* Apartment number */}
       <FieldInput
         label="מספר דירה"
@@ -1683,6 +1693,7 @@ export default function NewAssetScreen() {
     occupancyStatus: 'VACANT',
     address: '',
     addressSuggestion: null,
+    houseNumber: '',
     apartmentNumber: '',
     floorNumber: '',
     sizeSqm: '',
@@ -1781,6 +1792,7 @@ export default function NewAssetScreen() {
           label: step1.address,
           street: step1.addressSuggestion?.street,
           city: step1.addressSuggestion?.city,
+          houseNumber: step1.houseNumber || undefined,
           apartmentNumber: step1.apartmentNumber || undefined,
         },
         propertyType: assetKindToBackendType(step1.kind),
