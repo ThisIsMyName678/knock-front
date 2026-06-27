@@ -86,9 +86,10 @@ export function NotificationsPanel({ visible, onClose }: Props) {
     listNotifications({ date: toLocalDateKey(new Date()), cursor, since, limit: 10 })
       .then((res) => {
         const mapped = res.items.map(feedEventToItem).filter((item): item is FeedItem => item !== null);
-        setItems((prev) => [...prev, ...mapped]);
+        setItems(mapped);
         setCursor(res.nextCursor);
         setLastPageIds(mapped.map((item) => item.id));
+        setReadLocally(new Set());
         setNewItemsCount(res.newItemsCount);
       })
       .finally(() => setNextLoading(false));
