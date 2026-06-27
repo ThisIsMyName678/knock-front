@@ -41,7 +41,7 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
-const STEPS = ['פרטי חוזה', 'מחיר', 'תיעוד תשלום', 'תיעוד מונים', 'העלאת קבצים'] as const;
+const STEPS = ['פרטי חוזה', 'תיעוד תשלום', 'תיעוד מונים', 'העלאת קבצים'] as const;
 
 const CONTRACT_TYPES: ContractType[] = ['RENT', 'PURCHASE', 'SUPPLIER_WORK', 'OTHER'];
 
@@ -75,13 +75,6 @@ const FILE_CATEGORIES = [
 type FileCategory = (typeof FILE_CATEGORIES)[number];
 
 const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['OWNER_ONLY', 'TENANT_ONLY', 'EMPLOYEE_ONLY', 'PUBLIC'];
-
-type PaymentDraft = {
-  id: string;
-  direction: 'IN' | 'OUT';
-  amount: string;
-  notes: string;
-};
 
 type FileDraft = {
   id: string;
@@ -170,19 +163,13 @@ export function ContractCreateWizard({
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  // Step 1 – מחיר
-  const [payments, setPayments] = useState<PaymentDraft[]>([]);
-  const [payDirection, setPayDirection] = useState<'IN' | 'OUT'>('IN');
-  const [payAmount, setPayAmount] = useState('');
-  const [payNotes, setPayNotes] = useState('');
-
-  // Step 2 – תיעוד תשלום
+  // Step 1 – תיעוד תשלום
   const [linkedPaymentId, setLinkedPaymentId] = useState<string | null>(null);
 
-  // Step 3 – מונים
+  // Step 2 – מונים
   const [meters, setMeters] = useState<MeterRow[]>([]);
 
-  // Step 4
+  // Step 3
   const [fileCategory, setFileCategory] = useState<FileCategory>('צילום חוזה');
   const [fileName, setFileName] = useState('');
   const [defaultFileVisibility, setDefaultFileVisibility] = useState<ContractAccessLevel>('OWNER_ONLY');
@@ -228,21 +215,6 @@ export function ContractCreateWizard({
   }), [contractName, contractType, linkSelected, counterpartyName, serviceType, agreementDate]);
 
   const step1Valid = Object.values(step1Errors).every((e) => !e);
-
-  const appendPayment = useCallback(() => {
-    if (!payAmount.trim()) return;
-    setPayments((prev) => [
-      ...prev,
-      {
-        id: randomId(),
-        direction: payDirection,
-        amount: payAmount,
-        notes: payNotes,
-      },
-    ]);
-    setPayAmount('');
-    setPayNotes('');
-  }, [payDirection, payAmount, payNotes]);
 
   const addMeter = () => {
     setMeters((prev) => [
@@ -301,9 +273,6 @@ export function ContractCreateWizard({
       setStep1Submitted(true);
       if (!step1Valid) return;
       setDefaultFileVisibility(contractAccess);
-    }
-    if (step === 1 && payAmount.trim()) {
-      appendPayment();
     }
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1);
@@ -585,67 +554,6 @@ export function ContractCreateWizard({
           {step === 1 && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
-                מחיר
-              </AppText>
-
-              {payments.length > 0 && (
-                <View style={{ marginBottom: Spacing.md }}>
-                  <AppText variant="labelMd" weight="bold" style={{ marginBottom: Spacing.sm }}>
-                    תשלומים שנוספו ({payments.length})
-                  </AppText>
-                  {payments.map((p) => (
-                    <View key={p.id} style={styles.paymentChip}>
-                      <AppText variant="bodySm" style={{ flex: 1 }}>
-                        {p.direction === 'IN' ? 'הכנסה' : 'הוצאה'} · {p.amount} ₪
-                      </AppText>
-                      <Pressable onPress={() => setPayments((prev) => prev.filter((x) => x.id !== p.id))}>
-                        <MaterialCommunityIcons name="close" size={16} color={Colors.onSurfaceVariant} />
-                      </Pressable>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              <View style={styles.directionRow}>
-                {(['IN', 'OUT'] as const).map((d) => (
-                  <Pressable
-                    key={d}
-                    onPress={() => setPayDirection(d)}
-                    style={[
-                      styles.dirBtn,
-                      payDirection === d && {
-                        borderColor: d === 'IN' ? Colors.inbound : Colors.outbound,
-                        backgroundColor: d === 'IN' ? Colors.inboundBg : Colors.outboundBg,
-                      },
-                    ]}
-                  >
-                    <MaterialCommunityIcons name={d === 'IN' ? 'arrow-down' : 'arrow-up'} size={22} color={d === 'IN' ? Colors.inbound : Colors.outbound} />
-                    <AppText variant="bodyMd" weight="bold" style={{ color: d === 'IN' ? Colors.inbound : Colors.outbound }}>
-                      {d === 'IN' ? 'הכנסה' : 'הוצאה'}
-                    </AppText>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Input label="סכום (₪)" value={payAmount} onChangeText={setPayAmount} keyboardType="numeric" containerStyle={{ marginTop: Spacing.md }} />
-              <Input label="הערות" value={payNotes} onChangeText={setPayNotes} multiline numberOfLines={3} style={{ height: 72, textAlignVertical: 'top' }} containerStyle={{ marginTop: Spacing.md }} />
-
-              <Pressable onPress={appendPayment} style={[styles.addMeterBtn, { marginTop: Spacing.md }]} accessibilityRole="button">
-                <MaterialCommunityIcons name="plus" size={20} color={Colors.primary} />
-                <AppText variant="bodyMd" weight="semiBold" color="primary">
-                  הוסף תשלום נוסף
-                </AppText>
-              </Pressable>
-
-              <AppText variant="caption" color="variant" style={{ textAlign: 'right', marginTop: Spacing.sm }}>
-                ניתן להוסיף מספר תשלומים. לחץ "הבא" להמשך.
-              </AppText>
-            </View>
-          )}
-
-          {step === 2 && (
-            <View style={styles.card}>
-              <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
                 תיעוד תשלום
               </AppText>
               <AppText variant="bodyMd" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.base }}>
@@ -735,7 +643,7 @@ export function ContractCreateWizard({
             </View>
           )}
 
-          {step === 3 && (
+          {step === 2 && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
                 תיעוד מונים (לא חובה)
@@ -804,7 +712,7 @@ export function ContractCreateWizard({
             </View>
           )}
 
-          {step === 4 && (
+          {step === 3 && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
                 העלאת קבצים
@@ -1046,25 +954,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
   },
   unitChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  directionRow: { flexDirection: RTL_ROW, gap: Spacing.md },
-  dirBtn: {
-    flex: 1,
-    alignItems: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderWidth: 2,
-    borderColor: Colors.outlineVariant,
-  },
-  paymentChip: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.sm,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceVariant,
-    marginBottom: Spacing.xs,
-  },
   paymentLinkRow: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
