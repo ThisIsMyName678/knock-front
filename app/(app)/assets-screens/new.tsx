@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { MOCK_PROJECTS } from '@/lib/mocks/assets';
 import { CONTRACT_TYPE_LABELS } from '@/lib/constants/contracts';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import { DocumentType, DOCUMENT_TYPE_LABELS } from '@/lib/mocks/documents';
@@ -36,6 +35,7 @@ import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { RecommendedDocChecklistPanel } from '@/components/modules/documents/RecommendedDocChecklistPanel';
 import { createProperty, getProperty, propertyAddressLabel, updateProperty, type BackendOccupancyStatus, type BackendProperty, type BackendPropertyType, type CreatePropertyInput } from '@/lib/api/properties';
+import { getProject, listProjects, projectAddressLabel, type BackendProject } from '@/lib/api/projects';
 import { consumePreloadedProject } from '@/lib/navigation-state';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -72,11 +72,13 @@ type Step1Data = {
   occupancyStatus: BackendOccupancyStatus;
   address: string;
   addressSuggestion: AddressSuggestion | null;
+  houseNumber: string;
   apartmentNumber: string;
   floorNumber: string;
   sizeSqm: string;
   linkedProjectId: string | null;
   linkedProjectName: string | null;
+  linkedProjectAddress: string | null;
   projectSearch: string;
   airDirections: AirDirection[];
   amenities: Record<AmenityKey, boolean>;
@@ -258,11 +260,13 @@ function step1FromProperty(property: BackendProperty): Step1Data {
     occupancyStatus: property.occupancyStatus ?? 'VACANT',
     address: propertyAddressLabel(property),
     addressSuggestion: addressSuggestionFromProperty(property),
+    houseNumber: typeof addressJson?.houseNumber === 'string' ? addressJson.houseNumber : '',
     apartmentNumber: typeof addressJson?.apartmentNumber === 'string' ? addressJson.apartmentNumber : '',
     floorNumber: metadataString(property.metadata, 'floorNumber'),
     sizeSqm: metadataString(property.metadata, 'sizeSqm'),
     linkedProjectId: property.projectId,
     linkedProjectName: null,
+    linkedProjectAddress: null,
     projectSearch: '',
     airDirections: metadataArray<AirDirection>(property.metadata, 'airDirections'),
     amenities: metadataRecord(property.metadata, 'amenities', defaultAmenities),
@@ -748,6 +752,7 @@ function ProjectSearchField({
   query,
   selectedId,
   selectedName,
+  selectedAddress,
   onQueryChange,
   onSelect,
   onClear,
@@ -755,17 +760,34 @@ function ProjectSearchField({
   query: string;
   selectedId: string | null;
   selectedName: string | null;
+  selectedAddress: string | null;
   onQueryChange: (t: string) => void;
-  onSelect: (id: string, name: string) => void;
+  onSelect: (id: string, name: string, address: string) => void;
   onClear: () => void;
 }) {
-  const filtered = query.trim().length > 0
-    ? MOCK_PROJECTS.filter(
-      (p) =>
-        p.name.includes(query) ||
-        p.address.includes(query),
-    ).slice(0, 6)
-    : [];
+  const [results, setResults] = useState<BackendProject[]>([]);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (query.trim().length === 0) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      setLoading(true);
+      listProjects({ search: query.trim() })
+        .then((projects) => setResults(projects.slice(0, 6)))
+        .catch(() => setResults([]))
+        .finally(() => setLoading(false));
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query]);
 
   if (selectedId && selectedName) {
     return (
@@ -773,9 +795,9 @@ function ProjectSearchField({
         <MaterialCommunityIcons name="briefcase-check-outline" size={20} color={Colors.primary} />
         <View style={{ flex: 1 }}>
           <AppText variant="bodySm" weight="semiBold" numberOfLines={1}>{selectedName}</AppText>
-          <AppText variant="caption" color="variant">
-            {MOCK_PROJECTS.find((p) => p.id === selectedId)?.address ?? ''}
-          </AppText>
+          {selectedAddress ? (
+            <AppText variant="caption" color="variant">{selectedAddress}</AppText>
+          ) : null}
         </View>
         <Pressable onPress={onClear} accessibilityRole="button" accessibilityLabel="הסר שיוך" hitSlop={8}>
           <MaterialCommunityIcons name="close-circle-outline" size={20} color={Colors.onSurfaceVariant} />
@@ -795,22 +817,23 @@ function ProjectSearchField({
           placeholderTextColor={Colors.onSurfaceMuted}
           returnKeyType="search"
         />
-        {query.length > 0 && (
+        {loading && <ActivityIndicator size="small" color={Colors.primary} />}
+        {!loading && query.length > 0 && (
           <Pressable onPress={() => onQueryChange('')} accessibilityRole="button" accessibilityLabel="נקה" hitSlop={8}>
             <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
           </Pressable>
         )}
         <MaterialCommunityIcons name="magnify" size={18} color={Colors.onSurfaceVariant} />
       </View>
-      {filtered.length > 0 && (
+      {results.length > 0 && (
         <View style={projSearchStyles.dropdown}>
-          {filtered.map((p, idx) => (
+          {results.map((p, idx) => (
             <Pressable
               key={p.id}
-              onPress={() => onSelect(p.id, p.name)}
+              onPress={() => onSelect(p.id, p.name, projectAddressLabel(p))}
               style={({ pressed }) => [
                 projSearchStyles.dropdownRow,
-                idx < filtered.length - 1 && { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
+                idx < results.length - 1 && { borderBottomWidth: 1, borderBottomColor: Colors.outlineLight },
                 pressed && { backgroundColor: Colors.primaryContainer },
               ]}
               accessibilityRole="button"
@@ -818,13 +841,13 @@ function ProjectSearchField({
               <MaterialCommunityIcons name="briefcase-outline" size={16} color={Colors.primary} />
               <View style={{ flex: 1 }}>
                 <AppText variant="bodySm" weight="semiBold" numberOfLines={1}>{p.name}</AppText>
-                <AppText variant="caption" color="variant" numberOfLines={1}>{p.address}</AppText>
+                <AppText variant="caption" color="variant" numberOfLines={1}>{projectAddressLabel(p)}</AppText>
               </View>
             </Pressable>
           ))}
         </View>
       )}
-      {query.trim().length > 1 && filtered.length === 0 && (
+      {!loading && query.trim().length > 1 && results.length === 0 && (
         <View style={projSearchStyles.noResults}>
           <AppText variant="caption" color="variant">לא נמצאו פרויקטים תואמים</AppText>
         </View>
@@ -991,6 +1014,14 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
         ) : null}
       </View>
 
+      {/* House number */}
+      <FieldInput
+        label="מספר בית"
+        value={data.houseNumber}
+        onChangeText={(t) => update('houseNumber', t)}
+        placeholder="לדוגמה: 12"
+      />
+
       {/* Apartment number */}
       <FieldInput
         label="מספר דירה"
@@ -1046,19 +1077,23 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
           query={data.projectSearch}
           selectedId={data.linkedProjectId}
           selectedName={data.linkedProjectName}
+          selectedAddress={data.linkedProjectAddress}
           onQueryChange={(t) => {
             update('projectSearch', t);
             update('linkedProjectId', null);
             update('linkedProjectName', null);
+            update('linkedProjectAddress', null);
           }}
-          onSelect={(id, name) => {
+          onSelect={(id, name, address) => {
             update('linkedProjectId', id);
             update('linkedProjectName', name);
+            update('linkedProjectAddress', address);
             update('projectSearch', '');
           }}
           onClear={() => {
             update('linkedProjectId', null);
             update('linkedProjectName', null);
+            update('linkedProjectAddress', null);
             update('projectSearch', '');
           }}
         />
@@ -1683,11 +1718,13 @@ export default function NewAssetScreen() {
     occupancyStatus: 'VACANT',
     address: '',
     addressSuggestion: null,
+    houseNumber: '',
     apartmentNumber: '',
     floorNumber: '',
     sizeSqm: '',
     linkedProjectId: null,
     linkedProjectName: null,
+    linkedProjectAddress: null,
     projectSearch: '',
     airDirections: [],
     amenities: { garden: false, balcony: false, furnished: false, elevator: false, shelter: false, solarWater: false, parking: false },
@@ -1735,6 +1772,28 @@ export default function NewAssetScreen() {
     };
   }, [editId]);
 
+  useEffect(() => {
+    const projectId = editProperty?.projectId;
+    if (!projectId) return;
+
+    let cancelled = false;
+
+    getProject(projectId)
+      .then((project) => {
+        if (cancelled) return;
+        setStep1((prev) => ({
+          ...prev,
+          linkedProjectName: project.name,
+          linkedProjectAddress: projectAddressLabel(project),
+        }));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editProperty?.projectId]);
+
   const [step2, setStep2] = useState<Step2Data>({
     files: [],
     pendingName: '',
@@ -1781,6 +1840,7 @@ export default function NewAssetScreen() {
           label: step1.address,
           street: step1.addressSuggestion?.street,
           city: step1.addressSuggestion?.city,
+          houseNumber: step1.houseNumber || undefined,
           apartmentNumber: step1.apartmentNumber || undefined,
         },
         propertyType: assetKindToBackendType(step1.kind),
