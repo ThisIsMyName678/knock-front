@@ -11,7 +11,7 @@ import { Colors, CONTENT_HORIZONTAL_PADDING, Spacing } from '@/constants/tokens'
 
 export default function NewPaymentScreen() {
   const insets = useSafeAreaInsets();
-  const { preloadLinkId, preloadLinkLabel, preloadLinkKind, preloadLinkAddress, preloadContractId, preloadContractName, duplicateFromId } =
+  const { preloadLinkId, preloadLinkLabel, preloadLinkKind, preloadLinkAddress, preloadContractId, preloadContractName, draftForContract, duplicateFromId } =
     useLocalSearchParams<{
       preloadLinkId?: string;
       preloadLinkLabel?: string;
@@ -19,6 +19,7 @@ export default function NewPaymentScreen() {
       preloadLinkAddress?: string;
       preloadContractId?: string;
       preloadContractName?: string;
+      draftForContract?: string;
       duplicateFromId?: string;
     }>();
 
@@ -99,6 +100,7 @@ export default function NewPaymentScreen() {
       preloadedLink={preloadedLink}
       preloadedContractId={preloadContractId}
       preloadedContractName={preloadContractName}
+      draftForContract={draftForContract === '1'}
     />
   );
 }

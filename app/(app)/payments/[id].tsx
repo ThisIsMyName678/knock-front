@@ -145,7 +145,11 @@ export default function PaymentDetailScreen() {
           <AppText variant="bodyMd" color="variant" align="center">
             {inbound ? 'הכנסה' : 'הוצאה'} — {PAYMENT_TYPE_LABELS[detail.paymentType]}
           </AppText>
-          <Badge label={detail.statusBucket === 'future' ? 'עתידי' : detail.statusBucket === 'received' ? 'התקבל' : 'באיחור'} preset={detail.statusBucket === 'overdue' ? 'error' : detail.statusBucket === 'received' ? 'success' : 'info'} style={{ marginTop: Spacing.sm }} />
+          <Badge
+            label={detail.status === 'cancelled' ? 'בוטל' : detail.statusBucket === 'future' ? 'עתידי' : detail.statusBucket === 'received' ? 'התקבל' : 'באיחור'}
+            preset={detail.status === 'cancelled' ? 'statusCancelled' : detail.statusBucket === 'overdue' ? 'error' : detail.statusBucket === 'received' ? 'success' : 'info'}
+            style={{ marginTop: Spacing.sm }}
+          />
         </View>
 
         <View style={styles.quickRow}>
