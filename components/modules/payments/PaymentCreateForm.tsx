@@ -22,7 +22,6 @@ import { AmountField } from '@/components/ui/AmountField';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { FilePickerModal } from '@/components/modules/files/FilePickerModal';
-import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
 import {
   PAYMENT_TYPE_LABELS,
   PAYMENT_STATUS_LABELS,
@@ -462,7 +461,7 @@ export function PaymentCreateForm({
     if (isEdit && initialData?.id) {
       setIsSaving(true);
       try {
-        await updatePayment(initialData.id, {
+        const updateInput = {
           name: paymentName.trim(),
           paymentType: clientPaymentTypeToBackend(paymentType),
           amountNet,
@@ -475,7 +474,8 @@ export function PaymentCreateForm({
           payerContactId,
           notes: notes.trim() || null,
           ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType } : {}),
-        });
+        };
+        await updatePayment(initialData.id, updateInput);
       } catch (error) {
         setIsSaving(false);
         const message = error instanceof BackendApiError ? error.message : 'עדכון התשלום נכשל';
@@ -1219,19 +1219,10 @@ export function PaymentCreateForm({
           )}
 
           {storageKey && !isUploading && (
-            <>
-              <View style={styles.uploadedRow}>
-                <MaterialCommunityIcons name="check-circle" size={18} color={Colors.success ?? Colors.primary} />
-                <AppText variant="bodySm" color="muted">{sizeLabel} — הועלה בהצלחה</AppText>
-              </View>
-              <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>תצוגה מקדימה</AppText>
-              <DocumentPreview
-                fileKind={fileKind}
-                displayName={docName}
-                sizeLabel={sizeLabel}
-                downloadUrl={null}
-              />
-            </>
+            <View style={styles.uploadedRow}>
+              <MaterialCommunityIcons name="check-circle" size={18} color={Colors.success ?? Colors.primary} />
+              <AppText variant="bodySm" color="muted">{sizeLabel} — הועלה בהצלחה</AppText>
+            </View>
           )}
 
           {/* ─── הערות ─── */}
