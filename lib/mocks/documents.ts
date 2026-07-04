@@ -108,6 +108,7 @@ export type DocumentListRow = {
   fileKind: DocumentFileKind;
   sizeLabel: string;
   uploadedBy: string;
+  storageKey?: string | null;
 };
 
 const ROWS: DocumentListRow[] = [

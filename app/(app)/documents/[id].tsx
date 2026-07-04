@@ -335,7 +335,7 @@ export default function DocumentDetailScreen() {
       .then((url) => { if (active) setDownloadUrl(url); })
       .catch(() => {});
     return () => { active = false; };
-  }, [doc?.id]);
+  }, [doc?.id, doc?.storageKey]);
 
   const taskTitle = linkedTaskTitle;
 

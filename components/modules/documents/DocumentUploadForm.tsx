@@ -118,7 +118,7 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
     }
     if (!picked) return;
 
-    setFileName((prev) => prev || picked!.name);
+    setFileName(picked!.name);
     setFileKind(imageOnly ? 'image' : picked!.mimeType === 'application/pdf' ? 'pdf' : 'other');
     setIsUploading(true);
     try {
@@ -126,7 +126,7 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
       setStorageKey(result.storageKey);
       setSizeLabel(result.sizeLabel);
     } catch (err) {
-      console.error('[Upload error]', err);
+      console.error('[Upload FAILED]', err);
       Alert.alert('שגיאה בהעלאה', String(err));
     } finally {
       setIsUploading(false);
@@ -163,6 +163,7 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
           projectId,
           propertyId,
           linkedTaskId: linkedTaskId ?? null,
+          ...(storageKey ? { storageKey, sizeLabel: sizeLabel || null, fileType: fileKind } : {}),
         });
       } else {
         const created = await createDocument({
@@ -333,7 +334,7 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
             </View>
           </View>
 
-          <Button label={editId ? 'שמור שינויים' : 'שמור והעלה'} onPress={onSave} loading={isSaving} disabled={isSaving} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
+          <Button label={editId ? 'שמור שינויים' : 'שמור והעלה'} onPress={onSave} loading={isSaving || isUploading} disabled={isSaving || isUploading} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
         </ScrollView>
 
         <Modal visible={pickSourceOpen} transparent animationType="slide" onRequestClose={() => setPickSourceOpen(false)}>

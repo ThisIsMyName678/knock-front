@@ -118,6 +118,9 @@ export type UpdateDocumentInput = {
   propertyId?: string | null;
   accessLevel?: BackendDocumentAccessLevel;
   linkedTaskId?: string | null;
+  storageKey?: string | null;
+  sizeLabel?: string | null;
+  fileType?: string;
 };
 
 export function updateDocument(id: string, input: UpdateDocumentInput): Promise<BackendDocument> {
@@ -196,5 +199,6 @@ export function documentToListRow(doc: BackendDocument): DocumentListRow {
     fileKind: fileKindFromFileType(doc.fileType),
     sizeLabel: doc.sizeLabel ?? '',
     uploadedBy: '',
+    storageKey: doc.storageKey ?? null,
   };
 }
