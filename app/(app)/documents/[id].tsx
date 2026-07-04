@@ -108,7 +108,7 @@ function ImagePreview({ url, name }: { url: string | null; name: string }) {
       <Image
         source={{ uri: url }}
         style={preview.imageBox}
-        resizeMode="cover"
+        resizeMode="contain"
         accessibilityLabel={name}
       />
     );
