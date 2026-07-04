@@ -1,0 +1,142 @@
+import React from 'react';
+import {
+  View,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  type DimensionValue,
+} from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { AppText } from '@/components/ui/Text';
+import {
+  Colors,
+  Spacing,
+  Radius,
+  Shadow,
+} from '@/constants/tokens';
+import { RTL_ROW } from '@/constants/rtl';
+import type { DocumentFileKind } from '@/lib/mocks/documents';
+
+interface DocumentPreviewProps {
+  fileKind: DocumentFileKind;
+  mimeType?: string;
+  displayName: string;
+  sizeLabel: string;
+  downloadUrl: string | null;
+}
+
+interface FileTypeStyle {
+  bg: string;
+  icon: string;
+  iconName: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+}
+
+function getFileTypeStyle(fileKind: DocumentFileKind, mimeType?: string): FileTypeStyle {
+  if (fileKind === 'pdf') {
+    return { bg: Colors.errorContainer, icon: Colors.error, iconName: 'file-pdf-box' };
+  }
+
+  const mime = mimeType?.toLowerCase() ?? '';
+  if (mime.includes('word') || mime.includes('document')) {
+    return { bg: '#E2EEFF', icon: '#0066CC', iconName: 'file-document-outline' };
+  }
+  if (mime.includes('excel') || mime.includes('spreadsheet')) {
+    return { bg: '#D4EDDA', icon: '#28A745', iconName: 'file-excel-box' };
+  }
+  if (mime.includes('powerpoint') || mime.includes('presentation')) {
+    return { bg: '#FFE8D6', icon: '#D24726', iconName: 'file-powerpoint-box' };
+  }
+
+  return { bg: Colors.surfaceVariant, icon: Colors.onSurfaceVariant, iconName: 'file-outline' };
+}
+
+function ImagePreview({ url, name }: { url: string | null; name: string }) {
+  if (url) {
+    return (
+      <Image
+        source={{ uri: url }}
+        style={styles.imageBox}
+        resizeMode="contain"
+        accessibilityLabel={name}
+      />
+    );
+  }
+  return (
+    <View style={[styles.imageBox, { alignItems: 'center', justifyContent: 'center' }]}>
+      <ActivityIndicator color="rgba(255,255,255,0.7)" />
+    </View>
+  );
+}
+
+function DocumentCard({
+  fileKind,
+  mimeType,
+  displayName,
+  sizeLabel,
+}: {
+  fileKind: DocumentFileKind;
+  mimeType?: string;
+  displayName: string;
+  sizeLabel: string;
+}) {
+  const style = getFileTypeStyle(fileKind, mimeType);
+
+  return (
+    <View style={[styles.documentCard, { backgroundColor: style.bg }]}>
+      <MaterialCommunityIcons name={style.iconName} size={64} color={style.icon} />
+      <View style={{ marginTop: Spacing.md, gap: Spacing.xs }}>
+        <AppText
+          variant="bodyMd"
+          weight="semiBold"
+          numberOfLines={2}
+          style={{ textAlign: 'center' }}
+        >
+          {displayName}
+        </AppText>
+        <AppText variant="caption" color="muted" style={{ textAlign: 'center' }}>
+          {sizeLabel}
+        </AppText>
+      </View>
+    </View>
+  );
+}
+
+export function DocumentPreview({
+  fileKind,
+  mimeType,
+  displayName,
+  sizeLabel,
+  downloadUrl,
+}: DocumentPreviewProps) {
+  if (fileKind === 'image') {
+    return <ImagePreview url={downloadUrl} name={displayName} />;
+  }
+
+  return (
+    <DocumentCard
+      fileKind={fileKind}
+      mimeType={mimeType}
+      displayName={displayName}
+      sizeLabel={sizeLabel}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  imageBox: {
+    height: 300,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  documentCard: {
+    height: 300,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    ...Shadow.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+});

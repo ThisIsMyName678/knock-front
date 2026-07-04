@@ -9,7 +9,6 @@ import {
   TouchableWithoutFeedback,
   Image,
   Linking,
-  type DimensionValue,
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +20,7 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
 import {
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_ACCESS_LABELS,
@@ -34,8 +34,6 @@ import {
   Spacing,
   Radius,
   Shadow,
-  FontFamily,
-  FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
@@ -133,126 +131,6 @@ const imageViewerStyles = StyleSheet.create({
   },
 });
 
-// ─── Mock PDF Preview ─────────────────────────────────────────────────────────
-
-function PdfPreview({ name }: { name: string }) {
-  const lines = [
-    { width: '90%', height: 14 },
-    { width: '75%', height: 10 },
-    { width: '85%', height: 10 },
-    { width: '60%', height: 10 },
-    { width: '0%',  height: 12 }, // gap
-    { width: '80%', height: 10 },
-    { width: '88%', height: 10 },
-    { width: '70%', height: 10 },
-    { width: '65%', height: 10 },
-    { width: '0%',  height: 12 },
-    { width: '55%', height: 10 },
-    { width: '82%', height: 10 },
-    { width: '72%', height: 10 },
-    { width: '40%', height: 10 },
-    { width: '0%',  height: 16 },
-    { width: '78%', height: 10 },
-    { width: '91%', height: 10 },
-    { width: '66%', height: 10 },
-    { width: '50%', height: 10 },
-  ] as const;
-
-  return (
-    <View style={preview.pdfPage}>
-      {/* Page header */}
-      <View style={preview.pdfHeader}>
-        <MaterialCommunityIcons name="file-pdf-box" size={18} color={Colors.error} />
-        <AppText variant="caption" style={{ flex: 1, textAlign: 'right', color: Colors.onSurfaceMuted }} numberOfLines={1}>
-          {name}
-        </AppText>
-      </View>
-      <View style={preview.pdfDivider} />
-
-      {/* Mock title block */}
-      <View style={[preview.pdfLine, { width: '60%', height: 16, alignSelf: 'center', marginBottom: 10, marginTop: 4, borderRadius: 3 }]} />
-      <View style={[preview.pdfLine, { width: '40%', height: 10, alignSelf: 'center', marginBottom: 16, borderRadius: 3 }]} />
-
-      {/* Mock text lines */}
-      {lines.map((line, i) =>
-        line.width === '0%' ? (
-          <View key={i} style={{ height: line.height }} />
-        ) : (
-          <View
-            key={i}
-            style={[preview.pdfLine, { width: line.width as DimensionValue, height: line.height, marginBottom: 5, borderRadius: 2 }]}
-          />
-        ),
-      )}
-
-      {/* Page footer */}
-      <View style={preview.pdfFooter}>
-        <AppText variant="caption" color="muted">עמוד 1 מתוך 3</AppText>
-      </View>
-    </View>
-  );
-}
-
-// ─── Image Preview ────────────────────────────────────────────────────────────
-
-function ImagePreview({ url, name }: { url: string | null; name: string }) {
-  if (url) {
-    return (
-      <Image
-        source={{ uri: url }}
-        style={preview.imageBox}
-        resizeMode="contain"
-        accessibilityLabel={name}
-      />
-    );
-  }
-  return (
-    <View style={[preview.imageBox, { alignItems: 'center', justifyContent: 'center' }]}>
-      <ActivityIndicator color="rgba(255,255,255,0.7)" />
-    </View>
-  );
-}
-
-const preview = StyleSheet.create({
-  // PDF
-  pdfPage: {
-    backgroundColor: '#fff',
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    ...Shadow.sm,
-  },
-  pdfHeader: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  pdfDivider: {
-    height: 1,
-    backgroundColor: Colors.outlineLight,
-    marginBottom: Spacing.md,
-  },
-  pdfLine: {
-    backgroundColor: '#e8e8e8',
-  },
-  pdfFooter: {
-    marginTop: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.outlineLight,
-    paddingTop: Spacing.sm,
-    alignItems: 'center',
-  },
-
-  // Image
-  imageBox: {
-    height: 220,
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-  },
-});
 
 // ─── Actions Dropdown Menu ────────────────────────────────────────────────────
 
@@ -539,16 +417,17 @@ export default function DocumentDetailScreen() {
           </Pressable>
         </View>
 
-        {/* ── Mock preview panel ── */}
+        {/* ── Preview panel ── */}
         <View style={styles.previewSection}>
           <AppText variant="labelMd" weight="semiBold" color="muted" style={styles.previewLabel}>
             תצוגה מקדימה
           </AppText>
-          {doc.fileKind === 'pdf' ? (
-            <PdfPreview name={doc.displayName} />
-          ) : (
-            <ImagePreview url={downloadUrl} name={doc.displayName} />
-          )}
+          <DocumentPreview
+            fileKind={doc.fileKind}
+            displayName={doc.displayName}
+            sizeLabel={doc.sizeLabel}
+            downloadUrl={downloadUrl}
+          />
           <Pressable
             onPress={() => {
               if (doc.fileKind === 'image') {
