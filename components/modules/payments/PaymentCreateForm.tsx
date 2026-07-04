@@ -49,7 +49,7 @@ import {
 import { BackendApiError } from '@/lib/backend';
 import { addDraftContractPayment } from '@/lib/navigation-state';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
-import { uploadDocument, type PickedFile, getDownloadUrl } from '@/lib/storage';
+import { uploadDocument, type PickedFile } from '@/lib/storage';
 import { fileKindFromFileType } from '@/lib/api/documents';
 import { type DocumentFileKind } from '@/lib/mocks/documents';
 import {
@@ -282,16 +282,8 @@ export function PaymentCreateForm({
   const maintCalls = useMemo(() => maintenanceCallsForLink(linkSelected?.id ?? ''), [linkSelected]);
 
   useEffect(() => {
-    if (!storageKey) {
-      setDownloadUrl(null);
-      return;
-    }
-    let active = true;
-    getDownloadUrl(storageKey)
-      .then((url) => { if (active) setDownloadUrl(url); })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [storageKey]);
+    setDownloadUrl(null);
+  }, []);
 
   // Contacts linked to the selected asset/project (for payer selection)
   const linkedContacts = useMemo(() => {

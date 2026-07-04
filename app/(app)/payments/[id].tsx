@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
 import {
   PAYMENT_TYPE_LABELS,
   PAYMENT_MODE_LABELS,
@@ -15,6 +16,7 @@ import {
 } from '@/lib/mocks/payments';
 import { getPayment, deletePayment, paymentToDetail } from '@/lib/api/payments';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
+import { fileKindFromFileType } from '@/lib/api/documents';
 import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -152,6 +154,20 @@ export default function PaymentDetailScreen() {
           />
         </View>
 
+        {detail.storageKey && (
+          <View style={styles.previewSection}>
+            <AppText variant="labelMd" weight="semiBold" color="muted" style={styles.previewLabel}>
+              תצוגה מקדימה
+            </AppText>
+            <DocumentPreview
+              fileKind={detail.fileType ? fileKindFromFileType(detail.fileType) : 'other'}
+              displayName={detail.displayName}
+              sizeLabel={detail.sizeLabel ?? ''}
+              downloadUrl={null}
+            />
+          </View>
+        )}
+
         <View style={styles.quickRow}>
           <Pressable style={styles.quickBtn} onPress={onDownload} accessibilityRole="button" accessibilityLabel="הורדה">
             <MaterialCommunityIcons name="download-outline" size={22} color={Colors.primary} />
@@ -215,6 +231,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
+  previewSection: { gap: Spacing.sm },
+  previewLabel: { textAlign: 'right' },
   amountCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,

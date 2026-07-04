@@ -277,5 +277,8 @@ export function paymentToListRow(payment: BackendPayment): PaymentListRow {
     amount: Number(payment.amountGross),
     direction: payment.direction === 'IN' ? 'inbound' : 'outbound',
     progressLabel: payment.progressLabel,
+    storageKey: payment.storageKey ?? null,
+    fileType: payment.fileType ?? null,
+    sizeLabel: payment.sizeLabel ?? null,
   };
 }
