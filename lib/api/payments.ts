@@ -51,6 +51,9 @@ export type BackendPayment = {
   payerType: string | null;
   payerContactId: string | null;
   notes: string | null;
+  storageKey: string | null;
+  fileType: string | null;
+  sizeLabel: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -122,6 +125,9 @@ export type CreatePaymentInput = {
     indexed: boolean;
   }[];
   shafifPlusDays?: number;
+  storageKey?: string | null;
+  fileType?: string;
+  sizeLabel?: string | null;
 };
 
 export function createPayment(input: CreatePaymentInput): Promise<BackendPayment | BackendPayment[]> {
@@ -140,6 +146,9 @@ export type UpdatePaymentInput = {
   payerType?: string | null;
   payerContactId?: string | null;
   notes?: string | null;
+  storageKey?: string | null;
+  fileType?: string;
+  sizeLabel?: string | null;
 };
 
 export function updatePayment(id: string, input: UpdatePaymentInput): Promise<BackendPayment> {

@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -20,6 +21,8 @@ import { Button } from '@/components/ui/Button';
 import { AmountField } from '@/components/ui/AmountField';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { FilePickerModal } from '@/components/modules/files/FilePickerModal';
+import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
 import {
   PAYMENT_TYPE_LABELS,
   PAYMENT_STATUS_LABELS,
@@ -47,6 +50,9 @@ import {
 import { BackendApiError } from '@/lib/backend';
 import { addDraftContractPayment } from '@/lib/navigation-state';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
+import { uploadDocument, type PickedFile } from '@/lib/storage';
+import { fileKindFromFileType } from '@/lib/api/documents';
+import { type DocumentFileKind } from '@/lib/mocks/documents';
 import {
   Colors,
   Spacing,
@@ -239,7 +245,15 @@ export function PaymentCreateForm({
   const [payerSearch, setPayerSearch] = useState('');
   const [notes, setNotes] = useState(() => initialData ? '' : '');
   const [reminders, setReminders] = useState<Reminder[]>([{ id: 'default', offsetDays: 1 }]);
-  const [docName, setDocName] = useState('');
+  const [docName, setDocName] = useState(() => initialData?.displayName ?? '');
+  const [storageKey, setStorageKey] = useState<string | null>(() => initialData?.storageKey ?? null);
+  const [fileKind, setFileKind] = useState<DocumentFileKind>(() => {
+    if (initialData?.fileType) return fileKindFromFileType(initialData.fileType);
+    return 'other';
+  });
+  const [sizeLabel, setSizeLabel] = useState<string>(() => initialData?.sizeLabel ?? '');
+  const [isUploading, setIsUploading] = useState(false);
+  const [pickSourceOpen, setPickSourceOpen] = useState(false);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -407,11 +421,21 @@ export function PaymentCreateForm({
     setReminders((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const mockAttach = () => {
-    Alert.alert('קובץ', 'במימוש אמיתי: בחירת קובץ / מצלמה.', [
-      { text: 'אישור', onPress: () => setDocName((d) => d || 'מסמך_משויך.pdf') },
-      { text: 'ביטול', style: 'cancel' },
-    ]);
+  const handleFilePicked = async (picked: PickedFile) => {
+    const kind = fileKindFromFileType(picked.mimeType);
+    setDocName(picked.name);
+    setFileKind(kind);
+    setIsUploading(true);
+    try {
+      const result = await uploadDocument(picked);
+      setStorageKey(result.storageKey);
+      setSizeLabel(result.sizeLabel);
+    } catch (err) {
+      console.error('[Upload FAILED]', err);
+      Alert.alert('שגיאה בהעלאה', String(err));
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const [submitted, setSubmitted] = useState(false);
@@ -448,6 +472,7 @@ export function PaymentCreateForm({
           payerType,
           payerContactId,
           notes: notes.trim() || null,
+          ...(storageKey ? { storageKey, sizeLabel, fileType: fileKind } : {}),
         });
       } catch (error) {
         setIsSaving(false);
@@ -493,6 +518,7 @@ export function PaymentCreateForm({
         ...(paymentMode === 'shafif_plus'
           ? { shafifPlusDays: parseInt(shafifDays, 10) || 0 }
           : {}),
+        ...(storageKey ? { storageKey, sizeLabel, fileType: fileKind } : {}),
       };
 
       // החוזה עדיין לא נשמר בשרת (אין UUID אמיתי) — מתעדים את התשלום בתור מקומי,
@@ -1164,21 +1190,47 @@ export function PaymentCreateForm({
 
           {/* ─── קובץ משויך ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>קובץ משויך</AppText>
-          <Input label="שם מסמך" value={docName} onChangeText={setDocName} containerStyle={{ marginBottom: Spacing.sm }} />
-          <View style={styles.fileBtns}>
-            <Pressable style={styles.fileBtn} onPress={mockAttach}>
-              <MaterialCommunityIcons name="folder-outline" size={22} color={Colors.primary} />
-              <AppText variant="caption">קובץ</AppText>
+
+          {!isEdit && (
+            <Pressable
+              onPress={() => setPickSourceOpen(true)}
+              style={({ pressed }) => [styles.pickTrigger, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+              accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
+            >
+            <View style={styles.pickTriggerIconWrap}>
+              <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
+              <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
+            </View>
+            <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
             </Pressable>
-            <Pressable style={styles.fileBtn} onPress={mockAttach}>
-              <MaterialCommunityIcons name="image-outline" size={22} color={Colors.primary} />
-              <AppText variant="caption">תמונה</AppText>
-            </Pressable>
-            <Pressable style={styles.fileBtn} onPress={mockAttach}>
-              <MaterialCommunityIcons name="camera-outline" size={22} color={Colors.primary} />
-              <AppText variant="caption">מצלמה</AppText>
-            </Pressable>
-          </View>
+          )}
+
+          {isUploading && (
+            <View style={styles.uploadingRow}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <AppText variant="bodySm" color="muted">מעלה קובץ...</AppText>
+            </View>
+          )}
+
+          {storageKey && !isUploading && (
+            <>
+              <View style={styles.uploadedRow}>
+                <MaterialCommunityIcons name="check-circle" size={18} color={Colors.success ?? Colors.primary} />
+                <AppText variant="bodySm" color="muted">{sizeLabel} — הועלה בהצלחה</AppText>
+              </View>
+              <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>תצוגה מקדימה</AppText>
+              <DocumentPreview
+                fileKind={fileKind}
+                displayName={docName}
+                sizeLabel={sizeLabel}
+                downloadUrl={null}
+              />
+            </>
+          )}
 
           {/* ─── הערות ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>הערות</AppText>
@@ -1194,7 +1246,7 @@ export function PaymentCreateForm({
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
-          <Button label="שמור תשלום" onPress={handleSave} loading={isSaving} disabled={isSaving} fullWidth size="lg" />
+          <Button label="שמור תשלום" onPress={handleSave} loading={isSaving || isUploading} disabled={isSaving || isUploading} fullWidth size="lg" />
         </View>
       </View>
 
@@ -1275,6 +1327,13 @@ export function PaymentCreateForm({
         onSelect={applyDate}
         onClose={() => { setDatePickerTarget(null); setDatePickerRowId(null); }}
         title={datePickerTitle}
+      />
+
+      {/* File picker */}
+      <FilePickerModal
+        visible={pickSourceOpen}
+        onPicked={handleFilePicked}
+        onCancel={() => setPickSourceOpen(false)}
       />
     </KeyboardAvoidingView>
   );
@@ -1505,5 +1564,42 @@ const styles = StyleSheet.create({
     flexDirection: RTL_ROW,
     alignItems: 'center',
     marginBottom: Spacing.xs,
+  },
+  pickTrigger: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+  },
+  pickTriggerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadingRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+  },
+  uploadedRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
   },
 });

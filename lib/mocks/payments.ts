@@ -84,6 +84,9 @@ export type PaymentListRow = {
   amount: number;
   direction: PaymentDirection;
   progressLabel: string;
+  storageKey?: string | null;
+  fileType?: string | null;
+  sizeLabel?: string | null;
 };
 
 export type MaintenanceCallMock = {
