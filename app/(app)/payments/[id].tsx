@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -17,6 +17,7 @@ import {
 import { getPayment, deletePayment, paymentToDetail } from '@/lib/api/payments';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
 import { fileKindFromFileType } from '@/lib/api/documents';
+import { getDownloadUrl } from '@/lib/storage';
 import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -28,6 +29,7 @@ export default function PaymentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -35,9 +37,13 @@ export default function PaymentDetailScreen() {
       setLoading(true);
       getPayment(id ?? '')
         .then((payment) => {
-          if (active) setDetail(paymentToDetail(payment));
+          if (active) {
+            console.log('[Load] payment:', payment.storageKey, payment.fileType);
+            setDetail(paymentToDetail(payment));
+          }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('[Payment Details] Failed to load:', err);
           if (active) setDetail(null);
         })
         .finally(() => {
@@ -48,6 +54,16 @@ export default function PaymentDetailScreen() {
       };
     }, [id]),
   );
+
+  useEffect(() => {
+    if (!detail) return;
+    let active = true;
+    setDownloadUrl(null);
+    getDownloadUrl(detail.id, 'payments')
+      .then((url) => { if (active) setDownloadUrl(url); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [detail?.id, detail?.storageKey]);
 
   const onDownload = useCallback(() => {
     Alert.alert('הורדה', 'במימוש אמיתי יורד קובץ / מסמך. כעת תצוגה בלבד.', [{ text: 'אישור' }]);
@@ -155,17 +171,20 @@ export default function PaymentDetailScreen() {
         </View>
 
         {detail.storageKey && (
-          <View style={styles.previewSection}>
-            <AppText variant="labelMd" weight="semiBold" color="muted" style={styles.previewLabel}>
-              תצוגה מקדימה
-            </AppText>
-            <DocumentPreview
-              fileKind={detail.fileType ? fileKindFromFileType(detail.fileType) : 'other'}
-              displayName={detail.displayName}
-              sizeLabel={detail.sizeLabel ?? ''}
-              downloadUrl={null}
-            />
-          </View>
+          <>
+            {console.log('[Preview] Rendering with downloadUrl:', downloadUrl)}
+            <View style={styles.previewSection}>
+              <AppText variant="labelMd" weight="semiBold" color="muted" style={styles.previewLabel}>
+                תצוגה מקדימה
+              </AppText>
+              <DocumentPreview
+                fileKind={detail.fileType ? fileKindFromFileType(detail.fileType) : 'other'}
+                displayName={detail.displayName}
+                sizeLabel={detail.sizeLabel ?? ''}
+                downloadUrl={downloadUrl}
+              />
+            </View>
+          </>
         )}
 
         <View style={styles.quickRow}>

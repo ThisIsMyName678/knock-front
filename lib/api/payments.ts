@@ -250,8 +250,10 @@ function isoDateToDdMmYyyy(iso: string): string {
 }
 
 export function paymentToDetail(payment: BackendPayment): PaymentDetailMock {
+  const row = paymentToListRow(payment);
+  console.log('[paymentToDetail] row.storageKey:', row.storageKey);
   return {
-    ...paymentToListRow(payment),
+    ...row,
     payerLabel: payment.payerType ? PAYER_TYPE_LABELS[payment.payerType] : undefined,
     vatPercent: `${Number(payment.vatPercent)}%`,
     amountNet: Number(payment.amountNet),
@@ -262,6 +264,7 @@ export function paymentToDetail(payment: BackendPayment): PaymentDetailMock {
 }
 
 export function paymentToListRow(payment: BackendPayment): PaymentListRow {
+  console.log('[paymentToListRow] payment.storageKey:', payment.storageKey);
   return {
     id: payment.id,
     displayName: payment.name,

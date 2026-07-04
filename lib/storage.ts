@@ -85,9 +85,20 @@ export async function uploadDocument(file: PickedFile): Promise<{
   };
 }
 
-export async function getDownloadUrl(documentId: string): Promise<string> {
+export async function getDownloadUrl(documentId: string, module: 'documents' | 'payments' = 'documents'): Promise<string> {
   const { signedUrl } = await backendRequest<{ signedUrl: string }>(
-    `/documents/${documentId}/download-url`,
+    `/${module}/${documentId}/download-url`,
   );
   return signedUrl;
+}
+
+export function getStorageUrl(storageKey: string): string {
+  if (!storageKey) {
+    console.log('[getStorageUrl] Empty storageKey');
+    return '';
+  }
+  const baseUrl = 'https://rcnzqbcavfpqghxyojfk.supabase.co/storage/v1/object/public/knock';
+  const fullUrl = `${baseUrl}/${storageKey}`;
+  console.log('[getStorageUrl] Generated:', fullUrl);
+  return fullUrl;
 }
