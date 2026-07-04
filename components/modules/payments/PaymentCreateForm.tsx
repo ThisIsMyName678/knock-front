@@ -49,7 +49,7 @@ import {
 import { BackendApiError } from '@/lib/backend';
 import { addDraftContractPayment } from '@/lib/navigation-state';
 import { formatIlsInteger, parseAmountDigits } from '@/lib/format/currency';
-import { uploadDocument, type PickedFile } from '@/lib/storage';
+import { uploadDocument, type PickedFile, getDownloadUrl } from '@/lib/storage';
 import { fileKindFromFileType } from '@/lib/api/documents';
 import { type DocumentFileKind } from '@/lib/mocks/documents';
 import {
@@ -254,6 +254,7 @@ export function PaymentCreateForm({
   const [sizeLabel, setSizeLabel] = useState<string>(() => initialData?.sizeLabel ?? '');
   const [isUploading, setIsUploading] = useState(false);
   const [pickSourceOpen, setPickSourceOpen] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -279,6 +280,18 @@ export function PaymentCreateForm({
       .finally(() => setContractsLoading(false));
   }, [linkSelected]);
   const maintCalls = useMemo(() => maintenanceCallsForLink(linkSelected?.id ?? ''), [linkSelected]);
+
+  useEffect(() => {
+    if (!storageKey) {
+      setDownloadUrl(null);
+      return;
+    }
+    let active = true;
+    getDownloadUrl(storageKey)
+      .then((url) => { if (active) setDownloadUrl(url); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [storageKey]);
 
   // Contacts linked to the selected asset/project (for payer selection)
   const linkedContacts = useMemo(() => {
@@ -473,7 +486,7 @@ export function PaymentCreateForm({
           payerType,
           payerContactId,
           notes: notes.trim() || null,
-          ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType } : {}),
+          ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType ?? undefined } : {}),
         };
         await updatePayment(initialData.id, updateInput);
       } catch (error) {
@@ -520,7 +533,7 @@ export function PaymentCreateForm({
         ...(paymentMode === 'shafif_plus'
           ? { shafifPlusDays: parseInt(shafifDays, 10) || 0 }
           : {}),
-        ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType } : {}),
+        ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType ?? undefined } : {}),
       };
 
       // החוזה עדיין לא נשמר בשרת (אין UUID אמיתי) — מתעדים את התשלום בתור מקומי,
