@@ -439,9 +439,13 @@ export default function DocumentDetailScreen() {
             style={({ pressed }) => [styles.openFullBtn, pressed && { opacity: 0.8 }]}
             accessibilityRole="button"
           >
-            <MaterialCommunityIcons name="open-in-new" size={15} color={Colors.primary} />
+            <MaterialCommunityIcons
+              name={doc.fileKind === 'image' ? 'open-in-new' : 'download-outline'}
+              size={15}
+              color={Colors.primary}
+            />
             <AppText variant="labelMd" color="primary" weight="semiBold">
-              פתיחה מלאה
+              {doc.fileKind === 'image' ? 'פתיחה מלאה' : 'הורדה'}
             </AppText>
           </Pressable>
         </View>

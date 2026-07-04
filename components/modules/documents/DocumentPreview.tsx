@@ -121,5 +121,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.lg,
+    paddingVertical: Spacing.lg + 1,
   },
 });
