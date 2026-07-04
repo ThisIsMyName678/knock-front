@@ -34,6 +34,7 @@ import {
   clientDocumentTypeToBackend,
   clientAccessLevelToBackend,
   clientLinkKindToBackend,
+  fileKindFromFileType,
 } from '@/lib/api/documents';
 import { listTasks, backendTaskToListRow } from '@/lib/api/tasks';
 import type { TaskListRow } from '@/lib/mocks/tasks';
@@ -109,8 +110,9 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
   }, [linkSelected]);
 
   const handleFilePicked = async (picked: PickedFile) => {
+    const kind = fileKindFromFileType(picked.mimeType);
     setFileName(picked.name);
-    setFileKind(picked.mimeType === 'application/pdf' ? 'pdf' : 'image');
+    setFileKind(kind);
     setIsUploading(true);
     try {
       const result = await uploadDocument(picked);

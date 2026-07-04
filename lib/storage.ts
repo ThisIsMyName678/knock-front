@@ -17,10 +17,11 @@ export async function pickFile(imageOnly = false): Promise<PickedFile | null> {
   if (result.canceled || !result.assets?.[0]) return null;
 
   const asset = result.assets[0];
+  const mimeType = asset.mimeType ?? 'application/octet-stream';
   return {
     uri: asset.uri,
     name: asset.name,
-    mimeType: asset.mimeType ?? 'application/octet-stream',
+    mimeType,
     size: asset.size ?? 0,
   };
 }
