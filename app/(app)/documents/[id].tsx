@@ -108,7 +108,7 @@ function ImagePreview({ url, name }: { url: string | null; name: string }) {
       <Image
         source={{ uri: url }}
         style={preview.imageBox}
-        resizeMode="contain"
+        resizeMode="cover"
         accessibilityLabel={name}
       />
     );
@@ -157,7 +157,7 @@ const preview = StyleSheet.create({
     height: 220,
     borderRadius: Radius.lg,
     overflow: 'hidden',
-    backgroundColor: '#4a6fa5',
+    backgroundColor: '#000',
   },
 });
 
