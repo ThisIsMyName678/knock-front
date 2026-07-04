@@ -1191,23 +1191,21 @@ export function PaymentCreateForm({
           {/* ─── קובץ משויך ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>קובץ משויך</AppText>
 
-          {!isEdit && (
-            <Pressable
-              onPress={() => setPickSourceOpen(true)}
-              style={({ pressed }) => [styles.pickTrigger, pressed && { opacity: 0.85 }]}
-              accessibilityRole="button"
-              accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
-            >
-            <View style={styles.pickTriggerIconWrap}>
-              <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
-              <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
-            </View>
-            <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
-            </Pressable>
-          )}
+          <Pressable
+            onPress={() => setPickSourceOpen(true)}
+            style={({ pressed }) => [styles.pickTrigger, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
+          >
+          <View style={styles.pickTriggerIconWrap}>
+            <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
+            <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
+          </View>
+          <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
+          </Pressable>
 
           {isUploading && (
             <View style={styles.uploadingRow}>
