@@ -40,6 +40,99 @@ import {
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
+// ─── Full-Screen Image Viewer ────────────────────────────────────────────────
+
+function FullScreenImageViewer({
+  url,
+  name,
+  visible,
+  onClose,
+}: {
+  url: string | null;
+  name: string;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  if (!visible || !url) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={false}
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+    >
+      <View style={imageViewerStyles.container}>
+        <View style={imageViewerStyles.header}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={10}
+            style={({ pressed }) => [
+              imageViewerStyles.closeBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <MaterialCommunityIcons name="close" size={28} color="#fff" />
+          </Pressable>
+          <AppText
+            variant="bodySm"
+            style={imageViewerStyles.headerTitle}
+            numberOfLines={1}
+          >
+            {name}
+          </AppText>
+          <View style={{ width: 44 }} />
+        </View>
+
+        <View style={imageViewerStyles.content}>
+          <Image
+            source={{ uri: url }}
+            style={imageViewerStyles.image}
+            resizeMode="contain"
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const imageViewerStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  closeBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    color: '#fff',
+    flex: 1,
+    textAlign: 'center',
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+});
+
 // ─── Mock PDF Preview ─────────────────────────────────────────────────────────
 
 function PdfPreview({ name }: { name: string }) {
@@ -288,6 +381,7 @@ export default function DocumentDetailScreen() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [linkedTaskTitle, setLinkedTaskTitle] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [fullScreenImageOpen, setFullScreenImageOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -456,7 +550,13 @@ export default function DocumentDetailScreen() {
             <ImagePreview url={downloadUrl} name={doc.displayName} />
           )}
           <Pressable
-            onPress={onDownload}
+            onPress={() => {
+              if (doc.fileKind === 'image') {
+                setFullScreenImageOpen(true);
+              } else {
+                onDownload();
+              }
+            }}
             style={({ pressed }) => [styles.openFullBtn, pressed && { opacity: 0.8 }]}
             accessibilityRole="button"
           >
@@ -537,6 +637,14 @@ export default function DocumentDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Full-screen image viewer ── */}
+      <FullScreenImageViewer
+        url={doc.fileKind === 'image' ? downloadUrl : null}
+        name={doc.displayName}
+        visible={fullScreenImageOpen}
+        onClose={() => setFullScreenImageOpen(false)}
+      />
     </View>
   );
 }
