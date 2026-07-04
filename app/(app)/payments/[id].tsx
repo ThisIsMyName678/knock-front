@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -70,6 +70,17 @@ export default function PaymentDetailScreen() {
   const onDownload = useCallback(() => {
     Alert.alert('הורדה', 'במימוש אמיתי יורד קובץ / מסמך. כעת תצוגה בלבד.', [{ text: 'אישור' }]);
   }, []);
+
+  const onOpenPdf = useCallback(() => {
+    if (downloadUrl) {
+      Linking.openURL(downloadUrl).catch(() => {});
+      return;
+    }
+    if (!detail) return;
+    getDownloadUrl(detail.id, 'payments')
+      .then((url) => Linking.openURL(url))
+      .catch(() => {});
+  }, [detail, downloadUrl]);
 
   const onShare = useCallback(async () => {
     if (!detail) return;
@@ -184,7 +195,18 @@ export default function PaymentDetailScreen() {
                 displayName={detail.displayName}
                 sizeLabel={detail.sizeLabel ?? ''}
                 downloadUrl={downloadUrl}
-                onOpenFullScreen={detail.fileType && fileKindFromFileType(detail.fileType) === 'image' ? () => setFullScreenImageOpen(true) : undefined}
+                onOpenFullScreen={
+                  detail.fileType && fileKindFromFileType(detail.fileType) === 'image'
+                    ? () => setFullScreenImageOpen(true)
+                    : detail.fileType && fileKindFromFileType(detail.fileType) === 'pdf'
+                      ? onOpenPdf
+                      : undefined
+                }
+                onDownload={
+                  detail.fileType && fileKindFromFileType(detail.fileType) === 'other'
+                    ? onOpenPdf
+                    : undefined
+                }
               />
             </View>
           </>

@@ -427,7 +427,14 @@ export default function DocumentDetailScreen() {
             displayName={doc.displayName}
             sizeLabel={doc.sizeLabel}
             downloadUrl={downloadUrl}
-            onOpenFullScreen={doc.fileKind === 'image' ? () => setFullScreenImageOpen(true) : undefined}
+            onOpenFullScreen={
+              doc.fileKind === 'image'
+                ? () => setFullScreenImageOpen(true)
+                : doc.fileKind === 'pdf'
+                  ? onDownload
+                  : undefined
+            }
+            onDownload={doc.fileKind === 'other' ? onDownload : undefined}
           />
         </View>
 
