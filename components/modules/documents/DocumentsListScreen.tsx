@@ -6,6 +6,8 @@ import {
   FlatList,
   Modal,
   TouchableOpacity,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -36,6 +38,7 @@ import {
   type SortDir,
 } from '@/lib/mocks/documents';
 import { listDocuments, deleteDocument, documentToListRow } from '@/lib/api/documents';
+import { getDownloadUrl } from '@/lib/storage';
 import {
   Colors,
   Spacing,
@@ -103,6 +106,9 @@ export function DocumentsListScreen() {
   const [menuRow, setMenuRow] = useState<DocumentListRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DocumentListRow | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedImageForPreview, setSelectedImageForPreview] = useState<DocumentListRow | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [selectedImageLoading, setSelectedImageLoading] = useState(false);
   const showSkeleton = useSkeletonGate(loading);
 
   const linkScope = linkScopeFromScope(scope);
@@ -130,6 +136,28 @@ export function DocumentsListScreen() {
       .then(setEntityLinks)
       .catch((error) => console.warn(error instanceof Error ? error.message : 'Failed to load entity links'));
   }, []);
+
+  useEffect(() => {
+    if (!selectedImageForPreview) {
+      setSelectedImageUrl(null);
+      return;
+    }
+    let active = true;
+    setSelectedImageLoading(true);
+    getDownloadUrl(selectedImageForPreview.id)
+      .then((url) => {
+        if (active) setSelectedImageUrl(url);
+      })
+      .catch(() => {
+        if (active) setSelectedImageUrl(null);
+      })
+      .finally(() => {
+        if (active) setSelectedImageLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedImageForPreview?.id]);
 
   const filtered = useMemo(
     () =>
@@ -342,7 +370,7 @@ export function DocumentsListScreen() {
               </View>
             )}
             {([
-              { icon: 'open-in-new' as const, label: 'פתח', color: Colors.primary, onPress: () => { router.push(`/(app)/documents/${menuRow!.id}`); setMenuRow(null); } },
+              { icon: 'open-in-new' as const, label: 'פתח', color: Colors.primary, onPress: () => { setSelectedImageForPreview(menuRow); setMenuRow(null); } },
               { icon: 'pencil-outline' as const, label: 'עריכה', color: Colors.onBackground, onPress: () => { router.push(`/(app)/documents/edit/${menuRow!.id}`); setMenuRow(null); } },
               { icon: 'content-copy' as const, label: 'שכפול', color: Colors.onBackground, onPress: () => { duplicateRow(menuRow!); setMenuRow(null); } },
               { icon: 'delete-outline' as const, label: 'מחיקה', color: Colors.error, onPress: () => { deleteRow(menuRow!); setMenuRow(null); } },
@@ -404,6 +432,54 @@ export function DocumentsListScreen() {
                 style={{ flex: 1 }}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Image preview modal */}
+      <Modal
+        visible={!!selectedImageForPreview}
+        transparent={false}
+        animationType="fade"
+        onRequestClose={() => setSelectedImageForPreview(null)}
+        presentationStyle="overFullScreen"
+      >
+        <View style={styles.imageModalContainer}>
+          <View style={styles.imageModalHeader}>
+            <Pressable
+              onPress={() => setSelectedImageForPreview(null)}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.imageModalCloseBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <MaterialCommunityIcons name="close" size={28} color="#fff" />
+            </Pressable>
+            <AppText
+              variant="bodySm"
+              style={styles.imageModalTitle}
+              numberOfLines={1}
+            >
+              {selectedImageForPreview?.displayName}
+            </AppText>
+            <View style={{ width: 44 }} />
+          </View>
+
+          <View style={styles.imageModalContent}>
+            {selectedImageLoading ? (
+              <ActivityIndicator color="rgba(255,255,255,0.7)" size="large" />
+            ) : selectedImageUrl ? (
+              <Image
+                source={{ uri: selectedImageUrl }}
+                style={styles.imageModalImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <AppText color="variant" variant="bodyMd" align="center">
+                לא ניתן להטעין את התמונה
+              </AppText>
+            )}
           </View>
         </View>
       </Modal>
@@ -635,5 +711,40 @@ const styles = StyleSheet.create({
   deleteActions: {
     flexDirection: RTL_ROW,
     gap: Spacing.sm,
+  },
+
+  // ── Image modal ──
+  imageModalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  imageModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  imageModalCloseBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageModalTitle: {
+    color: '#fff',
+    flex: 1,
+    textAlign: 'center',
+  },
+  imageModalContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  imageModalImage: {
+    width: '100%',
+    height: '100%',
   },
 });
