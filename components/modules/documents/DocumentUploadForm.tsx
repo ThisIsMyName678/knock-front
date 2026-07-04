@@ -83,8 +83,8 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
   const [pickSourceOpen, setPickSourceOpen] = useState(false);
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(() => initialData?.linkedTaskId ?? null);
   const [fileKind, setFileKind] = useState<DocumentFileKind>(() => initialData?.fileKind ?? 'other');
-  const [storageKey, setStorageKey] = useState<string | null>(null);
-  const [sizeLabel, setSizeLabel] = useState<string>('');
+  const [storageKey, setStorageKey] = useState<string | null>(() => initialData?.storageKey ?? null);
+  const [sizeLabel, setSizeLabel] = useState<string>(() => initialData?.sizeLabel ?? '');
   const [isUploading, setIsUploading] = useState(false);
 
   const [entities, setEntities] = useState<EntityLinkOption[]>([]);
