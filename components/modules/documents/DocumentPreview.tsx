@@ -34,7 +34,10 @@ function getFileTypeStyle(fileKind: DocumentFileKind): FileTypeStyle {
   if (fileKind === 'pdf') {
     return { bg: Colors.errorContainer, icon: Colors.error, iconName: 'file-pdf-box' };
   }
-  return { bg: Colors.surfaceVariant, icon: Colors.onSurfaceVariant, iconName: 'file-outline' };
+  if (fileKind === 'image') {
+    return { bg: Colors.infoContainer, icon: Colors.info, iconName: 'file-image-outline' };
+  }
+  return { bg: Colors.outline, icon: Colors.onBackground, iconName: 'file-document-outline' };
 }
 
 function ImagePreview({ url, name }: { url: string | null; name: string }) {
@@ -113,7 +116,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   documentCard: {
-    height: 300,
+    height: 150,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
@@ -121,6 +124,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.lg,
-    paddingVertical: Spacing.lg + 1,
+    paddingVertical: 10,
   },
 });

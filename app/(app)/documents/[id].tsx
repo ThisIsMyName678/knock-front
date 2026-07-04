@@ -386,11 +386,11 @@ export default function DocumentDetailScreen() {
       >
         {/* ── Document info row ── */}
         <View style={styles.infoRow}>
-          <View style={[styles.fileIconWrap, { backgroundColor: doc.fileKind === 'pdf' ? Colors.errorContainer : Colors.infoContainer }]}>
+          <View style={[styles.fileIconWrap, { backgroundColor: doc.fileKind === 'pdf' ? Colors.errorContainer : doc.fileKind === 'image' ? Colors.infoContainer : Colors.outline }]}>
             <MaterialCommunityIcons
               name={doc.fileKind === 'pdf' ? 'file-pdf-box' : doc.fileKind === 'image' ? 'file-image-outline' : 'file-document-outline'}
               size={32}
-              color={doc.fileKind === 'pdf' ? Colors.error : Colors.info}
+              color={doc.fileKind === 'pdf' ? Colors.error : doc.fileKind === 'image' ? Colors.info : Colors.onBackground}
             />
           </View>
           <View style={{ flex: 1 }}>
