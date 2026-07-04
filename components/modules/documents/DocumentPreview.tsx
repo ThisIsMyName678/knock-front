@@ -68,10 +68,13 @@ function DocumentCard({
   sizeLabel: string;
 }) {
   const style = getFileTypeStyle(fileKind);
+  const iconBg = fileKind === 'pdf' ? '#FFCCCC' : style.bg;
 
   return (
-    <View style={[styles.documentCard, { backgroundColor: style.bg }]}>
-      <MaterialCommunityIcons name={style.iconName} size={64} color={style.icon} />
+    <View style={styles.documentCard}>
+      <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
+        <MaterialCommunityIcons name={style.iconName} size={64} color={style.icon} />
+      </View>
       <View style={{ marginTop: Spacing.md, gap: Spacing.xs }}>
         <AppText
           variant="bodyMd"
@@ -125,5 +128,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: Spacing.lg,
     paddingVertical: 10,
+    backgroundColor: Colors.surface,
+  },
+  iconWrap: {
+    width: 100,
+    height: 100,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
