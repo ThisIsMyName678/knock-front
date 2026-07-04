@@ -125,8 +125,9 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
       const result = await uploadDocument(picked);
       setStorageKey(result.storageKey);
       setSizeLabel(result.sizeLabel);
-    } catch {
-      Alert.alert('שגיאה בהעלאה', 'העלאת הקובץ נכשלה. נסה שוב.');
+    } catch (err) {
+      console.error('[Upload error]', err);
+      Alert.alert('שגיאה בהעלאה', String(err));
     } finally {
       setIsUploading(false);
     }
