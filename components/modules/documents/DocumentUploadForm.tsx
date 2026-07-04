@@ -38,7 +38,8 @@ import {
 import { listTasks, backendTaskToListRow } from '@/lib/api/tasks';
 import type { TaskListRow } from '@/lib/mocks/tasks';
 import { BackendApiError } from '@/lib/backend';
-import { pickFile, uploadDocument, formatSizeLabel, type PickedFile } from '@/lib/storage';
+import { uploadDocument, formatSizeLabel, type PickedFile } from '@/lib/storage';
+import { FilePickerModal } from '@/components/modules/files/FilePickerModal';
 import {
   Colors,
   Spacing,
@@ -107,19 +108,9 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
       .finally(() => setLoadingTasks(false));
   }, [linkSelected]);
 
-  const handlePickFile = async (imageOnly: boolean) => {
-    setPickSourceOpen(false);
-    let picked: PickedFile | null = null;
-    try {
-      picked = await pickFile(imageOnly);
-    } catch {
-      Alert.alert('שגיאה', 'לא ניתן לפתוח את בורר הקבצים');
-      return;
-    }
-    if (!picked) return;
-
-    setFileName(picked!.name);
-    setFileKind(imageOnly ? 'image' : picked!.mimeType === 'application/pdf' ? 'pdf' : 'other');
+  const handleFilePicked = async (picked: PickedFile) => {
+    setFileName(picked.name);
+    setFileKind(picked.mimeType === 'application/pdf' ? 'pdf' : 'image');
     setIsUploading(true);
     try {
       const result = await uploadDocument(picked);
@@ -337,63 +328,11 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
           <Button label={editId ? 'שמור שינויים' : 'שמור והעלה'} onPress={onSave} loading={isSaving || isUploading} disabled={isSaving || isUploading} fullWidth size="lg" style={{ marginTop: Spacing.sm }} />
         </ScrollView>
 
-        <Modal visible={pickSourceOpen} transparent animationType="slide" onRequestClose={() => setPickSourceOpen(false)}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setPickSourceOpen(false)}>
-            <Pressable style={[styles.modalSheet, { paddingBottom: insets.bottom + Spacing.lg }]} onPress={(e) => e.stopPropagation()}>
-              <View style={styles.pickSheetHandle} />
-              <AppText variant="labelMd" weight="bold" style={styles.pickSheetTitle}>
-                בחירת מקור
-              </AppText>
-              {(
-                [
-                  { kind: 'file' as const, icon: 'file-upload-outline' as const, label: 'קובץ מהמכשיר', hint: 'PDF או מסמך', imageOnly: false },
-                  { kind: 'image' as const, icon: 'image-outline' as const, label: 'תמונה מהגלריה', hint: 'בחירת תמונה', imageOnly: true },
-                  { kind: 'camera' as const, icon: 'camera-outline' as const, label: 'מצלמה', hint: 'בקרוב', imageOnly: false },
-                ] as const
-              ).map((opt, i) => (
-                <Pressable
-                  key={opt.kind}
-                  onPress={() => {
-                    if (opt.kind === 'camera') {
-                      setPickSourceOpen(false);
-                      Alert.alert('בקרוב', 'צילום ממצלמה יתווסף בגרסה הבאה');
-                      return;
-                    }
-                    handlePickFile(opt.imageOnly);
-                  }}
-                  style={({ pressed }) => [
-                    styles.pickSheetRow,
-                    i < 2 && styles.pickSheetRowBorder,
-                    pressed && { backgroundColor: Colors.surfaceVariant },
-                  ]}
-                  accessibilityRole="button"
-                >
-                  <View style={styles.pickSheetIconCircle}>
-                    <MaterialCommunityIcons name={opt.icon} size={22} color={Colors.primary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <AppText variant="bodyMd" weight="semiBold">
-                      {opt.label}
-                    </AppText>
-                    <AppText variant="caption" color="muted">
-                      {opt.hint}
-                    </AppText>
-                  </View>
-                  <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.onSurfaceMuted} />
-                </Pressable>
-              ))}
-              <Pressable
-                onPress={() => setPickSourceOpen(false)}
-                style={({ pressed }) => [styles.pickSheetCancel, pressed && { opacity: 0.75 }]}
-                accessibilityRole="button"
-              >
-                <AppText variant="bodyMd" color="variant" align="center">
-                  ביטול
-                </AppText>
-              </Pressable>
-            </Pressable>
-          </Pressable>
-        </Modal>
+        <FilePickerModal
+          visible={pickSourceOpen}
+          onPicked={handleFilePicked}
+          onCancel={() => setPickSourceOpen(false)}
+        />
 
         <Modal visible={taskModal} transparent animationType="slide" onRequestClose={() => setTaskModal(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setTaskModal(false)}>
@@ -458,43 +397,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pickSheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.outlineVariant,
-    alignSelf: 'center',
-    marginBottom: Spacing.md,
-  },
-  pickSheetTitle: {
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
-  },
-  pickSheetRow: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  pickSheetRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineLight,
-  },
-  pickSheetIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primaryContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickSheetCancel: {
-    marginTop: Spacing.sm,
-    paddingVertical: Spacing.md,
   },
   card: {
     backgroundColor: Colors.surface,
