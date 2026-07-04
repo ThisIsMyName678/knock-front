@@ -7,6 +7,8 @@ import {
   Share,
   Modal,
   TouchableWithoutFeedback,
+  Image,
+  Linking,
   type DimensionValue,
   ActivityIndicator,
 } from 'react-native';
@@ -25,6 +27,7 @@ import {
   type DocumentListRow,
 } from '@/lib/mocks/documents';
 import { getDocument, deleteDocument, documentToListRow } from '@/lib/api/documents';
+import { getDownloadUrl } from '@/lib/storage';
 import { getTask } from '@/lib/api/tasks';
 import {
   Colors,
@@ -97,23 +100,22 @@ function PdfPreview({ name }: { name: string }) {
   );
 }
 
-// ─── Mock Image Preview ───────────────────────────────────────────────────────
+// ─── Image Preview ────────────────────────────────────────────────────────────
 
-function ImagePreview({ name }: { name: string }) {
+function ImagePreview({ url, name }: { url: string | null; name: string }) {
+  if (url) {
+    return (
+      <Image
+        source={{ uri: url }}
+        style={preview.imageBox}
+        resizeMode="contain"
+        accessibilityLabel={name}
+      />
+    );
+  }
   return (
-    <View style={preview.imageBox}>
-      <View style={preview.imageInner}>
-        <MaterialCommunityIcons name="image-outline" size={52} color="rgba(255,255,255,0.55)" />
-        <AppText variant="caption" style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: Spacing.sm }} numberOfLines={2}>
-          {name}
-        </AppText>
-      </View>
-      {/* Simulated image grid overlay */}
-      <View style={preview.imageGrid}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <View key={i} style={[preview.imageCell, { opacity: 0.07 + (i % 3) * 0.04 }]} />
-        ))}
-      </View>
+    <View style={[preview.imageBox, { alignItems: 'center', justifyContent: 'center' }]}>
+      <ActivityIndicator color="rgba(255,255,255,0.7)" />
     </View>
   );
 }
@@ -156,25 +158,6 @@ const preview = StyleSheet.create({
     borderRadius: Radius.lg,
     overflow: 'hidden',
     backgroundColor: '#4a6fa5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  imageGrid: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    zIndex: 1,
-  },
-  imageCell: {
-    width: '33.33%',
-    height: '50%',
-    backgroundColor: '#fff',
   },
 });
 
@@ -304,6 +287,7 @@ export default function DocumentDetailScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [linkedTaskTitle, setLinkedTaskTitle] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -343,6 +327,16 @@ export default function DocumentDetailScreen() {
     };
   }, [doc?.linkedTaskId]);
 
+  useEffect(() => {
+    if (!doc) return;
+    let active = true;
+    setDownloadUrl(null);
+    getDownloadUrl(doc.id)
+      .then((url) => { if (active) setDownloadUrl(url); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [doc?.id]);
+
   const taskTitle = linkedTaskTitle;
 
   const onShare = useCallback(() => {
@@ -350,11 +344,14 @@ export default function DocumentDetailScreen() {
   }, [doc]);
 
   const onDownload = useCallback(() => {
-    Share.share({
-      message: `הורדה (דמה)\n${doc?.displayName ?? ''}\nhttps://files.example.mock/${doc?.id ?? ''}`,
-      title: doc?.displayName ?? '',
-    }).catch(() => {});
-  }, [doc]);
+    if (downloadUrl) {
+      Linking.openURL(downloadUrl).catch(() => {});
+    } else if (doc) {
+      getDownloadUrl(doc.id)
+        .then((url) => Linking.openURL(url))
+        .catch(() => {});
+    }
+  }, [doc, downloadUrl]);
 
   const onDelete = useCallback(() => {
     if (!doc) return;
@@ -456,7 +453,7 @@ export default function DocumentDetailScreen() {
           {doc.fileKind === 'pdf' ? (
             <PdfPreview name={doc.displayName} />
           ) : (
-            <ImagePreview name={doc.displayName} />
+            <ImagePreview url={downloadUrl} name={doc.displayName} />
           )}
           <Pressable
             onPress={onDownload}
