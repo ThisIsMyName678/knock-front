@@ -440,12 +440,12 @@ export default function DocumentDetailScreen() {
             accessibilityRole="button"
           >
             <MaterialCommunityIcons
-              name={doc.fileKind === 'image' ? 'open-in-new' : 'download-outline'}
+              name={doc.fileKind === 'image' || doc.fileKind === 'pdf' ? 'open-in-new' : 'download-outline'}
               size={15}
               color={Colors.primary}
             />
             <AppText variant="labelMd" color="primary" weight="semiBold">
-              {doc.fileKind === 'image' ? 'פתיחה מלאה' : 'הורדה'}
+              {doc.fileKind === 'image' || doc.fileKind === 'pdf' ? 'פתיחה מלאה' : 'הורדה'}
             </AppText>
           </Pressable>
         </View>
