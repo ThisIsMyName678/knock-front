@@ -19,7 +19,6 @@ import type { DocumentFileKind } from '@/lib/mocks/documents';
 
 interface DocumentPreviewProps {
   fileKind: DocumentFileKind;
-  mimeType?: string;
   displayName: string;
   sizeLabel: string;
   downloadUrl: string | null;
@@ -31,22 +30,10 @@ interface FileTypeStyle {
   iconName: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 }
 
-function getFileTypeStyle(fileKind: DocumentFileKind, mimeType?: string): FileTypeStyle {
+function getFileTypeStyle(fileKind: DocumentFileKind): FileTypeStyle {
   if (fileKind === 'pdf') {
     return { bg: Colors.errorContainer, icon: Colors.error, iconName: 'file-pdf-box' };
   }
-
-  const mime = mimeType?.toLowerCase() ?? '';
-  if (mime.includes('word') || mime.includes('document')) {
-    return { bg: '#E2EEFF', icon: '#0066CC', iconName: 'file-document-outline' };
-  }
-  if (mime.includes('excel') || mime.includes('spreadsheet')) {
-    return { bg: '#D4EDDA', icon: '#28A745', iconName: 'file-excel-box' };
-  }
-  if (mime.includes('powerpoint') || mime.includes('presentation')) {
-    return { bg: '#FFE8D6', icon: '#D24726', iconName: 'file-powerpoint-box' };
-  }
-
   return { bg: Colors.surfaceVariant, icon: Colors.onSurfaceVariant, iconName: 'file-outline' };
 }
 
@@ -70,16 +57,14 @@ function ImagePreview({ url, name }: { url: string | null; name: string }) {
 
 function DocumentCard({
   fileKind,
-  mimeType,
   displayName,
   sizeLabel,
 }: {
   fileKind: DocumentFileKind;
-  mimeType?: string;
   displayName: string;
   sizeLabel: string;
 }) {
-  const style = getFileTypeStyle(fileKind, mimeType);
+  const style = getFileTypeStyle(fileKind);
 
   return (
     <View style={[styles.documentCard, { backgroundColor: style.bg }]}>
@@ -103,7 +88,6 @@ function DocumentCard({
 
 export function DocumentPreview({
   fileKind,
-  mimeType,
   displayName,
   sizeLabel,
   downloadUrl,
@@ -115,7 +99,6 @@ export function DocumentPreview({
   return (
     <DocumentCard
       fileKind={fileKind}
-      mimeType={mimeType}
       displayName={displayName}
       sizeLabel={sizeLabel}
     />

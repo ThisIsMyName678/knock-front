@@ -174,7 +174,9 @@ export function backendLinkScopeToClient(scope: BackendDocumentLinkScope): LinkK
 }
 
 function fileKindFromFileType(fileType: string): DocumentFileKind {
-  if (fileType === 'pdf' || fileType === 'image' || fileType === 'other') return fileType;
+  const lower = fileType.toLowerCase();
+  if (lower === 'image' || lower.startsWith('image/')) return 'image';
+  if (lower === 'pdf' || lower === 'application/pdf') return 'pdf';
   return 'other';
 }
 
