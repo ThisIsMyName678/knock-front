@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
   },
   documentCard: {
     height: 150,
