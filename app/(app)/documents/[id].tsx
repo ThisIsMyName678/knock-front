@@ -427,27 +427,8 @@ export default function DocumentDetailScreen() {
             displayName={doc.displayName}
             sizeLabel={doc.sizeLabel}
             downloadUrl={downloadUrl}
+            onOpenFullScreen={doc.fileKind === 'image' ? () => setFullScreenImageOpen(true) : undefined}
           />
-          <Pressable
-            onPress={() => {
-              if (doc.fileKind === 'image') {
-                setFullScreenImageOpen(true);
-              } else {
-                onDownload();
-              }
-            }}
-            style={({ pressed }) => [styles.openFullBtn, pressed && { opacity: 0.8 }]}
-            accessibilityRole="button"
-          >
-            <MaterialCommunityIcons
-              name={doc.fileKind === 'image' || doc.fileKind === 'pdf' ? 'open-in-new' : 'download-outline'}
-              size={15}
-              color={Colors.primary}
-            />
-            <AppText variant="labelMd" color="primary" weight="semiBold">
-              {doc.fileKind === 'image' || doc.fileKind === 'pdf' ? 'פתיחה מלאה' : 'הורדה'}
-            </AppText>
-          </Pressable>
         </View>
 
         {/* ── Details card ── */}

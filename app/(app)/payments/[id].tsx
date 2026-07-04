@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
+import { FullScreenImageViewer } from '@/components/ui/FullScreenImageViewer';
 import {
   PAYMENT_TYPE_LABELS,
   PAYMENT_MODE_LABELS,
@@ -30,6 +31,7 @@ export default function PaymentDetailScreen() {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [fullScreenImageOpen, setFullScreenImageOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -182,6 +184,7 @@ export default function PaymentDetailScreen() {
                 displayName={detail.displayName}
                 sizeLabel={detail.sizeLabel ?? ''}
                 downloadUrl={downloadUrl}
+                onOpenFullScreen={detail.fileType && fileKindFromFileType(detail.fileType) === 'image' ? () => setFullScreenImageOpen(true) : undefined}
               />
             </View>
           </>
@@ -242,6 +245,14 @@ export default function PaymentDetailScreen() {
         onCancel={() => setDeleteDialogVisible(false)}
         loading={deleting}
       />
+
+      {downloadUrl && (
+        <FullScreenImageViewer
+          imageUrl={downloadUrl}
+          visible={fullScreenImageOpen}
+          onClose={() => setFullScreenImageOpen(false)}
+        />
+      )}
     </View>
   );
 }

@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
+  Pressable,
   type DimensionValue,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -22,6 +23,7 @@ interface DocumentPreviewProps {
   displayName: string;
   sizeLabel: string;
   downloadUrl: string | null;
+  onOpenFullScreen?: () => void;
 }
 
 interface FileTypeStyle {
@@ -40,20 +42,33 @@ function getFileTypeStyle(fileKind: DocumentFileKind): FileTypeStyle {
   return { bg: Colors.outline, icon: Colors.onBackground, iconName: 'file-document-outline' };
 }
 
-function ImagePreview({ url, name }: { url: string | null; name: string }) {
-  if (url) {
-    return (
-      <Image
-        source={{ uri: url }}
-        style={styles.imageBox}
-        resizeMode="contain"
-        accessibilityLabel={name}
-      />
-    );
-  }
+function ImagePreview({ url, name, onOpenFullScreen }: { url: string | null; name: string; onOpenFullScreen?: () => void }) {
   return (
-    <View style={[styles.imageBox, { alignItems: 'center', justifyContent: 'center' }]}>
-      <ActivityIndicator color="rgba(255,255,255,0.7)" />
+    <View style={styles.imagePreviewContainer}>
+      {url ? (
+        <Image
+          source={{ uri: url }}
+          style={styles.imageBox}
+          resizeMode="contain"
+          accessibilityLabel={name}
+        />
+      ) : (
+        <View style={[styles.imageBox, { alignItems: 'center', justifyContent: 'center' }]}>
+          <ActivityIndicator color="rgba(255,255,255,0.7)" />
+        </View>
+      )}
+      {onOpenFullScreen && (
+        <Pressable
+          onPress={onOpenFullScreen}
+          style={({ pressed }) => [styles.openFullBtn, pressed && { opacity: 0.8 }]}
+          accessibilityRole="button"
+        >
+          <MaterialCommunityIcons name="open-in-new" size={15} color={Colors.primary} />
+          <AppText variant="labelMd" color="primary" weight="semiBold">
+            פתיחה מלאה
+          </AppText>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -97,9 +112,10 @@ export function DocumentPreview({
   displayName,
   sizeLabel,
   downloadUrl,
+  onOpenFullScreen,
 }: DocumentPreviewProps) {
   if (fileKind === 'image') {
-    return <ImagePreview url={downloadUrl} name={displayName} />;
+    return <ImagePreview url={downloadUrl} name={displayName} onOpenFullScreen={onOpenFullScreen} />;
   }
 
   return (
@@ -112,11 +128,22 @@ export function DocumentPreview({
 }
 
 const styles = StyleSheet.create({
+  imagePreviewContainer: {
+    gap: Spacing.sm,
+  },
   imageBox: {
     height: 300,
     borderRadius: Radius.lg,
     overflow: 'hidden',
     backgroundColor: '#000',
+  },
+  openFullBtn: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    alignSelf: 'flex-end',
   },
   documentCard: {
     height: 150,
