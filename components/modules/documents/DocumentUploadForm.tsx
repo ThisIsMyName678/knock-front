@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -37,6 +38,7 @@ import {
 import { listTasks, backendTaskToListRow } from '@/lib/api/tasks';
 import type { TaskListRow } from '@/lib/mocks/tasks';
 import { BackendApiError } from '@/lib/backend';
+import { pickFile, uploadDocument, formatSizeLabel, type PickedFile } from '@/lib/storage';
 import {
   Colors,
   Spacing,
@@ -81,6 +83,9 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
   const [pickSourceOpen, setPickSourceOpen] = useState(false);
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(() => initialData?.linkedTaskId ?? null);
   const [fileKind, setFileKind] = useState<DocumentFileKind>(() => initialData?.fileKind ?? 'other');
+  const [storageKey, setStorageKey] = useState<string | null>(null);
+  const [sizeLabel, setSizeLabel] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
 
   const [entities, setEntities] = useState<EntityLinkOption[]>([]);
   useEffect(() => {
@@ -102,25 +107,29 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
       .finally(() => setLoadingTasks(false));
   }, [linkSelected]);
 
-  const pickMock = (kind: 'file' | 'image' | 'camera') => {
-    const suggested =
-      kind === 'image' || kind === 'camera'
-        ? `תמונה_${formatTodayDdMmYyyy().replace(/\//g, '-')}.jpg`
-        : `מסמך_${formatTodayDdMmYyyy().replace(/\//g, '-')}.pdf`;
-    Alert.alert(
-      kind === 'camera' ? 'מצלמה' : kind === 'image' ? 'בחירת תמונה' : 'בחירת קובץ',
-      'בגרסת mock אין גישה אמיתית לקבצים. יוצע שם לדוגמה.',
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'השתמש בשם לדוגמה',
-          onPress: () => {
-            setFileName((prev) => prev || suggested);
-            setFileKind(kind === 'file' ? 'pdf' : 'image');
-          },
-        },
-      ],
-    );
+  const handlePickFile = async (imageOnly: boolean) => {
+    setPickSourceOpen(false);
+    let picked: PickedFile | null = null;
+    try {
+      picked = await pickFile(imageOnly);
+    } catch {
+      Alert.alert('שגיאה', 'לא ניתן לפתוח את בורר הקבצים');
+      return;
+    }
+    if (!picked) return;
+
+    setFileName((prev) => prev || picked!.name);
+    setFileKind(imageOnly ? 'image' : picked!.mimeType === 'application/pdf' ? 'pdf' : 'other');
+    setIsUploading(true);
+    try {
+      const result = await uploadDocument(picked);
+      setStorageKey(result.storageKey);
+      setSizeLabel(result.sizeLabel);
+    } catch {
+      Alert.alert('שגיאה בהעלאה', 'העלאת הקובץ נכשלה. נסה שוב.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const [submitted, setSubmitted] = useState(false);
@@ -164,6 +173,8 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
           accessLevel: clientAccessLevelToBackend(accessLevel),
           linkedTaskId: linkedTaskId ?? null,
           fileType: fileKind,
+          storageKey: storageKey ?? null,
+          sizeLabel: sizeLabel || null,
         });
         createdId = created.id;
       }
@@ -208,6 +219,18 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
           </Pressable>
 
           <View style={styles.card}>
+            {isUploading && (
+              <View style={styles.uploadingRow}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <AppText variant="bodySm" color="muted">מעלה קובץ...</AppText>
+              </View>
+            )}
+            {storageKey && !isUploading && (
+              <View style={styles.uploadedRow}>
+                <MaterialCommunityIcons name="check-circle" size={18} color={Colors.success ?? Colors.primary} />
+                <AppText variant="bodySm" color="muted">{sizeLabel} — הועלה בהצלחה</AppText>
+              </View>
+            )}
             <Input label="שם הקובץ" required placeholder="לדוגמה: חוזה שכירות" value={fileName} onChangeText={setFileName} error={submitted ? errors.fileName : ''} containerStyle={{ marginBottom: Spacing.md }} />
 
             <AppText variant="labelMd" weight="semiBold" style={styles.sectionLabel}>
@@ -321,16 +344,20 @@ export function DocumentUploadForm({ initialData, editId, preloadedLink, title }
               </AppText>
               {(
                 [
-                  { kind: 'file' as const, icon: 'file-upload-outline' as const, label: 'קובץ מהמכשיר', hint: 'PDF או מסמך' },
-                  { kind: 'image' as const, icon: 'image-outline' as const, label: 'תמונה מהגלריה', hint: 'בחירת תמונה' },
-                  { kind: 'camera' as const, icon: 'camera-outline' as const, label: 'מצלמה', hint: 'צילום חדש' },
+                  { kind: 'file' as const, icon: 'file-upload-outline' as const, label: 'קובץ מהמכשיר', hint: 'PDF או מסמך', imageOnly: false },
+                  { kind: 'image' as const, icon: 'image-outline' as const, label: 'תמונה מהגלריה', hint: 'בחירת תמונה', imageOnly: true },
+                  { kind: 'camera' as const, icon: 'camera-outline' as const, label: 'מצלמה', hint: 'בקרוב', imageOnly: false },
                 ] as const
               ).map((opt, i) => (
                 <Pressable
                   key={opt.kind}
                   onPress={() => {
-                    pickMock(opt.kind);
-                    setPickSourceOpen(false);
+                    if (opt.kind === 'camera') {
+                      setPickSourceOpen(false);
+                      Alert.alert('בקרוב', 'צילום ממצלמה יתווסף בגרסה הבאה');
+                      return;
+                    }
+                    handlePickFile(opt.imageOnly);
                   }}
                   style={({ pressed }) => [
                     styles.pickSheetRow,
@@ -542,5 +569,23 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.outlineLight,
     alignItems: 'flex-end',
     gap: 4,
+  },
+  uploadingRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+  },
+  uploadedRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
   },
 });
