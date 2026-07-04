@@ -247,6 +247,7 @@ export function PaymentCreateForm({
   const [reminders, setReminders] = useState<Reminder[]>([{ id: 'default', offsetDays: 1 }]);
   const [docName, setDocName] = useState(() => initialData?.displayName ?? '');
   const [storageKey, setStorageKey] = useState<string | null>(() => initialData?.storageKey ?? null);
+  const [mimeType, setMimeType] = useState<string | null>(() => initialData?.fileType ?? null);
   const [fileKind, setFileKind] = useState<DocumentFileKind>(() => {
     if (initialData?.fileType) return fileKindFromFileType(initialData.fileType);
     return 'other';
@@ -425,6 +426,7 @@ export function PaymentCreateForm({
     const kind = fileKindFromFileType(picked.mimeType);
     setDocName(picked.name);
     setFileKind(kind);
+    setMimeType(picked.mimeType);
     setIsUploading(true);
     try {
       const result = await uploadDocument(picked);
@@ -472,7 +474,7 @@ export function PaymentCreateForm({
           payerType,
           payerContactId,
           notes: notes.trim() || null,
-          ...(storageKey ? { storageKey, sizeLabel, fileType: fileKind } : {}),
+          ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType } : {}),
         });
       } catch (error) {
         setIsSaving(false);
@@ -518,7 +520,7 @@ export function PaymentCreateForm({
         ...(paymentMode === 'shafif_plus'
           ? { shafifPlusDays: parseInt(shafifDays, 10) || 0 }
           : {}),
-        ...(storageKey ? { storageKey, sizeLabel, fileType: fileKind } : {}),
+        ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType } : {}),
       };
 
       // החוזה עדיין לא נשמר בשרת (אין UUID אמיתי) — מתעדים את התשלום בתור מקומי,
@@ -1191,21 +1193,23 @@ export function PaymentCreateForm({
           {/* ─── קובץ משויך ─── */}
           <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>קובץ משויך</AppText>
 
-          <Pressable
-            onPress={() => setPickSourceOpen(true)}
-            style={({ pressed }) => [styles.pickTrigger, pressed && { opacity: 0.85 }]}
-            accessibilityRole="button"
-            accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
-          >
-          <View style={styles.pickTriggerIconWrap}>
-            <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
-            <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
-          </View>
-          <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
-          </Pressable>
+          {!isUploading && (
+            <Pressable
+              onPress={() => setPickSourceOpen(true)}
+              style={({ pressed }) => [styles.pickTrigger, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+              accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
+            >
+            <View style={styles.pickTriggerIconWrap}>
+              <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
+              <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
+            </View>
+            <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
+            </Pressable>
+          )}
 
           {isUploading && (
             <View style={styles.uploadingRow}>
