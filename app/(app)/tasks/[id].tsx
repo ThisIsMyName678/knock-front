@@ -53,6 +53,9 @@ import { RTL_ROW } from '@/constants/rtl';
 import { Input } from '@/components/ui/Input';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { FilePickerModal } from '@/components/modules/files/FilePickerModal';
+import { uploadDocument, type PickedFile } from '@/lib/storage';
+import { type DocumentFileKind } from '@/lib/mocks/documents';
 
 const STATUS_OPTIONS: WorkflowStatus[] = ['not_started', 'open', 'in_progress', 'completed', 'cancelled'];
 
@@ -122,6 +125,12 @@ export default function TaskDetailRoute() {
   const [editStatus, setEditStatus] = useState<WorkflowStatus>('open');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [editStorageKey, setEditStorageKey] = useState<string | null>(null);
+  const [editMimeType, setEditMimeType] = useState<string | null>(null);
+  const [editFileKind, setEditFileKind] = useState<DocumentFileKind>('other');
+  const [editSizeLabel, setEditSizeLabel] = useState<string>('');
+  const [editIsUploading, setEditIsUploading] = useState(false);
+  const [editPickSourceOpen, setEditPickSourceOpen] = useState(false);
 
   const confirmDelete = () => {
     setDeleteConfirmOpen(false);
@@ -140,7 +149,28 @@ export default function TaskDetailRoute() {
     setEditCostNotes(localCostNotes);
     setEditTimeNotes(localTimeNotes);
     setEditStatus(workflowStatus ?? 'open');
+    setEditStorageKey(task?.storageKey ?? null);
+    setEditMimeType(task?.fileType ?? null);
+    setEditFileKind(task?.fileType ? fileKindFromFileType(task.fileType) : 'other');
+    setEditSizeLabel(task?.sizeLabel ?? '');
     setEditOpen(true);
+  };
+
+  const handleEditFilePicked = async (picked: PickedFile) => {
+    const kind = fileKindFromFileType(picked.mimeType);
+    setEditFileKind(kind);
+    setEditMimeType(picked.mimeType);
+    setEditIsUploading(true);
+    try {
+      const result = await uploadDocument(picked);
+      setEditStorageKey(result.storageKey);
+      setEditSizeLabel(result.sizeLabel);
+    } catch (err) {
+      console.error('[Upload FAILED]', err);
+      Alert.alert('שגיאה בהעלאה', String(err));
+    } finally {
+      setEditIsUploading(false);
+    }
   };
 
   const saveEdit = async () => {
@@ -161,6 +191,9 @@ export default function TaskDetailRoute() {
         dueDate: editDueDate.trim() ? (ddMmYyyyToIso(editDueDate) ?? undefined) : undefined,
         cost: editCostNotes.trim() || null,
         handlingTime: editTimeNotes.trim() ? parseInt(editTimeNotes.trim(), 10) : null,
+        storageKey: editStorageKey || null,
+        sizeLabel: editSizeLabel || null,
+        fileType: editMimeType || null,
       });
       setLocalTitle(newTitle);
       setLocalAssignee(editAssignee.trim() || localAssignee);
@@ -171,6 +204,14 @@ export default function TaskDetailRoute() {
       setWorkflowStatus(editStatus);
       setLocalCostNotes(editCostNotes.trim());
       setLocalTimeNotes(editTimeNotes.trim());
+      if (task) {
+        setTask({
+          ...task,
+          storageKey: editStorageKey || null,
+          sizeLabel: editSizeLabel || null,
+          fileType: editMimeType || null,
+        });
+      }
       setEditOpen(false);
     } catch (err) {
       setEditError(err instanceof Error ? err.message : 'שגיאה בשמירת המשימה');
@@ -650,8 +691,8 @@ export default function TaskDetailRoute() {
                   <AppText variant="headingSm" weight="bold" style={{ flex: 1, textAlign: 'right' }}>
                     עריכת משימה
                   </AppText>
-                  <Pressable onPress={editSaving ? undefined : saveEdit} style={[styles.saveBtn, editSaving && { opacity: 0.6 }]} accessibilityRole="button">
-                    <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>{editSaving ? 'שומר...' : 'שמור'}</AppText>
+                  <Pressable onPress={editSaving || editIsUploading ? undefined : saveEdit} style={[styles.saveBtn, (editSaving || editIsUploading) && { opacity: 0.6 }]} accessibilityRole="button">
+                    <AppText variant="labelMd" weight="bold" style={{ color: Colors.onPrimary }}>{editSaving || editIsUploading ? 'שומר...' : 'שמור'}</AppText>
                   </Pressable>
                 </View>
 
@@ -767,6 +808,45 @@ export default function TaskDetailRoute() {
                     </View>
                   </View>
 
+                  {/* ─── צרף קובץ ─── */}
+                  <View style={styles.editSection}>
+                    <AppText variant="labelMd" weight="semiBold" style={styles.editSectionTitle}>
+                      קובץ משויך
+                    </AppText>
+
+                    {!editIsUploading && (
+                      <Pressable
+                        onPress={() => setEditPickSourceOpen(true)}
+                        style={({ pressed }) => [styles.pickTrigger, pressed && { opacity: 0.85 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
+                      >
+                        <View style={styles.pickTriggerIconWrap}>
+                          <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
+                          <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
+                      </Pressable>
+                    )}
+
+                    {editIsUploading && (
+                      <View style={styles.uploadingRow}>
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                        <AppText variant="bodySm" color="muted">מעלה קובץ...</AppText>
+                      </View>
+                    )}
+
+                    {editStorageKey && !editIsUploading && (
+                      <View style={styles.uploadedRow}>
+                        <MaterialCommunityIcons name="check-circle" size={18} color={Colors.success ?? Colors.primary} />
+                        <AppText variant="bodySm" color="muted">{editSizeLabel} — הועלה בהצלחה</AppText>
+                      </View>
+                    )}
+                  </View>
+
                 </ScrollView>
               </Pressable>
             </Pressable>
@@ -782,6 +862,12 @@ export default function TaskDetailRoute() {
           }}
           onClose={() => setEditDatePickerTarget(null)}
           title={editDatePickerTarget === 'start' ? 'תאריך התחלה' : 'תאריך יעד'}
+        />
+
+        <FilePickerModal
+          visible={editPickSourceOpen}
+          onPicked={handleEditFilePicked}
+          onCancel={() => setEditPickSourceOpen(false)}
         />
 
         <Modal
@@ -1038,6 +1124,43 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.md,
     backgroundColor: Colors.surfaceVariant,
+  },
+  pickTrigger: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+  },
+  pickTriggerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadingRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+  },
+  uploadedRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
   },
   deleteBackdrop: {
     flex: 1,
