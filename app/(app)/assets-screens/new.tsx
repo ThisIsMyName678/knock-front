@@ -106,6 +106,7 @@ type FileEntry = {
   source: FileSource;
   storageKey?: string;
   mimeType?: string;
+  sizeLabel?: string;
 };
 
 type Step2Data = {
@@ -259,6 +260,7 @@ function fileEntriesFromMetadata(metadata: Record<string, unknown> | null): File
         source,
         storageKey: typeof entry.storageKey === 'string' ? entry.storageKey : undefined,
         mimeType: typeof entry.mimeType === 'string' ? entry.mimeType : undefined,
+        sizeLabel: typeof entry.sizeLabel === 'string' ? entry.sizeLabel : undefined,
       };
     })
     .filter((file): file is FileEntry => file !== null);
@@ -1369,6 +1371,7 @@ function Step2({ data, setData }: { data: Step2Data; setData: React.Dispatch<Rea
             source: kind === 'image' ? 'photos' : fileSourceFromMimeType(picked.mimeType),
             storageKey: result.storageKey,
             mimeType: picked.mimeType,
+            sizeLabel: result.sizeLabel,
           },
         ],
         pendingName: '',
@@ -1996,6 +1999,11 @@ export default function NewAssetScreen() {
     setSaving(true);
 
     try {
+      const primaryStep2File = step2.files.find((file) => file.storageKey);
+      const propertyStorageKey = storageKey ?? primaryStep2File?.storageKey ?? null;
+      const propertyFileType = mimeType ?? primaryStep2File?.mimeType ?? null;
+      const propertySizeLabel = sizeLabel || primaryStep2File?.sizeLabel || '';
+
       const payload: CreatePropertyInput = {
         name: buildPropertyName(step1),
         address: step1.address,
@@ -2009,7 +2017,7 @@ export default function NewAssetScreen() {
         propertyType: assetKindToBackendType(step1.kind),
         occupancyStatus: step1.occupancyStatus,
         projectId: uuidOrNull(step1.linkedProjectId),
-        ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType ?? undefined } : {}),
+        ...(propertyStorageKey ? { storageKey: propertyStorageKey, sizeLabel: propertySizeLabel, fileType: propertyFileType } : {}),
         metadata: {
           floorNumber: step1.floorNumber,
           sizeSqm: step1.sizeSqm,
@@ -2025,7 +2033,7 @@ export default function NewAssetScreen() {
           meters: step1.meters,
           files: step2.files,
           linkedContractId: step3.linkedContractId,
-          ...(storageKey ? { storageKey, sizeLabel, fileType: mimeType ?? undefined } : {}),
+          ...(propertyStorageKey ? { storageKey: propertyStorageKey, sizeLabel: propertySizeLabel, fileType: propertyFileType } : {}),
         },
       };
 

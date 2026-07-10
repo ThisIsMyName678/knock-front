@@ -23,6 +23,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FullScreenImageViewer } from '@/components/ui/FullScreenImageViewer';
+import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
 import {
   Colors,
   Spacing,
@@ -62,18 +64,19 @@ import {
   type DocumentCategoryFilter,
   type DocumentFileKind,
 } from '@/lib/mocks/documents';
-import { listDocuments, documentToListRow } from '@/lib/api/documents';
+import { listDocuments, documentToListRow, fileKindFromFileType } from '@/lib/api/documents';
 import { getProperty, propertyAddressLabel, type BackendProperty } from '@/lib/api/properties';
 import { getProject, type BackendProject } from '@/lib/api/projects';
 import { fetchContracts, type ContractListItem } from '@/lib/api/contracts';
 import { listPropertyContacts, listProjectContacts, type ContactListItem } from '@/lib/api/contacts';
 import { listPropertyFeed, listProjectFeed, feedEventToItem, type FeedItem, type FeedKind } from '@/lib/api/feed';
+import { getDownloadUrl } from '@/lib/storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type DetailMode = 'asset' | 'project';
 
-type TabKey = 'feed' | 'main' | 'tasks' | 'documents' | 'payments' | 'contacts';
+type TabKey = 'image' | 'feed' | 'main' | 'tasks' | 'documents' | 'payments' | 'contacts';
 
 // TaskItem is no longer used — TasksTab uses TaskListRow from lib/mocks/tasks
 
@@ -202,6 +205,7 @@ async function openUrl(url: string) {
 // ─── Tab Bar ──────────────────────────────────────────────────────────────────
 
 const TABS: { key: TabKey; label: string }[] = [
+  { key: 'image', label: 'תמונה' },
   { key: 'feed', label: 'פיד' },
   { key: 'main', label: 'נכסים/חוזה' },
   { key: 'tasks', label: 'משימות' },
@@ -498,6 +502,49 @@ const fabStyle = StyleSheet.create({
     ...Shadow.lg,
   },
 });
+
+// ─── Tab: Property Image ──────────────────────────────────────────────────────
+
+function PropertyImageTab({
+  property,
+  downloadUrl,
+  onOpenFullScreen,
+}: {
+  property: BackendProperty | null;
+  downloadUrl: string | null;
+  onOpenFullScreen: () => void;
+}) {
+  if (!property?.storageKey) {
+    return (
+      <View style={listStyles.content}>
+        <EmptyState
+          title="אין תמונת נכס"
+          description="לא צורפה תמונה לנכס הזה."
+          icon={<MaterialCommunityIcons name="image-outline" size={28} color={Colors.primary} />}
+        />
+      </View>
+    );
+  }
+
+  const fileKind = property.fileType ? fileKindFromFileType(property.fileType) : 'other';
+
+  return (
+    <View style={listStyles.content}>
+      <View style={listStyles.imagePreviewSection}>
+        <AppText variant="labelMd" weight="semiBold" color="muted" style={listStyles.previewLabel}>
+          תמונת נכס
+        </AppText>
+        <DocumentPreview
+          fileKind={fileKind}
+          displayName={property.name}
+          sizeLabel={property.sizeLabel ?? ''}
+          downloadUrl={downloadUrl}
+          onOpenFullScreen={fileKind === 'image' ? onOpenFullScreen : undefined}
+        />
+      </View>
+    </View>
+  );
+}
 
 // ─── Tab: Feed ────────────────────────────────────────────────────────────────
 
@@ -1516,6 +1563,10 @@ const listStyles = StyleSheet.create({
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   contactActions: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm },
   contactBtn: { flex: 1, flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.outlineVariant, backgroundColor: Colors.surfaceVariant },
+
+  // Property image
+  imagePreviewSection: { gap: Spacing.sm },
+  previewLabel: { textAlign: 'right' },
 });
 
 // ─── Main DetailTabsScreen ─────────────────────────────────────────────────────
@@ -1537,6 +1588,8 @@ export function DetailTabsScreen({
   const [activeTab, setActiveTab] = useState<TabKey>('feed');
   const [property, setProperty] = useState<BackendProperty | null>(null);
   const [project, setProject] = useState<BackendProject | null>(null);
+  const [propertyDownloadUrl, setPropertyDownloadUrl] = useState<string | null>(null);
+  const [fullScreenImageOpen, setFullScreenImageOpen] = useState(false);
 
   useEffect(() => {
     if (mode !== 'asset' || !id) return;
@@ -1556,16 +1609,45 @@ export function DetailTabsScreen({
     return () => { cancelled = true; };
   }, [mode, id]);
 
+  useEffect(() => {
+    if (mode !== 'asset' || !property?.storageKey) {
+      setPropertyDownloadUrl(null);
+      return;
+    }
+    let active = true;
+    setPropertyDownloadUrl(null);
+    getDownloadUrl(property.id, 'properties')
+      .then((url) => { if (active) setPropertyDownloadUrl(url); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [mode, property?.id, property?.storageKey]);
+
+  const showImageTab = mode === 'asset' && Boolean(property?.storageKey);
+
+  useEffect(() => {
+    if (!showImageTab && activeTab === 'image') {
+      setActiveTab('feed');
+    }
+  }, [showImageTab, activeTab]);
+
   const mainTabLabel = mode === 'project' ? 'נכסים' : 'חוזה';
   const headerTitle = (mode === 'project' ? project?.name : property?.name) ?? name ?? '';
   const headerAddress = property ? propertyAddressLabel(property) : (address ?? '');
 
-  const tabsWithLabels = TABS.map((t) =>
-    t.key === 'main' ? { ...t, label: mainTabLabel } : t,
-  );
+  const tabsWithLabels = TABS
+    .filter((t) => t.key !== 'image' || showImageTab)
+    .map((t) => (t.key === 'main' ? { ...t, label: mainTabLabel } : t));
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'image':
+        return (
+          <PropertyImageTab
+            property={property}
+            downloadUrl={propertyDownloadUrl}
+            onOpenFullScreen={() => setFullScreenImageOpen(true)}
+          />
+        );
       case 'feed':
         return <FeedTab entityId={id} mode={mode} />;
       case 'main':
@@ -1623,6 +1705,14 @@ export function DetailTabsScreen({
       >
         {renderContent()}
       </ScrollView>
+
+      {propertyDownloadUrl && (
+        <FullScreenImageViewer
+          imageUrl={propertyDownloadUrl}
+          visible={fullScreenImageOpen}
+          onClose={() => setFullScreenImageOpen(false)}
+        />
+      )}
     </View>
   );
 }
