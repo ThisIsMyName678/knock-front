@@ -65,6 +65,9 @@ export type BackendTaskDetail = BackendTaskListItem & {
     changedAt: string;
     changedBy: { id: string; displayName: string | null };
   }>;
+  storageKey?: string | null;
+  fileType?: string | null;
+  sizeLabel?: string | null;
 };
 
 export type BackendTaskListResponse = {
@@ -98,6 +101,9 @@ export type CreateTaskInput = {
   handlingTime?: number | null;
   startDate?: string | null;  // ISO YYYY-MM-DD
   dueDate: string;            // ISO YYYY-MM-DD
+  storageKey?: string | null;
+  fileType?: string | null;
+  sizeLabel?: string | null;
 };
 
 export type UpdateTaskInput = Partial<CreateTaskInput>;
@@ -281,5 +287,8 @@ export function backendTaskDetailToRow(task: BackendTaskDetail): TaskListRow {
     timeNotes: task.handlingTime != null ? String(task.handlingTime) : undefined,
     linkedPaymentId: task.paymentId ?? undefined,
     messages,
+    storageKey: (task as any).storageKey ?? undefined,
+    fileType: (task as any).fileType ?? undefined,
+    sizeLabel: (task as any).sizeLabel ?? undefined,
   };
 }

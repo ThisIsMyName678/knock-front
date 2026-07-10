@@ -21,6 +21,10 @@ import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
+import { FullScreenImageViewer } from '@/components/ui/FullScreenImageViewer';
+import { fileKindFromFileType } from '@/lib/api/documents';
+import { getDownloadUrl } from '@/lib/storage';
 import {
   TASK_KIND_LABELS,
   TASK_KIND_ICONS,
@@ -89,6 +93,8 @@ export default function TaskDetailRoute() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [fullScreenImageOpen, setFullScreenImageOpen] = useState(false);
 
   // Local display state (reflects saves from edit modal)
   const [localTitle, setLocalTitle] = useState('');
@@ -152,7 +158,7 @@ export default function TaskDetailRoute() {
         urgency: clientPriorityToBackendUrgency(editPriority),
         status: clientStatusToBackend(editStatus) ?? undefined,
         startDate: editStartDate.trim() ? ddMmYyyyToIso(editStartDate) : undefined,
-        dueDate: ddMmYyyyToIso(editDueDate),
+        dueDate: editDueDate.trim() ? (ddMmYyyyToIso(editDueDate) ?? undefined) : undefined,
         cost: editCostNotes.trim() || null,
         handlingTime: editTimeNotes.trim() ? parseInt(editTimeNotes.trim(), 10) : null,
       });
@@ -207,6 +213,18 @@ export default function TaskDetailRoute() {
       });
     return () => { active = false; };
   }, [id]);
+
+  useEffect(() => {
+    if (!task) return;
+    let active = true;
+    setDownloadUrl(null);
+    if (task.storageKey) {
+      getDownloadUrl(task.id, 'tasks')
+        .then((url) => { if (active) setDownloadUrl(url); })
+        .catch(() => {});
+    }
+    return () => { active = false; };
+  }, [task?.id, task?.storageKey]);
 
   const effectiveStatus = workflowStatus ?? task?.workflowStatus ?? 'open';
   const effectiveTaskKind = localTaskKind;
@@ -381,6 +399,25 @@ export default function TaskDetailRoute() {
               </>
             )}
           </Card>
+
+          {task.storageKey && (
+            <View style={styles.previewSection}>
+              <AppText variant="labelMd" weight="semiBold" color="muted" style={styles.previewLabel}>
+                תצוגה מקדימה
+              </AppText>
+              <DocumentPreview
+                fileKind={task.fileType ? fileKindFromFileType(task.fileType) : 'other'}
+                displayName={task.title}
+                sizeLabel={task.sizeLabel ?? ''}
+                downloadUrl={downloadUrl}
+                onOpenFullScreen={
+                  task.fileType && fileKindFromFileType(task.fileType) === 'image'
+                    ? () => setFullScreenImageOpen(true)
+                    : undefined
+                }
+              />
+            </View>
+          )}
 
           <Card>
             <AppText variant="labelMd" weight="semiBold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>
@@ -774,6 +811,14 @@ export default function TaskDetailRoute() {
             </View>
           </View>
         </Modal>
+
+        {downloadUrl && (
+          <FullScreenImageViewer
+            imageUrl={downloadUrl}
+            visible={fullScreenImageOpen}
+            onClose={() => setFullScreenImageOpen(false)}
+          />
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -809,6 +854,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
+  previewSection: { gap: Spacing.sm },
+  previewLabel: { textAlign: 'right' },
   maintenanceBanner: {
     flexDirection: RTL_ROW,
     alignItems: 'center',
