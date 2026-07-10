@@ -29,6 +29,9 @@ export type BackendProperty = {
   propertyType: BackendPropertyType;
   occupancyStatus: BackendOccupancyStatus | null;
   metadata: Record<string, unknown> | null;
+  storageKey: string | null;
+  fileType: string | null;
+  sizeLabel: string | null;
   status: 'ACTIVE' | 'ARCHIVED';
   createdAt: string;
   updatedAt: string;
@@ -42,6 +45,9 @@ export type CreatePropertyInput = {
   occupancyStatus?: BackendOccupancyStatus;
   projectId?: string | null;
   metadata?: Record<string, unknown>;
+  storageKey?: string | null;
+  fileType?: string | null;
+  sizeLabel?: string | null;
 };
 
 export type ListPropertiesParams = {

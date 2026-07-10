@@ -85,7 +85,7 @@ export async function uploadDocument(file: PickedFile): Promise<{
   };
 }
 
-export async function getDownloadUrl(documentId: string, module: 'documents' | 'payments' = 'documents'): Promise<string> {
+export async function getDownloadUrl(documentId: string, module: 'documents' | 'payments' | 'properties' | 'tasks' = 'documents'): Promise<string> {
   const { signedUrl } = await backendRequest<{ signedUrl: string }>(
     `/${module}/${documentId}/download-url`,
   );
