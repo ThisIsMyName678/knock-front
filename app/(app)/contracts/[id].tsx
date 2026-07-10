@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { AppText } from '@/components/ui/Text';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { FullScreenImageViewer } from '@/components/ui/FullScreenImageViewer';
 import {
   CONTRACT_TYPE_LABELS,
   CONTRACT_STATUS_LABELS,
@@ -15,13 +16,16 @@ import {
   METER_KIND_ICONS,
 } from '@/lib/constants/contracts';
 import { fetchContractById, archiveContract } from '@/lib/api/contracts';
-import type { ContractDetail, ContractPayment, ContractMeter, ContractFile, MeterKind } from '@/lib/api/contracts';
+import type { ContractDetail, ContractPayment, ContractMeter, MeterKind } from '@/lib/api/contracts';
 import { fetchPayments, createPayment, deletePayment } from '@/lib/api/contract-payments';
 import { fetchMeters, createMeter, updateMeter, deleteMeter } from '@/lib/api/contract-meters';
 import { Input } from '@/components/ui/Input';
 import { Colors, Spacing, Radius, Shadow, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH, FontSize, FontFamily } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
+import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
+import { fileKindFromFileType } from '@/lib/api/documents';
+import { getDownloadUrl } from '@/lib/storage';
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 
@@ -221,54 +225,6 @@ function MetersSection({
   );
 }
 
-// ─── Files Section ────────────────────────────────────────────────────────────
-
-function FilesSection({ files }: { files: ContractFile[] }) {
-  if (files.length === 0) {
-    return (
-      <View style={sec.wrap}>
-        <SectionHeader title="קבצים ותמונות" count={0} />
-        <AppText variant="bodySm" color="muted">לא הועלו קבצים לחוזה זה</AppText>
-      </View>
-    );
-  }
-
-  return (
-    <View style={sec.wrap}>
-      <SectionHeader title="קבצים ותמונות" count={files.length} />
-      <View style={sec.filesGrid}>
-        {files.map((f) => (
-          <Pressable
-            key={f.id}
-            onPress={() => Alert.alert('בקרוב', `פתיחת ${f.displayName}`)}
-            style={({ pressed }) => [sec.fileCard, pressed && { opacity: 0.8 }]}
-            accessibilityRole="button"
-            accessibilityLabel={`פתח ${f.displayName}`}
-          >
-            {f.fileType === 'image' ? (
-              <View style={[sec.fileThumb, sec.fileImgThumb]}>
-                <MaterialCommunityIcons name="image-outline" size={36} color={Colors.primary} />
-              </View>
-            ) : (
-              <View style={[sec.fileThumb, sec.filePdfThumb]}>
-                <MaterialCommunityIcons name="file-pdf-box" size={36} color={Colors.error} />
-              </View>
-            )}
-            <View style={sec.fileInfo}>
-              <AppText variant="caption" weight="semiBold" numberOfLines={2} style={{ textAlign: 'right' }}>
-                {f.displayName}
-              </AppText>
-              <AppText variant="caption" color="muted" numberOfLines={1} style={{ textAlign: 'right' }}>
-                {f.category}
-              </AppText>
-            </View>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 // ─── Shared section styles ────────────────────────────────────────────────────
 
 const sec = StyleSheet.create({
@@ -374,6 +330,8 @@ export default function ContractDetailScreen() {
   const [detail, setDetail] = useState<ContractDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [fullScreenImageOpen, setFullScreenImageOpen] = useState(false);
 
   const [payments, setPayments] = useState<ContractPayment[]>([]);
   const [meters, setMeters] = useState<ContractMeter[]>([]);
@@ -410,6 +368,18 @@ export default function ContractDetailScreen() {
   useEffect(() => {
     if (detail) setMeters(detail.meters);
   }, [detail]);
+
+  useEffect(() => {
+    if (!detail?.storageKey || !id) {
+      setDownloadUrl(null);
+      return;
+    }
+    let active = true;
+    getDownloadUrl(id, 'contracts')
+      .then((url) => { if (active) setDownloadUrl(url); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [detail?.id, detail?.storageKey, id]);
 
   const refreshPayments = useCallback(async () => {
     if (!id) return;
@@ -555,6 +525,17 @@ export default function ContractDetailScreen() {
     if (detail) router.push(`/(app)/contracts/edit/${detail.id}`);
   }, [detail]);
 
+  const onOpenPdf = useCallback(() => {
+    if (downloadUrl) {
+      Linking.openURL(downloadUrl).catch(() => {});
+      return;
+    }
+    if (!detail?.id) return;
+    getDownloadUrl(detail.id, 'contracts')
+      .then((url) => Linking.openURL(url))
+      .catch(() => {});
+  }, [detail?.id, downloadUrl]);
+
   const onDelete = useCallback(() => {
     Alert.alert(
       'ארכוב חוזה',
@@ -687,8 +668,34 @@ export default function ContractDetailScreen() {
         {/* ─── Meters ─── */}
         <MetersSection meters={meters} onAdd={openAddMeter} onEdit={openEditMeter} onDelete={handleDeleteMeter} />
 
-        {/* ─── Files / Images ─── */}
-        <FilesSection files={detail.files} />
+        {/* ─── Contract File ─── */}
+        {detail.storageKey && (
+          <View style={sec.wrap}>
+            <SectionHeader title="קובץ חוזה" />
+            <DocumentPreview
+              fileKind={detail.fileType ? fileKindFromFileType(detail.fileType) : 'other'}
+              displayName={detail.contractName}
+              sizeLabel={detail.sizeLabel ?? ''}
+              downloadUrl={downloadUrl}
+              onOpenFullScreen={
+                detail.fileType && fileKindFromFileType(detail.fileType) === 'image'
+                  ? () => setFullScreenImageOpen(true)
+                  : detail.fileType && fileKindFromFileType(detail.fileType) === 'pdf'
+                    ? onOpenPdf
+                    : undefined
+              }
+              onDownload={
+                detail.fileType && fileKindFromFileType(detail.fileType) === 'other'
+                  ? onOpenPdf
+                  : undefined
+              }
+            />
+          </View>
+        )}
+
+        {downloadUrl && (
+          <FullScreenImageViewer imageUrl={downloadUrl} visible={fullScreenImageOpen} onClose={() => setFullScreenImageOpen(false)} />
+        )}
 
         <Button
           label="צפה בחוזה המלא"

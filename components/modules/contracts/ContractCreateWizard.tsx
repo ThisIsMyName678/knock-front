@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
-  Modal,
   Switch,
   Alert,
   KeyboardAvoidingView,
@@ -29,6 +28,7 @@ import { searchEntityLinks, type EntityLinkOption } from '@/lib/api/entity-links
 import { MOCK_PAYMENTS_LIST, PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import { createContract, updateContract } from '@/lib/api/contracts';
 import type { ContractType, ContractAccessLevel, ContractDetail, CreateContractInput } from '@/lib/api/contracts';
+import { uploadDocument, pickFile } from '@/lib/storage';
 import { createPayment } from '@/lib/api/payments';
 import {
   getDraftContractPayments,
@@ -70,25 +70,14 @@ type MeterRow = {
   photoUri: string | null;
 };
 
-const FILE_CATEGORIES = [
-  'צילום חוזה',
-  'צילום מסמכים',
-  'צילום תעודת זהות',
-  'תיעוד הנכס',
-  'תוכניות והדמיות',
-  'אחר',
-] as const;
-
-type FileCategory = (typeof FILE_CATEGORIES)[number];
-
 const ACCESS_LEVEL_ORDER: ContractAccessLevel[] = ['OWNER_ONLY', 'TENANT_ONLY', 'EMPLOYEE_ONLY', 'PUBLIC'];
 
-type FileDraft = {
+type FileUploadState = {
   id: string;
-  category: FileCategory;
   displayName: string;
-  mockSource: string;
-  visibility: ContractAccessLevel;
+  fileType: string;
+  storageKey: string;
+  sizeLabel: string;
 };
 
 function pad2(n: number) {
@@ -189,11 +178,9 @@ export function ContractCreateWizard({
   const [meters, setMeters] = useState<MeterRow[]>([]);
 
   // Step 3
-  const [fileCategory, setFileCategory] = useState<FileCategory>('צילום חוזה');
-  const [fileName, setFileName] = useState('');
-  const [defaultFileVisibility, setDefaultFileVisibility] = useState<ContractAccessLevel>('OWNER_ONLY');
-  const [files, setFiles] = useState<FileDraft[]>([]);
-  const [categoryModal, setCategoryModal] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<FileUploadState | null>(null);
+  const [isPickingFile, setIsPickingFile] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
 
   const [entitySuggestions, setEntitySuggestions] = useState<EntityLinkOption[]>([]);
 
@@ -264,34 +251,40 @@ export function ContractCreateWizard({
     ]);
   }, [setMeterPhotoUri]);
 
-  const mockPickFile = (source: string) => {
-    Alert.alert('בחירת קובץ (תצוגה)', `במימוש אמיתי ייפתח ${source}. לעת עתה נוסף קובץ לדוגמה.`, [
-      {
-        text: 'הוסף לרשימה',
-        onPress: () => {
-          const name = fileName.trim() || `קובץ_${files.length + 1}`;
-          setFiles((prev) => [
-            ...prev,
-            {
-              id: randomId(),
-              category: fileCategory,
-              displayName: name,
-              mockSource: source,
-              visibility: defaultFileVisibility,
-            },
-          ]);
-          setFileName('');
-        },
-      },
-      { text: 'ביטול', style: 'cancel' },
-    ]);
+  const handlePickFile = async (source: 'files' | 'photos' | 'camera') => {
+    try {
+      setIsPickingFile(true);
+
+      const pickedFile = await pickFile(source === 'photos');
+      if (!pickedFile) return;
+
+      setIsUploadingFile(true);
+      const { storageKey, sizeLabel } = await uploadDocument(pickedFile);
+
+      setUploadedFile({
+        id: randomId(),
+        displayName: pickedFile.name,
+        fileType: pickedFile.mimeType,
+        storageKey,
+        sizeLabel,
+      });
+    } catch (err) {
+      console.error('[File upload error]', err);
+      Alert.alert('שגיאה בהעלאה', String(err));
+    } finally {
+      setIsPickingFile(false);
+      setIsUploadingFile(false);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedFile(null);
   };
 
   const goNext = async () => {
     if (step === 0) {
       setStep1Submitted(true);
       if (!step1Valid) return;
-      setDefaultFileVisibility(contractAccess);
     }
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1);
@@ -317,6 +310,9 @@ export function ContractCreateWizard({
       endDate: ddMmYyyyToIso(expiryDate) || null,
       accessLevel: contractAccess,
       notes: null,
+      storageKey: uploadedFile?.storageKey || null,
+      fileType: uploadedFile?.fileType || null,
+      sizeLabel: uploadedFile?.sizeLabel || null,
     };
 
     setSubmitting(true);
@@ -777,66 +773,38 @@ export function ContractCreateWizard({
           {step === 3 && (
             <View style={styles.card}>
               <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md }}>
-                העלאת קבצים
+                העלאת קובץ לחוזה (לא חובה)
               </AppText>
-
-              <AppText variant="labelMd" weight="semiBold" style={styles.blockLabel}>
-                הרשאות גישה לקבצים חדשים
-              </AppText>
-              <AppText variant="caption" color="variant" style={{ textAlign: 'right', marginBottom: Spacing.sm }}>
-                ברירת מחדל מסונכנת להרשאות החוזה; ניתן לשנות לפני כל העלאה.
-              </AppText>
-              <View style={styles.visGrid}>
-                {ACCESS_LEVEL_ORDER.map((k) => (
-                  <Pressable
-                    key={k}
-                    onPress={() => setDefaultFileVisibility(k)}
-                    style={[styles.visChip, defaultFileVisibility === k && styles.visChipActive]}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: defaultFileVisibility === k }}
-                  >
-                    <AppText
-                      variant="caption"
-                      weight={defaultFileVisibility === k ? 'bold' : 'regular'}
-                      style={{ color: defaultFileVisibility === k ? Colors.onPrimary : Colors.onSurfaceVariant }}
-                      numberOfLines={4}
-                      align="center"
-                    >
-                      {CONTRACT_ACCESS_LABELS[k]}
-                    </AppText>
-                  </Pressable>
-                ))}
-              </View>
 
               <AppText variant="labelMd" weight="semiBold" style={[styles.blockLabel, { marginTop: Spacing.base }]}>
-                קטגוריה
-              </AppText>
-              <Pressable onPress={() => setCategoryModal(true)} style={styles.dropdownFake}>
-                <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.onSurfaceVariant} />
-                <AppText variant="bodyMd" style={{ flex: 1, textAlign: 'right' }}>
-                  {fileCategory}
-                </AppText>
-              </Pressable>
-
-              <Input label="שם הקובץ" value={fileName} onChangeText={setFileName} placeholder="שם לתצוגה" containerStyle={{ marginTop: Spacing.md }} />
-
-              <AppText variant="labelMd" weight="semiBold" style={[styles.blockLabel, { marginTop: Spacing.base }]}>
-                מקור
+                בחר מקור
               </AppText>
               <View style={styles.fileSourceRow}>
-                <Pressable style={styles.fileSourceBtn} onPress={() => mockPickFile('קבצים')}>
+                <Pressable
+                  style={[styles.fileSourceBtn, (isPickingFile || isUploadingFile) && styles.fileSourceBtnDisabled]}
+                  onPress={() => handlePickFile('files')}
+                  disabled={isPickingFile || isUploadingFile || !!uploadedFile}
+                >
                   <MaterialCommunityIcons name="folder-outline" size={22} color={Colors.primary} />
                   <AppText variant="caption" align="center">
                     קבצים
                   </AppText>
                 </Pressable>
-                <Pressable style={styles.fileSourceBtn} onPress={() => mockPickFile('תמונות')}>
+                <Pressable
+                  style={[styles.fileSourceBtn, (isPickingFile || isUploadingFile) && styles.fileSourceBtnDisabled]}
+                  onPress={() => handlePickFile('photos')}
+                  disabled={isPickingFile || isUploadingFile || !!uploadedFile}
+                >
                   <MaterialCommunityIcons name="image-outline" size={22} color={Colors.primary} />
                   <AppText variant="caption" align="center">
                     תמונות
                   </AppText>
                 </Pressable>
-                <Pressable style={styles.fileSourceBtn} onPress={() => mockPickFile('מצלמה')}>
+                <Pressable
+                  style={[styles.fileSourceBtn, (isPickingFile || isUploadingFile) && styles.fileSourceBtnDisabled]}
+                  onPress={() => handlePickFile('camera')}
+                  disabled={isPickingFile || isUploadingFile || !!uploadedFile}
+                >
                   <MaterialCommunityIcons name="camera-outline" size={22} color={Colors.primary} />
                   <AppText variant="caption" align="center">
                     מצלמה
@@ -844,24 +812,19 @@ export function ContractCreateWizard({
                 </Pressable>
               </View>
 
-              {files.length > 0 && (
-                <View style={{ marginTop: Spacing.lg }}>
-                  <AppText variant="labelMd" weight="bold" style={{ marginBottom: Spacing.sm }}>
-                    קבצים ברשימה
-                  </AppText>
-                  {files.map((f) => (
-                    <View key={f.id} style={styles.fileRow}>
-                      <View style={{ flex: 1, gap: 4 }}>
-                        <AppText variant="bodySm" weight="semiBold">
-                          {f.displayName}
-                        </AppText>
-                        <AppText variant="caption" color="variant">
-                          {f.category} · {f.mockSource}
-                        </AppText>
-                      </View>
-                      <Badge label={CONTRACT_ACCESS_LABELS[f.visibility]} preset="neutral" />
-                    </View>
-                  ))}
+              {uploadedFile && (
+                <View style={{ marginTop: Spacing.lg, flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md, backgroundColor: Colors.surfaceVariant }}>
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="bodySm" weight="semiBold">
+                      {uploadedFile.displayName}
+                    </AppText>
+                    <AppText variant="caption" color="variant">
+                      {uploadedFile.sizeLabel}
+                    </AppText>
+                  </View>
+                  <Pressable onPress={() => handleRemoveFile()} hitSlop={8}>
+                    <MaterialCommunityIcons name="close-circle-outline" size={20} color={Colors.error} />
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -872,34 +835,12 @@ export function ContractCreateWizard({
           <Button
             label={step === STEPS.length - 1 ? (contractId ? 'שמור שינויים' : 'סיום') : 'הבא'}
             onPress={goNext}
-            disabled={submitting}
+            disabled={submitting || isPickingFile || isUploadingFile}
             fullWidth
             size="lg"
           />
         </View>
       </View>
-
-      <Modal visible={categoryModal} transparent animationType="slide" onRequestClose={() => setCategoryModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setCategoryModal(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <AppText variant="headingSm" weight="bold" style={{ marginBottom: Spacing.md, textAlign: 'right' }}>
-              בחירת קטגוריה
-            </AppText>
-            {FILE_CATEGORIES.map((c) => (
-              <Pressable
-                key={c}
-                onPress={() => {
-                  setFileCategory(c);
-                  setCategoryModal(false);
-                }}
-                style={styles.sheetRow}
-              >
-                <AppText variant="bodyMd">{c}</AppText>
-              </Pressable>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       <DatePickerModal
         visible={datePickerTarget !== null}
@@ -1162,6 +1103,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
     backgroundColor: Colors.surfaceVariant,
+  },
+  fileSourceBtnDisabled: {
+    opacity: 0.5,
   },
   fileRow: {
     flexDirection: RTL_ROW,
