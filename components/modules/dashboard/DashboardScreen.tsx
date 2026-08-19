@@ -57,6 +57,7 @@ const EVENT_KIND_OPTIONS: { key: EventKind; label: string; icon: React.Component
   { key: 'other', label: 'אחר', icon: 'dots-horizontal' },
 ];
 
+// bla bla
 const GOOGLE_CALENDAR_URL = 'https://calendar.google.com/calendar/embed?src=en.israel%23holiday%40group.v.calendar.google.com';
 
 // Hebrew day names for Sunday-first calendar (displayed RTL: right=Sun, left=Sat)
