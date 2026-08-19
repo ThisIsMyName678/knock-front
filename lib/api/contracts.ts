@@ -19,6 +19,9 @@ export type ContractListItem = {
   endDate: string | null;
   status: ContractStatus;
   monthlyAmount: string | null;
+  storageKey?: string | null;
+  fileType?: string | null;
+  sizeLabel?: string | null;
 };
 
 export type ContractPayment = {
@@ -38,15 +41,6 @@ export type ContractMeter = {
   currentValue: string | null;
 };
 
-export type ContractFile = {
-  id: string;
-  category: string;
-  displayName: string;
-  fileType: 'image' | 'pdf';
-  storageKey: string;
-  accessLevel: ContractAccessLevel;
-};
-
 export type ContractDetail = ContractListItem & {
   counterpartyId: string | null;
   counterpartyPhone: string | null;
@@ -57,7 +51,6 @@ export type ContractDetail = ContractListItem & {
   notes: string | null;
   payments: ContractPayment[];
   meters: ContractMeter[];
-  files: ContractFile[];
 };
 
 export type ContractFilters = {
@@ -90,6 +83,9 @@ export type CreateContractInput = {
   endDate?: string | null;
   accessLevel?: ContractAccessLevel;
   notes?: string | null;
+  storageKey?: string | null;
+  fileType?: string | null;
+  sizeLabel?: string | null;
 };
 
 export type UpdateContractInput = Partial<CreateContractInput>;

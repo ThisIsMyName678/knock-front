@@ -21,6 +21,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { FilePickerModal } from '@/components/modules/files/FilePickerModal';
+import { uploadDocument, type PickedFile } from '@/lib/storage';
+import { fileKindFromFileType } from '@/lib/api/documents';
 import {
   Colors,
   Spacing,
@@ -101,13 +104,17 @@ type FileEntry = {
   displayName: string;
   category: DocumentType;
   source: FileSource;
+  storageKey?: string;
+  mimeType?: string;
+  sizeLabel?: string;
 };
 
 type Step2Data = {
   files: FileEntry[];
   pendingName: string;
   pendingCategory: DocumentType;
-  pendingSource: FileSource | null;
+  pickSourceOpen: boolean;
+  isUploading: boolean;
 };
 
 // ─── Step 3: Contract ─────────────────────────────────────────────────────────
@@ -229,6 +236,38 @@ function metadataArray<T extends string>(metadata: Record<string, unknown> | nul
 function metadataRecord<T extends Record<string, boolean>>(metadata: Record<string, unknown> | null, key: string, fallback: T): T {
   const value = metadata?.[key];
   return value && typeof value === 'object' && !Array.isArray(value) ? { ...fallback, ...(value as Partial<T>) } : fallback;
+}
+
+function fileEntriesFromMetadata(metadata: Record<string, unknown> | null): FileEntry[] {
+  const files = metadata?.files;
+  if (!Array.isArray(files)) return [];
+
+  return files
+    .map((file, index): FileEntry | null => {
+      if (!file || typeof file !== 'object' || Array.isArray(file)) return null;
+      const entry = file as Record<string, unknown>;
+      const category = typeof entry.category === 'string' && DOCUMENT_TYPE_ORDER.includes(entry.category as DocumentType)
+        ? entry.category as DocumentType
+        : 'other';
+      const source = entry.source === 'photos' || entry.source === 'camera' ? entry.source : 'files';
+
+      return {
+        id: typeof entry.id === 'string' ? entry.id : `${Date.now()}-${index}`,
+        displayName: typeof entry.displayName === 'string' && entry.displayName.trim()
+          ? entry.displayName
+          : `קובץ ${index + 1}`,
+        category,
+        source,
+        storageKey: typeof entry.storageKey === 'string' ? entry.storageKey : undefined,
+        mimeType: typeof entry.mimeType === 'string' ? entry.mimeType : undefined,
+        sizeLabel: typeof entry.sizeLabel === 'string' ? entry.sizeLabel : undefined,
+      };
+    })
+    .filter((file): file is FileEntry => file !== null);
+}
+
+function fileSourceFromMimeType(mimeType: string): FileSource {
+  return mimeType.startsWith('image/') ? 'photos' : 'files';
 }
 
 function addressSuggestionFromProperty(property: BackendProperty): AddressSuggestion | null {
@@ -918,7 +957,7 @@ const projSearchStyles = StyleSheet.create({
 
 // ─── Step 1 ───────────────────────────────────────────────────────────────────
 
-function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData: React.Dispatch<React.SetStateAction<Step1Data>>; errors?: { kind: string; address: string }; showErrors?: boolean }) {
+function Step1({ data, setData, errors, showErrors, isUploading, pickSourceOpen, storageKey, sizeLabel, setPickSourceOpen }: { data: Step1Data; setData: React.Dispatch<React.SetStateAction<Step1Data>>; errors?: { kind: string; address: string }; showErrors?: boolean; isUploading: boolean; pickSourceOpen: boolean; storageKey: string | null; sizeLabel: string; setPickSourceOpen: (v: boolean) => void }) {
   const update = useCallback(<K extends keyof Step1Data>(key: K, val: Step1Data[K]) => {
     setData((prev) => ({ ...prev, [key]: val }));
   }, [setData]);
@@ -1209,6 +1248,41 @@ function Step1({ data, setData, errors, showErrors }: { data: Step1Data; setData
           </Pressable>
         </View>
       </Expandable>
+
+      {/* ─── קובץ משויך ─── */}
+      <AppText variant="labelMd" weight="semiBold" style={[s1.label, { marginTop: Spacing.lg }]}>קובץ משויך</AppText>
+
+      {!isUploading && (
+        <Pressable
+          onPress={() => setPickSourceOpen(true)}
+          style={({ pressed }) => [s1.pickTrigger, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+          accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
+        >
+          <View style={s1.pickTriggerIconWrap}>
+            <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
+            <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
+          </View>
+          <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
+        </Pressable>
+      )}
+
+      {isUploading && (
+        <View style={s1.uploadingRow}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <AppText variant="bodySm" color="muted">מעלה קובץ...</AppText>
+        </View>
+      )}
+
+      {storageKey && !isUploading && (
+        <View style={s1.uploadedRow}>
+          <MaterialCommunityIcons name="check-circle" size={18} color={Colors.success ?? Colors.primary} />
+          <AppText variant="bodySm" color="muted">{sizeLabel} — הועלה בהצלחה</AppText>
+        </View>
+      )}
     </View>
   );
 }
@@ -1234,15 +1308,46 @@ const s1 = StyleSheet.create({
     paddingVertical: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5,
     borderColor: Colors.primary, borderStyle: 'dashed', backgroundColor: Colors.primaryContainer,
   },
+  pickTrigger: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+  },
+  pickTriggerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadingRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+  },
+  uploadedRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+  },
 });
 
 // ─── Step 2: File Upload ───────────────────────────────────────────────────────
-
-const SOURCE_OPTIONS: { key: FileSource; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
-  { key: 'files', label: 'קבצים', icon: 'folder-outline' },
-  { key: 'photos', label: 'תמונות', icon: 'image-outline' },
-  { key: 'camera', label: 'מצלמה', icon: 'camera-outline' },
-];
 
 function Step2({ data, setData }: { data: Step2Data; setData: React.Dispatch<React.SetStateAction<Step2Data>> }) {
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
@@ -1250,20 +1355,34 @@ function Step2({ data, setData }: { data: Step2Data; setData: React.Dispatch<Rea
   const update = <K extends keyof Step2Data>(key: K, val: Step2Data[K]) =>
     setData((prev) => ({ ...prev, [key]: val }));
 
-  const canAdd = data.pendingSource !== null;
-
-  const commitFile = () => {
-    if (!data.pendingSource) return;
-    const name = data.pendingName.trim() || `קובץ ${data.files.length + 1}`;
-    setData((prev) => ({
-      ...prev,
-      files: [
-        ...prev.files,
-        { id: String(Date.now()), displayName: name, category: prev.pendingCategory, source: prev.pendingSource! },
-      ],
-      pendingName: '',
-      pendingSource: null,
-    }));
+  const handleFilePicked = async (picked: PickedFile) => {
+    const kind = fileKindFromFileType(picked.mimeType);
+    update('isUploading', true);
+    try {
+      const result = await uploadDocument(picked);
+      setData((prev) => ({
+        ...prev,
+        files: [
+          ...prev.files,
+          {
+            id: String(Date.now()),
+            displayName: prev.pendingName.trim() || picked.name,
+            category: prev.pendingCategory,
+            source: kind === 'image' ? 'photos' : fileSourceFromMimeType(picked.mimeType),
+            storageKey: result.storageKey,
+            mimeType: picked.mimeType,
+            sizeLabel: result.sizeLabel,
+          },
+        ],
+        pendingName: '',
+        isUploading: false,
+        pickSourceOpen: false,
+      }));
+    } catch (err) {
+      console.error('[Upload FAILED]', err);
+      Alert.alert('שגיאה בהעלאה', String(err));
+      update('isUploading', false);
+    }
   };
 
   const removeFile = (id: string) => {
@@ -1304,42 +1423,30 @@ function Step2({ data, setData }: { data: Step2Data; setData: React.Dispatch<Rea
           </Pressable>
         </View>
 
-        {/* Source selection */}
-        <View style={{ gap: Spacing.xs }}>
-          <AppText variant="labelMd" weight="semiBold" style={s2.label}>מקור הקובץ</AppText>
-          <View style={s2.sourceRow}>
-            {SOURCE_OPTIONS.map((src) => {
-              const active = data.pendingSource === src.key;
-              return (
-                <Pressable
-                  key={src.key}
-                  onPress={() => update('pendingSource', active ? null : src.key)}
-                  style={({ pressed }) => [s2.sourceBtn, active && s2.sourceBtnActive, pressed && { opacity: 0.8 }]}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: active }}
-                >
-                  <MaterialCommunityIcons name={src.icon} size={24} color={active ? Colors.onPrimary : Colors.primary} />
-                  <AppText variant="caption" align="center" weight="semiBold" style={{ color: active ? Colors.onPrimary : Colors.primary }}>
-                    {src.label}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+        {!data.isUploading && (
+          <Pressable
+            onPress={() => update('pickSourceOpen', true)}
+            style={({ pressed }) => [s2.pickTrigger, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
+          >
+            <View style={s2.pickTriggerIconWrap}>
+              <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
+              <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
+            </View>
+            <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
+          </Pressable>
+        )}
 
-        {/* Add button */}
-        <Pressable
-          onPress={commitFile}
-          disabled={!canAdd}
-          style={({ pressed }) => [s2.addBtn, !canAdd && s2.addBtnDisabled, pressed && canAdd && { opacity: 0.85 }]}
-          accessibilityRole="button"
-        >
-          <MaterialCommunityIcons name="plus-circle-outline" size={20} color={canAdd ? Colors.onPrimary : Colors.onSurfaceMuted} />
-          <AppText variant="labelMd" weight="bold" style={{ color: canAdd ? Colors.onPrimary : Colors.onSurfaceMuted }}>
-            הוסף קובץ לרשימה
-          </AppText>
-        </Pressable>
+        {data.isUploading && (
+          <View style={s2.uploadingRow}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+            <AppText variant="bodySm" color="muted">מעלה קובץ...</AppText>
+          </View>
+        )}
       </View>
 
       {/* ── Added files list ── */}
@@ -1412,6 +1519,13 @@ function Step2({ data, setData }: { data: Step2Data; setData: React.Dispatch<Rea
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* File picker modal */}
+      <FilePickerModal
+        visible={data.pickSourceOpen}
+        onPicked={handleFilePicked}
+        onCancel={() => update('pickSourceOpen', false)}
+      />
     </View>
   );
 }
@@ -1436,23 +1550,6 @@ const s2 = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.outlineVariant, borderRadius: Radius.md,
     padding: Spacing.md, backgroundColor: Colors.surfaceVariant,
   },
-
-  // Source selector
-  sourceRow: { flexDirection: RTL_ROW, gap: Spacing.sm },
-  sourceBtn: {
-    flex: 1, alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.md,
-    borderRadius: Radius.lg, borderWidth: 1.5, borderColor: Colors.primary,
-    backgroundColor: Colors.primaryContainer,
-  },
-  sourceBtnActive: { backgroundColor: Colors.primary },
-
-  // Add button
-  addBtn: {
-    flexDirection: RTL_ROW, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
-    paddingVertical: Spacing.md, borderRadius: Radius.lg,
-    backgroundColor: Colors.primary,
-  },
-  addBtnDisabled: { backgroundColor: Colors.surfaceVariant },
 
   // File list
   listHeader: { flexDirection: RTL_ROW, alignItems: 'center', gap: Spacing.sm, justifyContent: 'flex-end' },
@@ -1490,6 +1587,36 @@ const s2 = StyleSheet.create({
     paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.outlineLight,
   },
   sheetRowActive: { backgroundColor: Colors.primaryContainer },
+
+  // File picker
+  pickTrigger: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+  },
+  pickTriggerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadingRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+  },
 });
 
 // ─── Step 3: Contract ─────────────────────────────────────────────────────────
@@ -1761,6 +1888,23 @@ export default function NewAssetScreen() {
         if (cancelled) return;
         setEditProperty(property);
         setStep1(step1FromProperty(property));
+        setStep2((prev) => ({
+          ...prev,
+          files: fileEntriesFromMetadata(property.metadata),
+        }));
+        const storageKeyFromMeta = typeof property.metadata?.storageKey === 'string' ? property.metadata.storageKey : null;
+        const fileSizeLabel = typeof property.metadata?.sizeLabel === 'string' ? property.metadata.sizeLabel : '';
+        const fileTypeFromMeta = typeof property.metadata?.fileType === 'string' ? property.metadata.fileType : null;
+        const storageKeyFromProperty = property.storageKey ?? storageKeyFromMeta;
+        const sizeLabelFromProperty = property.sizeLabel ?? fileSizeLabel;
+        const fileTypeFromProperty = property.fileType ?? fileTypeFromMeta;
+        if (storageKeyFromProperty) {
+          setStorageKey(storageKeyFromProperty);
+          setSizeLabel(sizeLabelFromProperty || '');
+          if (fileTypeFromProperty) {
+            setMimeType(fileTypeFromProperty);
+          }
+        }
       })
       .catch((error) => {
         if (cancelled) return;
@@ -1794,11 +1938,18 @@ export default function NewAssetScreen() {
     };
   }, [editProperty?.projectId]);
 
+  const [storageKey, setStorageKey] = useState<string | null>(null);
+  const [mimeType, setMimeType] = useState<string | null>(null);
+  const [sizeLabel, setSizeLabel] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [pickSourceOpen, setPickSourceOpen] = useState(false);
+
   const [step2, setStep2] = useState<Step2Data>({
     files: [],
     pendingName: '',
     pendingCategory: 'other',
-    pendingSource: null,
+    pickSourceOpen: false,
+    isUploading: false,
   });
 
   const [step3, setStep3] = useState<Step3Data>({
@@ -1821,6 +1972,21 @@ export default function NewAssetScreen() {
   /** שלבים 2–3 לא חוסמים המשך (קבצים וחוזה אופציונליים). */
   const canAdvance = step === 1 ? step1Valid : true;
 
+  const handleFilePicked = async (picked: PickedFile) => {
+    setMimeType(picked.mimeType);
+    setIsUploading(true);
+    try {
+      const result = await uploadDocument(picked);
+      setStorageKey(result.storageKey);
+      setSizeLabel(result.sizeLabel);
+    } catch (err) {
+      console.error('[Upload FAILED]', err);
+      Alert.alert('שגיאה בהעלאה', String(err));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleNext = async () => {
     if (step === 1) {
       setStep1Submitted(true);
@@ -1833,6 +1999,11 @@ export default function NewAssetScreen() {
     setSaving(true);
 
     try {
+      const primaryStep2File = step2.files.find((file) => file.storageKey);
+      const propertyStorageKey = storageKey ?? primaryStep2File?.storageKey ?? null;
+      const propertyFileType = mimeType ?? primaryStep2File?.mimeType ?? null;
+      const propertySizeLabel = sizeLabel || primaryStep2File?.sizeLabel || '';
+
       const payload: CreatePropertyInput = {
         name: buildPropertyName(step1),
         address: step1.address,
@@ -1846,6 +2017,7 @@ export default function NewAssetScreen() {
         propertyType: assetKindToBackendType(step1.kind),
         occupancyStatus: step1.occupancyStatus,
         projectId: uuidOrNull(step1.linkedProjectId),
+        ...(propertyStorageKey ? { storageKey: propertyStorageKey, sizeLabel: propertySizeLabel, fileType: propertyFileType } : {}),
         metadata: {
           floorNumber: step1.floorNumber,
           sizeSqm: step1.sizeSqm,
@@ -1861,6 +2033,7 @@ export default function NewAssetScreen() {
           meters: step1.meters,
           files: step2.files,
           linkedContractId: step3.linkedContractId,
+          ...(propertyStorageKey ? { storageKey: propertyStorageKey, sizeLabel: propertySizeLabel, fileType: propertyFileType } : {}),
         },
       };
 
@@ -1907,7 +2080,19 @@ export default function NewAssetScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {step === 1 && <Step1 data={step1} setData={setStep1} errors={step1Errors} showErrors={step1Submitted} />}
+        {step === 1 && (
+          <Step1
+            data={step1}
+            setData={setStep1}
+            errors={step1Errors}
+            showErrors={step1Submitted}
+            isUploading={isUploading}
+            pickSourceOpen={pickSourceOpen}
+            storageKey={storageKey}
+            sizeLabel={sizeLabel}
+            setPickSourceOpen={setPickSourceOpen}
+          />
+        )}
         {step === 2 && <Step2 data={step2} setData={setStep2} />}
         {step === 3 && <Step3 data={step3} setData={setStep3} step1Address={step1.address} />}
       </ScrollView>
@@ -1922,11 +2107,18 @@ export default function NewAssetScreen() {
         <Button
           label={step === 3 ? 'סיום' : 'הבא'}
           onPress={() => void handleNext()}
-          disabled={!canAdvance || saving}
+          disabled={!canAdvance || saving || isUploading || step2.isUploading}
           style={wizardStyles.footerPrimary}
           variant="primary"
         />
       </View>
+
+      {/* File picker modal */}
+      <FilePickerModal
+        visible={pickSourceOpen}
+        onPicked={handleFilePicked}
+        onCancel={() => setPickSourceOpen(false)}
+      />
     </KeyboardAvoidingView>
   );
 }

@@ -118,6 +118,9 @@ export type UpdateDocumentInput = {
   propertyId?: string | null;
   accessLevel?: BackendDocumentAccessLevel;
   linkedTaskId?: string | null;
+  storageKey?: string | null;
+  sizeLabel?: string | null;
+  fileType?: string;
 };
 
 export function updateDocument(id: string, input: UpdateDocumentInput): Promise<BackendDocument> {
@@ -170,8 +173,10 @@ export function backendLinkScopeToClient(scope: BackendDocumentLinkScope): LinkK
   return scope === 'PROJECT' ? 'project' : 'asset';
 }
 
-function fileKindFromFileType(fileType: string): DocumentFileKind {
-  if (fileType === 'pdf' || fileType === 'image' || fileType === 'other') return fileType;
+export function fileKindFromFileType(fileType: string): DocumentFileKind {
+  const lower = fileType.toLowerCase();
+  if (lower === 'image' || lower.startsWith('image/')) return 'image';
+  if (lower === 'pdf' || lower === 'application/pdf') return 'pdf';
   return 'other';
 }
 
@@ -183,6 +188,7 @@ function isoDateToDdMmYyyy(iso: string): string {
 }
 
 export function documentToListRow(doc: BackendDocument): DocumentListRow {
+  const fileKind = fileKindFromFileType(doc.fileType);
   return {
     id: doc.id,
     displayName: doc.displayName,
@@ -193,8 +199,9 @@ export function documentToListRow(doc: BackendDocument): DocumentListRow {
     uploadedAt: isoDateToDdMmYyyy(doc.uploadedAt),
     accessLevel: backendAccessLevelToClient(doc.accessLevel),
     linkedTaskId: doc.linkedTaskId ?? undefined,
-    fileKind: fileKindFromFileType(doc.fileType),
+    fileKind,
     sizeLabel: doc.sizeLabel ?? '',
     uploadedBy: '',
+    storageKey: doc.storageKey ?? null,
   };
 }

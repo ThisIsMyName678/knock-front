@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator } from 'react-native';
+import React, { useCallback, useState, useEffect } from 'react';
+import { View, ScrollView, StyleSheet, Pressable, Share, Alert, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
+import { FullScreenImageViewer } from '@/components/ui/FullScreenImageViewer';
 import {
   PAYMENT_TYPE_LABELS,
   PAYMENT_MODE_LABELS,
@@ -15,6 +17,8 @@ import {
 } from '@/lib/mocks/payments';
 import { getPayment, deletePayment, paymentToDetail } from '@/lib/api/payments';
 import { formatDigitRunsInText, formatIlsInteger } from '@/lib/format/currency';
+import { fileKindFromFileType } from '@/lib/api/documents';
+import { getDownloadUrl } from '@/lib/storage';
 import { Colors, Spacing, Radius, CONTENT_HORIZONTAL_PADDING, MIN_TOUCH } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -26,6 +30,8 @@ export default function PaymentDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [fullScreenImageOpen, setFullScreenImageOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -33,9 +39,13 @@ export default function PaymentDetailScreen() {
       setLoading(true);
       getPayment(id ?? '')
         .then((payment) => {
-          if (active) setDetail(paymentToDetail(payment));
+          if (active) {
+            console.log('[Load] payment:', payment.storageKey, payment.fileType);
+            setDetail(paymentToDetail(payment));
+          }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('[Payment Details] Failed to load:', err);
           if (active) setDetail(null);
         })
         .finally(() => {
@@ -47,9 +57,30 @@ export default function PaymentDetailScreen() {
     }, [id]),
   );
 
+  useEffect(() => {
+    if (!detail) return;
+    let active = true;
+    setDownloadUrl(null);
+    getDownloadUrl(detail.id, 'payments')
+      .then((url) => { if (active) setDownloadUrl(url); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [detail?.id, detail?.storageKey]);
+
   const onDownload = useCallback(() => {
     Alert.alert('הורדה', 'במימוש אמיתי יורד קובץ / מסמך. כעת תצוגה בלבד.', [{ text: 'אישור' }]);
   }, []);
+
+  const onOpenPdf = useCallback(() => {
+    if (downloadUrl) {
+      Linking.openURL(downloadUrl).catch(() => {});
+      return;
+    }
+    if (!detail) return;
+    getDownloadUrl(detail.id, 'payments')
+      .then((url) => Linking.openURL(url))
+      .catch(() => {});
+  }, [detail, downloadUrl]);
 
   const onShare = useCallback(async () => {
     if (!detail) return;
@@ -152,6 +183,35 @@ export default function PaymentDetailScreen() {
           />
         </View>
 
+        {detail.storageKey && (
+          <>
+            {console.log('[Preview] Rendering with downloadUrl:', downloadUrl)}
+            <View style={styles.previewSection}>
+              <AppText variant="labelMd" weight="semiBold" color="muted" style={styles.previewLabel}>
+                תצוגה מקדימה
+              </AppText>
+              <DocumentPreview
+                fileKind={detail.fileType ? fileKindFromFileType(detail.fileType) : 'other'}
+                displayName={detail.displayName}
+                sizeLabel={detail.sizeLabel ?? ''}
+                downloadUrl={downloadUrl}
+                onOpenFullScreen={
+                  detail.fileType && fileKindFromFileType(detail.fileType) === 'image'
+                    ? () => setFullScreenImageOpen(true)
+                    : detail.fileType && fileKindFromFileType(detail.fileType) === 'pdf'
+                      ? onOpenPdf
+                      : undefined
+                }
+                onDownload={
+                  detail.fileType && fileKindFromFileType(detail.fileType) === 'other'
+                    ? onOpenPdf
+                    : undefined
+                }
+              />
+            </View>
+          </>
+        )}
+
         <View style={styles.quickRow}>
           <Pressable style={styles.quickBtn} onPress={onDownload} accessibilityRole="button" accessibilityLabel="הורדה">
             <MaterialCommunityIcons name="download-outline" size={22} color={Colors.primary} />
@@ -207,6 +267,14 @@ export default function PaymentDetailScreen() {
         onCancel={() => setDeleteDialogVisible(false)}
         loading={deleting}
       />
+
+      {downloadUrl && (
+        <FullScreenImageViewer
+          imageUrl={downloadUrl}
+          visible={fullScreenImageOpen}
+          onClose={() => setFullScreenImageOpen(false)}
+        />
+      )}
     </View>
   );
 }
@@ -215,6 +283,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   content: { padding: CONTENT_HORIZONTAL_PADDING, gap: Spacing.base },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
+  previewSection: { gap: Spacing.sm },
+  previewLabel: { textAlign: 'right' },
   amountCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,

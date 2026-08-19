@@ -51,6 +51,9 @@ export type BackendPayment = {
   payerType: string | null;
   payerContactId: string | null;
   notes: string | null;
+  storageKey: string | null;
+  fileType: string | null;
+  sizeLabel: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -122,6 +125,9 @@ export type CreatePaymentInput = {
     indexed: boolean;
   }[];
   shafifPlusDays?: number;
+  storageKey?: string | null;
+  fileType?: string;
+  sizeLabel?: string | null;
 };
 
 export function createPayment(input: CreatePaymentInput): Promise<BackendPayment | BackendPayment[]> {
@@ -140,6 +146,9 @@ export type UpdatePaymentInput = {
   payerType?: string | null;
   payerContactId?: string | null;
   notes?: string | null;
+  storageKey?: string | null;
+  fileType?: string;
+  sizeLabel?: string | null;
 };
 
 export function updatePayment(id: string, input: UpdatePaymentInput): Promise<BackendPayment> {
@@ -241,8 +250,10 @@ function isoDateToDdMmYyyy(iso: string): string {
 }
 
 export function paymentToDetail(payment: BackendPayment): PaymentDetailMock {
+  const row = paymentToListRow(payment);
+  console.log('[paymentToDetail] row.storageKey:', row.storageKey);
   return {
-    ...paymentToListRow(payment),
+    ...row,
     payerLabel: payment.payerType ? PAYER_TYPE_LABELS[payment.payerType] : undefined,
     vatPercent: `${Number(payment.vatPercent)}%`,
     amountNet: Number(payment.amountNet),
@@ -253,6 +264,7 @@ export function paymentToDetail(payment: BackendPayment): PaymentDetailMock {
 }
 
 export function paymentToListRow(payment: BackendPayment): PaymentListRow {
+  console.log('[paymentToListRow] payment.storageKey:', payment.storageKey);
   return {
     id: payment.id,
     displayName: payment.name,
@@ -268,5 +280,8 @@ export function paymentToListRow(payment: BackendPayment): PaymentListRow {
     amount: Number(payment.amountGross),
     direction: payment.direction === 'IN' ? 'inbound' : 'outbound',
     progressLabel: payment.progressLabel,
+    storageKey: payment.storageKey ?? null,
+    fileType: payment.fileType ?? null,
+    sizeLabel: payment.sizeLabel ?? null,
   };
 }

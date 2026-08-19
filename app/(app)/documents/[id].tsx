@@ -7,7 +7,8 @@ import {
   Share,
   Modal,
   TouchableWithoutFeedback,
-  type DimensionValue,
+  Image,
+  Linking,
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,164 +20,117 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { DocumentPreview } from '@/components/modules/documents/DocumentPreview';
 import {
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_ACCESS_LABELS,
   type DocumentListRow,
 } from '@/lib/mocks/documents';
 import { getDocument, deleteDocument, documentToListRow } from '@/lib/api/documents';
+import { getDownloadUrl } from '@/lib/storage';
 import { getTask } from '@/lib/api/tasks';
 import {
   Colors,
   Spacing,
   Radius,
   Shadow,
-  FontFamily,
-  FontSize,
   CONTENT_HORIZONTAL_PADDING,
 } from '@/constants/tokens';
 import { RTL_ROW } from '@/constants/rtl';
 
-// ─── Mock PDF Preview ─────────────────────────────────────────────────────────
+// ─── Full-Screen Image Viewer ────────────────────────────────────────────────
 
-function PdfPreview({ name }: { name: string }) {
-  const lines = [
-    { width: '90%', height: 14 },
-    { width: '75%', height: 10 },
-    { width: '85%', height: 10 },
-    { width: '60%', height: 10 },
-    { width: '0%',  height: 12 }, // gap
-    { width: '80%', height: 10 },
-    { width: '88%', height: 10 },
-    { width: '70%', height: 10 },
-    { width: '65%', height: 10 },
-    { width: '0%',  height: 12 },
-    { width: '55%', height: 10 },
-    { width: '82%', height: 10 },
-    { width: '72%', height: 10 },
-    { width: '40%', height: 10 },
-    { width: '0%',  height: 16 },
-    { width: '78%', height: 10 },
-    { width: '91%', height: 10 },
-    { width: '66%', height: 10 },
-    { width: '50%', height: 10 },
-  ] as const;
+function FullScreenImageViewer({
+  url,
+  name,
+  visible,
+  onClose,
+}: {
+  url: string | null;
+  name: string;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  if (!visible || !url) return null;
 
   return (
-    <View style={preview.pdfPage}>
-      {/* Page header */}
-      <View style={preview.pdfHeader}>
-        <MaterialCommunityIcons name="file-pdf-box" size={18} color={Colors.error} />
-        <AppText variant="caption" style={{ flex: 1, textAlign: 'right', color: Colors.onSurfaceMuted }} numberOfLines={1}>
-          {name}
-        </AppText>
-      </View>
-      <View style={preview.pdfDivider} />
+    <Modal
+      visible={visible}
+      transparent={false}
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+    >
+      <View style={imageViewerStyles.container}>
+        <View style={imageViewerStyles.header}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={10}
+            style={({ pressed }) => [
+              imageViewerStyles.closeBtn,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <MaterialCommunityIcons name="close" size={28} color="#fff" />
+          </Pressable>
+          <AppText
+            variant="bodySm"
+            style={imageViewerStyles.headerTitle}
+            numberOfLines={1}
+          >
+            {name}
+          </AppText>
+          <View style={{ width: 44 }} />
+        </View>
 
-      {/* Mock title block */}
-      <View style={[preview.pdfLine, { width: '60%', height: 16, alignSelf: 'center', marginBottom: 10, marginTop: 4, borderRadius: 3 }]} />
-      <View style={[preview.pdfLine, { width: '40%', height: 10, alignSelf: 'center', marginBottom: 16, borderRadius: 3 }]} />
-
-      {/* Mock text lines */}
-      {lines.map((line, i) =>
-        line.width === '0%' ? (
-          <View key={i} style={{ height: line.height }} />
-        ) : (
-          <View
-            key={i}
-            style={[preview.pdfLine, { width: line.width as DimensionValue, height: line.height, marginBottom: 5, borderRadius: 2 }]}
+        <View style={imageViewerStyles.content}>
+          <Image
+            source={{ uri: url }}
+            style={imageViewerStyles.image}
+            resizeMode="contain"
           />
-        ),
-      )}
-
-      {/* Page footer */}
-      <View style={preview.pdfFooter}>
-        <AppText variant="caption" color="muted">עמוד 1 מתוך 3</AppText>
+        </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
-// ─── Mock Image Preview ───────────────────────────────────────────────────────
-
-function ImagePreview({ name }: { name: string }) {
-  return (
-    <View style={preview.imageBox}>
-      <View style={preview.imageInner}>
-        <MaterialCommunityIcons name="image-outline" size={52} color="rgba(255,255,255,0.55)" />
-        <AppText variant="caption" style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: Spacing.sm }} numberOfLines={2}>
-          {name}
-        </AppText>
-      </View>
-      {/* Simulated image grid overlay */}
-      <View style={preview.imageGrid}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <View key={i} style={[preview.imageCell, { opacity: 0.07 + (i % 3) * 0.04 }]} />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-const preview = StyleSheet.create({
-  // PDF
-  pdfPage: {
-    backgroundColor: '#fff',
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-    ...Shadow.sm,
+const imageViewerStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
   },
-  pdfHeader: {
-    flexDirection: RTL_ROW,
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  pdfDivider: {
-    height: 1,
-    backgroundColor: Colors.outlineLight,
-    marginBottom: Spacing.md,
-  },
-  pdfLine: {
-    backgroundColor: '#e8e8e8',
-  },
-  pdfFooter: {
-    marginTop: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.outlineLight,
-    paddingTop: Spacing.sm,
-    alignItems: 'center',
-  },
-
-  // Image
-  imageBox: {
-    height: 220,
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    backgroundColor: '#4a6fa5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  imageGrid: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+  header: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    zIndex: 1,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
-  imageCell: {
-    width: '33.33%',
-    height: '50%',
-    backgroundColor: '#fff',
+  closeBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    color: '#fff',
+    flex: 1,
+    textAlign: 'center',
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
   },
 });
+
 
 // ─── Actions Dropdown Menu ────────────────────────────────────────────────────
 
@@ -304,6 +258,8 @@ export default function DocumentDetailScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [linkedTaskTitle, setLinkedTaskTitle] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [fullScreenImageOpen, setFullScreenImageOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -343,6 +299,16 @@ export default function DocumentDetailScreen() {
     };
   }, [doc?.linkedTaskId]);
 
+  useEffect(() => {
+    if (!doc) return;
+    let active = true;
+    setDownloadUrl(null);
+    getDownloadUrl(doc.id)
+      .then((url) => { if (active) setDownloadUrl(url); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [doc?.id, doc?.storageKey]);
+
   const taskTitle = linkedTaskTitle;
 
   const onShare = useCallback(() => {
@@ -350,11 +316,14 @@ export default function DocumentDetailScreen() {
   }, [doc]);
 
   const onDownload = useCallback(() => {
-    Share.share({
-      message: `הורדה (דמה)\n${doc?.displayName ?? ''}\nhttps://files.example.mock/${doc?.id ?? ''}`,
-      title: doc?.displayName ?? '',
-    }).catch(() => {});
-  }, [doc]);
+    if (downloadUrl) {
+      Linking.openURL(downloadUrl).catch(() => {});
+    } else if (doc) {
+      getDownloadUrl(doc.id)
+        .then((url) => Linking.openURL(url))
+        .catch(() => {});
+    }
+  }, [doc, downloadUrl]);
 
   const onDelete = useCallback(() => {
     if (!doc) return;
@@ -417,11 +386,11 @@ export default function DocumentDetailScreen() {
       >
         {/* ── Document info row ── */}
         <View style={styles.infoRow}>
-          <View style={[styles.fileIconWrap, { backgroundColor: doc.fileKind === 'pdf' ? Colors.errorContainer : Colors.infoContainer }]}>
+          <View style={[styles.fileIconWrap, { backgroundColor: doc.fileKind === 'pdf' ? Colors.errorContainer : doc.fileKind === 'image' ? Colors.infoContainer : Colors.outline }]}>
             <MaterialCommunityIcons
               name={doc.fileKind === 'pdf' ? 'file-pdf-box' : doc.fileKind === 'image' ? 'file-image-outline' : 'file-document-outline'}
               size={32}
-              color={doc.fileKind === 'pdf' ? Colors.error : Colors.info}
+              color={doc.fileKind === 'pdf' ? Colors.error : doc.fileKind === 'image' ? Colors.info : Colors.onBackground}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -448,26 +417,25 @@ export default function DocumentDetailScreen() {
           </Pressable>
         </View>
 
-        {/* ── Mock preview panel ── */}
+        {/* ── Preview panel ── */}
         <View style={styles.previewSection}>
           <AppText variant="labelMd" weight="semiBold" color="muted" style={styles.previewLabel}>
             תצוגה מקדימה
           </AppText>
-          {doc.fileKind === 'pdf' ? (
-            <PdfPreview name={doc.displayName} />
-          ) : (
-            <ImagePreview name={doc.displayName} />
-          )}
-          <Pressable
-            onPress={onDownload}
-            style={({ pressed }) => [styles.openFullBtn, pressed && { opacity: 0.8 }]}
-            accessibilityRole="button"
-          >
-            <MaterialCommunityIcons name="open-in-new" size={15} color={Colors.primary} />
-            <AppText variant="labelMd" color="primary" weight="semiBold">
-              פתיחה מלאה
-            </AppText>
-          </Pressable>
+          <DocumentPreview
+            fileKind={doc.fileKind}
+            displayName={doc.displayName}
+            sizeLabel={doc.sizeLabel}
+            downloadUrl={downloadUrl}
+            onOpenFullScreen={
+              doc.fileKind === 'image'
+                ? () => setFullScreenImageOpen(true)
+                : doc.fileKind === 'pdf'
+                  ? onDownload
+                  : undefined
+            }
+            onDownload={doc.fileKind === 'other' ? onDownload : undefined}
+          />
         </View>
 
         {/* ── Details card ── */}
@@ -540,6 +508,14 @@ export default function DocumentDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Full-screen image viewer ── */}
+      <FullScreenImageViewer
+        url={doc.fileKind === 'image' ? downloadUrl : null}
+        name={doc.displayName}
+        visible={fullScreenImageOpen}
+        onClose={() => setFullScreenImageOpen(false)}
+      />
     </View>
   );
 }

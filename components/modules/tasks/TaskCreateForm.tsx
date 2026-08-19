@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -19,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { searchEntityLinks, type EntityLinkOption, type LinkKind } from '@/lib/api/entity-links';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { FilePickerModal } from '@/components/modules/files/FilePickerModal';
 import { PAYMENT_TYPE_LABELS } from '@/lib/mocks/payments';
 import {
   TASK_KIND_LABELS,
@@ -38,6 +40,9 @@ import {
   ddMmYyyyToIso,
 } from '@/lib/api/tasks';
 import { listPayments, type BackendPayment } from '@/lib/api/payments';
+import { uploadDocument, type PickedFile } from '@/lib/storage';
+import { fileKindFromFileType } from '@/lib/api/documents';
+import { type DocumentFileKind } from '@/lib/mocks/documents';
 import {
   Colors,
   Spacing,
@@ -95,7 +100,13 @@ export function TaskCreateForm() {
   const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
   const [cost, setCost] = useState('');
   const [handlingTime, setHandlingTime] = useState('');
-  const [attachmentName, setAttachmentName] = useState('');
+  const [docName, setDocName] = useState('');
+  const [storageKey, setStorageKey] = useState<string | null>(null);
+  const [mimeType, setMimeType] = useState<string | null>(null);
+  const [fileKind, setFileKind] = useState<DocumentFileKind>('other');
+  const [sizeLabel, setSizeLabel] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [pickSourceOpen, setPickSourceOpen] = useState(false);
 
   const [entities, setEntities] = useState<EntityLinkOption[]>([]);
   useEffect(() => {
@@ -162,6 +173,12 @@ export function TaskCreateForm() {
 
     setSubmitting(true);
     try {
+      const dueDateIso = ddMmYyyyToIso(endDate);
+      if (!dueDateIso) {
+        setSaveError('תאריך היעד אינו תקין');
+        setSubmitting(false);
+        return;
+      }
       await createTask({
         title: title.trim(),
         taskType: clientTaskTypeToBackend(taskKind),
@@ -170,10 +187,13 @@ export function TaskCreateForm() {
         propertyId: linkSelected!.kind === 'asset' ? linkSelected!.id : null,
         projectId: linkSelected!.kind === 'project' ? linkSelected!.id : null,
         startDate: startDate.trim() ? ddMmYyyyToIso(startDate) : null,
-        dueDate: ddMmYyyyToIso(endDate),
+        dueDate: dueDateIso,
         cost: cost.trim() || null,
         handlingTime: handlingTime.trim() ? parseInt(handlingTime.trim(), 10) : null,
         paymentId: linkedPaymentId ?? null,
+        storageKey: storageKey || null,
+        sizeLabel: sizeLabel || null,
+        fileType: mimeType || null,
       });
       router.back();
     } catch (err) {
@@ -183,11 +203,22 @@ export function TaskCreateForm() {
     }
   };
 
-  const mockAttach = () => {
-    Alert.alert('צירוף קובץ', 'במימוש אמיתי: בחירת קובץ / מצלמה.', [
-      { text: 'אישור', onPress: () => setAttachmentName((a) => a || 'קובץ_משויך.pdf') },
-      { text: 'ביטול', style: 'cancel' },
-    ]);
+  const handleFilePicked = async (picked: PickedFile) => {
+    const kind = fileKindFromFileType(picked.mimeType);
+    setDocName(picked.name);
+    setFileKind(kind);
+    setMimeType(picked.mimeType);
+    setIsUploading(true);
+    try {
+      const result = await uploadDocument(picked);
+      setStorageKey(result.storageKey);
+      setSizeLabel(result.sizeLabel);
+    } catch (err) {
+      console.error('[Upload FAILED]', err);
+      Alert.alert('שגיאה בהעלאה', String(err));
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -402,33 +433,40 @@ export function TaskCreateForm() {
 
             {/* ─── צרף קובץ ─── */}
             <AppText variant="labelMd" weight="semiBold" style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
-              קבצים מצורפים
+              קובץ משויך
             </AppText>
-            {attachmentName ? (
-              <View style={styles.attachPill}>
-                <Pressable onPress={() => setAttachmentName('')} accessibilityRole="button">
-                  <MaterialCommunityIcons name="close-circle" size={18} color={Colors.onSurfaceMuted} />
-                </Pressable>
-                <MaterialCommunityIcons name="file-outline" size={18} color={Colors.primary} />
-                <AppText variant="bodySm" style={{ flex: 1, textAlign: 'right' }} numberOfLines={1}>
-                  {attachmentName}
-                </AppText>
+
+            {!isUploading && (
+              <Pressable
+                onPress={() => setPickSourceOpen(true)}
+                style={({ pressed }) => [styles.pickTrigger, pressed && { opacity: 0.85 }]}
+                accessibilityRole="button"
+                accessibilityLabel="פעולות מהירות — בחירת מקור קובץ"
+              >
+              <View style={styles.pickTriggerIconWrap}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={24} color={Colors.primary} />
               </View>
-            ) : null}
-            <View style={styles.fileBtns}>
-              <Pressable style={styles.fileBtn} onPress={mockAttach} accessibilityRole="button">
-                <MaterialCommunityIcons name="folder-outline" size={22} color={Colors.primary} />
-                <AppText variant="caption">קובץ</AppText>
+              <View style={{ flex: 1 }}>
+                <AppText variant="bodySm" weight="semiBold">פעולות מהירות</AppText>
+                <AppText variant="caption" color="muted">בחר קובץ, תמונה או מצלמה</AppText>
+              </View>
+              <MaterialCommunityIcons name="chevron-down" size={22} color={Colors.onSurfaceMuted} />
               </Pressable>
-              <Pressable style={styles.fileBtn} onPress={mockAttach} accessibilityRole="button">
-                <MaterialCommunityIcons name="image-outline" size={22} color={Colors.primary} />
-                <AppText variant="caption">תמונה</AppText>
-              </Pressable>
-              <Pressable style={styles.fileBtn} onPress={mockAttach} accessibilityRole="button">
-                <MaterialCommunityIcons name="camera-outline" size={22} color={Colors.primary} />
-                <AppText variant="caption">מצלמה</AppText>
-              </Pressable>
-            </View>
+            )}
+
+            {isUploading && (
+              <View style={styles.uploadingRow}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <AppText variant="bodySm" color="muted">מעלה קובץ...</AppText>
+              </View>
+            )}
+
+            {storageKey && !isUploading && (
+              <View style={styles.uploadedRow}>
+                <MaterialCommunityIcons name="check-circle" size={18} color={Colors.success ?? Colors.primary} />
+                <AppText variant="bodySm" color="muted">{sizeLabel} — הועלה בהצלחה</AppText>
+              </View>
+            )}
 
             {submitted && errors.link ? (
               <AppText variant="caption" style={{ color: Colors.error, textAlign: 'right', marginTop: Spacing.sm }}>
@@ -449,7 +487,8 @@ export function TaskCreateForm() {
             fullWidth
             size="lg"
             style={{ marginTop: Spacing.base }}
-            disabled={submitting}
+            disabled={submitting || isUploading}
+            loading={submitting || isUploading}
           />
         </ScrollView>
 
@@ -462,6 +501,12 @@ export function TaskCreateForm() {
           }}
           onClose={() => setDatePickerTarget(null)}
           title={datePickerTarget === 'start' ? 'תאריך התחלה' : 'תאריך סיום'}
+        />
+
+        <FilePickerModal
+          visible={pickSourceOpen}
+          onPicked={handleFilePicked}
+          onCancel={() => setPickSourceOpen(false)}
         />
 
         <Modal visible={paymentModal} transparent animationType="slide" onRequestClose={() => setPaymentModal(false)}>
@@ -573,16 +618,42 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryContainer,
     borderRadius: Radius.md,
   },
-  fileBtns: { flexDirection: RTL_ROW, gap: Spacing.md },
-  fileBtn: {
-    flex: 1,
+  pickTrigger: {
+    flexDirection: RTL_ROW,
     alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
     padding: Spacing.md,
     borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+  },
+  pickTriggerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadingRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
     backgroundColor: Colors.surfaceVariant,
-    gap: 4,
+    borderRadius: Radius.md,
+  },
+  uploadedRow: {
+    flexDirection: RTL_ROW,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
   },
   dropdown: {
     flexDirection: RTL_ROW,

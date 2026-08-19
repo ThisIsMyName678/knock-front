@@ -107,6 +107,9 @@ export type TaskListRow = {
    * מקור הצגה ב-UI נשאר costNotes.
    */
   cost?: number;
+  storageKey?: string | null;
+  fileType?: string | null;
+  sizeLabel?: string | null;
 };
 
 function parseDdMmYyyy(s: string): number | null {
